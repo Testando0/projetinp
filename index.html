@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMPOL — Sistema Central</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060810;
+  --surface: #0d1117;
+  --surface2: #111927;
+  --border: #1a2840;
+  --border2: #243550;
+  --accent: #00d4ff;
+  --accent2: #ff6b2b;
+  --accent3: #00ff88;
+  --danger: #ff3860;
+  --warn: #ffdd57;
+  --purple: #cc66ff;
+  --text: #c9d6e8;
+  --text-dim: #4a6a8a;
+  --text-mid: #7a9ab8;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px);pointer-events:none;z-index:9999;}
+.screen{display:none;min-height:100vh;}
+.screen.active{display:flex;}
+
+/* LOGIN */
+#s-login{flex-direction:column;justify-content:center;align-items:center;background:radial-gradient(ellipse 90% 60% at 50% -10%,rgba(0,212,255,0.07) 0%,transparent 65%),var(--bg);padding:30px 20px;}
+.login-mark{font-family:'Orbitron',sans-serif;font-size:clamp(2rem,6vw,3.2rem);font-weight:900;color:var(--accent);letter-spacing:.18em;text-shadow:0 0 40px rgba(0,212,255,0.55),0 0 100px rgba(0,212,255,0.15);animation:flicker 6s infinite;line-height:1;}
+.login-sub{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);letter-spacing:.35em;margin:8px 0 36px;text-transform:uppercase;}
+@keyframes flicker{0%,94%,100%{opacity:1}95%{opacity:.6}96%{opacity:1}97%{opacity:.4}98%{opacity:1}}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:36px 40px;width:min(400px,96vw);box-shadow:0 0 24px rgba(0,212,255,0.25),0 24px 60px rgba(0,0,0,0.5);position:relative;overflow:hidden;}
+.login-card::before{content:'';position:absolute;top:0;left:-100%;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:beam 4s linear infinite;}
+@keyframes beam{to{left:100%;}}
+.login-card h2{font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--accent);letter-spacing:.18em;margin-bottom:26px;}
+
+/* INPUTS */
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px;}
+input,select,textarea{width:100%;background:rgba(0,0,0,0.45);border:1px solid var(--border);border-radius:4px;padding:10px 13px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:1rem;font-weight:500;outline:none;transition:border-color .18s,box-shadow .18s;-webkit-appearance:none;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 10px rgba(0,212,255,0.18);}
+select option{background:#0d1117;color:#c9d6e8;}
+textarea{resize:vertical;min-height:88px;line-height:1.5;}
+.input-wrap{position:relative;}
+.input-wrap input{padding-right:40px;}
+.eye-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1rem;padding:4px;transition:color .15s;width:auto;}
+.eye-btn:hover{color:var(--accent);}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:11px 20px;border:none;border-radius:4px;font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .18s;white-space:nowrap;}
+.btn-block{width:100%;}
+.btn-primary{background:var(--accent);color:#000;box-shadow:0 0 18px rgba(0,212,255,.35);}
+.btn-primary:hover{background:#20e8ff;box-shadow:0 0 28px rgba(0,212,255,.55);transform:translateY(-1px);}
+.btn-success{background:var(--accent3);color:#000;box-shadow:0 0 18px rgba(0,255,136,.3);}
+.btn-success:hover{background:#33ffaa;}
+.btn-danger{background:var(--danger);color:#fff;box-shadow:0 0 18px rgba(255,56,96,.3);}
+.btn-danger:hover{background:#ff5577;}
+.btn-warn{background:var(--warn);color:#000;}
+.btn-warn:hover{background:#ffe980;}
+.btn-ghost{background:transparent;color:var(--text-mid);border:1px solid var(--border2);}
+.btn-ghost:hover{color:var(--text);border-color:var(--accent);}
+.btn-sm{padding:7px 13px;font-size:.62rem;}
+.btn-xs{padding:5px 10px;font-size:.58rem;}
+.hint{font-family:'Share Tech Mono',monospace;font-size:.63rem;color:var(--text-dim);line-height:1.7;}
+.hint span{color:var(--accent);}
+.hint-box{margin-top:16px;background:rgba(0,0,0,.3);border-radius:4px;padding:12px 14px;}
+
+/* PANEL */
+#s-panel{flex-direction:column;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:54px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:200;flex-shrink:0;}
+.topbar-l{display:flex;align-items:center;gap:14px;}
+.topbar-logo{font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:900;color:var(--accent);letter-spacing:.16em;}
+.topbar-div{width:1px;height:24px;background:var(--border2);}
+.cargo-badge{font-family:'Share Tech Mono',monospace;font-size:.65rem;padding:3px 10px;border-radius:3px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+.cb-guarda{background:rgba(74,106,138,.18);color:#7aaced;border:1px solid #1e3a5a;}
+.cb-agente{background:rgba(0,212,255,.1);color:var(--accent);border:1px solid rgba(0,212,255,.3);}
+.cb-tatico{background:rgba(255,107,43,.1);color:var(--accent2);border:1px solid rgba(255,107,43,.3);}
+.cb-escrivao{background:rgba(255,221,87,.1);color:var(--warn);border:1px solid rgba(255,221,87,.3);}
+.cb-delegado{background:rgba(204,102,255,.12);color:var(--purple);border:1px solid rgba(204,102,255,.3);}
+.cb-chefe{background:rgba(0,255,136,.1);color:var(--accent3);border:1px solid rgba(0,255,136,.3);}
+.topbar-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.topbar-user{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--text-mid);}
+.notif-pill{display:none;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:.63rem;color:var(--danger);background:rgba(255,56,96,.1);border:1px solid rgba(255,56,96,.25);border-radius:20px;padding:3px 10px;}
+.notif-pill.show{display:flex;}
+.notif-dot{width:7px;height:7px;background:var(--danger);border-radius:50%;animation:blink 1.4s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* TABS */
+.tabs{display:flex;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;}
+.tabs::-webkit-scrollbar{height:3px;}
+.tabs::-webkit-scrollbar-thumb{background:var(--border2);}
+.tab{padding:13px 18px;cursor:pointer;font-family:'Orbitron',sans-serif;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);border-bottom:2px solid transparent;transition:all .18s;white-space:nowrap;position:relative;flex-shrink:0;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-n{position:absolute;top:7px;right:3px;background:var(--danger);color:#fff;font-size:.52rem;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;}
+
+/* CONTENT */
+.content{flex:1;padding:26px 24px;max-width:1060px;margin:0 auto;width:100%;}
+.stitle{font-family:'Orbitron',sans-serif;font-size:.75rem;font-weight:700;color:var(--accent);letter-spacing:.2em;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:10px;}
+.stitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent);}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:22px 24px;margin-bottom:18px;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:2px;background:var(--accent);}
+.card.c-danger::before{background:var(--danger);}
+.card.c-success::before{background:var(--accent3);}
+.card.c-warn::before{background:var(--warn);}
+.card.c-none::before{display:none;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.g-full{grid-column:1/-1;}
+@media(max-width:600px){.g2,.g3{grid-template-columns:1fr;}}
+.stat-box{text-align:center;padding:20px 14px;}
+.stat-num{font-family:'Orbitron',sans-serif;font-size:2.2rem;font-weight:900;line-height:1;}
+.stat-lbl{font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:5px;letter-spacing:.1em;}
+
+/* OC CARDS */
+.oc-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:18px 20px;margin-bottom:12px;transition:border-color .2s;}
+.oc-wrap:hover{border-color:var(--border2);}
+.oc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.oc-meta{font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);line-height:1.8;}
+.oc-meta b{color:var(--accent);font-weight:normal;}
+.status-chip{font-family:'Share Tech Mono',monospace;font-size:.62rem;padding:3px 9px;border-radius:3px;letter-spacing:.07em;text-transform:uppercase;}
+.sc-p{background:rgba(255,221,87,.12);color:var(--warn);border:1px solid rgba(255,221,87,.28);}
+.sc-a{background:rgba(0,255,136,.12);color:var(--accent3);border:1px solid rgba(0,255,136,.28);}
+.sc-r{background:rgba(255,56,96,.12);color:var(--danger);border:1px solid rgba(255,56,96,.28);}
+.oc-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:10px;}
+@media(max-width:500px){.oc-fields{grid-template-columns:1fr;}}
+.oc-f label{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);display:block;margin-bottom:2px;letter-spacing:.08em;text-transform:uppercase;}
+.oc-f span{font-size:.95rem;font-weight:600;}
+.dep-box{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:3px;padding:10px 13px;font-size:.88rem;line-height:1.55;color:var(--text);margin-bottom:10px;}
+.resp-lbl{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);display:block;margin-bottom:5px;letter-spacing:.08em;text-transform:uppercase;margin-top:8px;}
+.oc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.decide-zone{display:none;margin-top:12px;animation:fadeIn .2s;}
+.decide-zone.open{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:.9rem;}
+.tbl th{padding:10px 14px;text-align:left;font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;background:rgba(0,0,0,.35);border-bottom:1px solid var(--border);}
+.tbl td{padding:11px 14px;border-bottom:1px solid rgba(26,40,64,.5);vertical-align:middle;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:rgba(0,212,255,.03);}
+.u-avatar{width:32px;height:32px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:.65rem;font-weight:700;background:rgba(0,212,255,.1);color:var(--accent);border:1px solid rgba(0,212,255,.25);flex-shrink:0;}
+
+/* AUDIT LOG */
+.log-entry{display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(26,40,64,.5);font-size:.85rem;}
+.log-entry:last-child{border-bottom:none;}
+.log-time{font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);white-space:nowrap;margin-top:2px;min-width:80px;}
+.log-icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
+.log-txt{flex:1;line-height:1.5;}
+.log-txt b{color:var(--accent);}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 20px;}
+.empty-ico{font-size:2.2rem;opacity:.25;margin-bottom:10px;}
+.empty p{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);letter-spacing:.1em;}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;justify-content:center;align-items:center;backdrop-filter:blur(4px);}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:30px 32px;width:min(460px,96vw);box-shadow:0 0 24px rgba(0,212,255,0.25),0 32px 80px rgba(0,0,0,.6);position:relative;animation:fadeIn .22s;}
+.modal h3{font-family:'Orbitron',sans-serif;font-size:.8rem;color:var(--accent);letter-spacing:.16em;margin-bottom:22px;}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;padding:4px;width:auto;}
+.modal-close:hover{color:var(--danger);}
+
+/* TOAST */
+#toasts{position:fixed;bottom:22px;right:22px;z-index:9998;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--surface2);border:1px solid var(--border2);border-left:3px solid var(--accent);border-radius:4px;padding:12px 16px;font-size:.85rem;font-weight:600;min-width:240px;max-width:320px;box-shadow:0 6px 24px rgba(0,0,0,.5);animation:slideIn .25s ease;cursor:pointer;}
+.toast.t-s{border-left-color:var(--accent3);}
+.toast.t-d{border-left-color:var(--danger);}
+.toast.t-w{border-left-color:var(--warn);}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="screen active" id="s-login">
+  <div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:40px 20px;">
+    <div class="login-mark">GMPOL</div>
+    <div class="login-sub">Sistema Central de Ocorrências</div>
+    <div class="login-card">
+      <h2>▸ ACESSO AO SISTEMA</h2>
+      <div class="fg"><label>Usuário</label><input id="l-user" placeholder="login" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div class="fg"><label>Senha</label>
+        <div class="input-wrap">
+          <input id="l-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+          <button class="eye-btn" onclick="toggleEye('l-pass',this)" tabindex="-1">👁</button>
+        </div>
+      </div>
+      <div class="fg"><label>Cargo</label>
+        <select id="l-cargo">
+          <option value="">Selecione seu cargo…</option>
+          <option value="guarda">Guarda Municipal</option>
+          <option value="agente">Agente</option>
+          <option value="tatico">Tático</option>
+          <option value="escrivao">Escrivão</option>
+          <option value="delegado">Delegado</option>
+          <option value="chefe">Chefe de Polícia</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:18px;" onclick="doLogin()">ENTRAR</button>
+      <div class="hint-box hint">
+        <div style="color:var(--text-mid);margin-bottom:4px;">CREDENCIAIS PADRÃO</div>
+        <div>Chefe &rarr; <span>chefe</span> / <span>Chefe@123</span></div>
+        <div>Delegado &rarr; <span>delegado</span> / <span>Del@123</span></div>
+        <div>Outros &rarr; <span>guarda1</span> / <span>User@123</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="screen" id="s-panel" style="flex-direction:column;">
+  <div class="topbar">
+    <div class="topbar-l">
+      <div class="topbar-logo">GMPOL</div>
+      <div class="topbar-div"></div>
+      <div id="tb-badge" class="cargo-badge"></div>
+    </div>
+    <div class="topbar-r">
+      <div class="notif-pill" id="notif-pill"><span class="notif-dot"></span><span id="notif-txt"></span></div>
+      <span class="topbar-user" id="tb-user"></span>
+      <button class="btn btn-ghost btn-sm" onclick="openModal('m-senha')">🔑 SENHA</button>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">SAIR</button>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<!-- MODAL: ALTERAR SENHA -->
+<div class="modal-bg" id="m-senha">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('m-senha')">✕</button>
+    <h3>▸ ALTERAR SENHA</h3>
+    <div class="fg"><label>Senha Atual</label>
+      <div class="input-wrap">
+        <input id="s-atual" type="password" placeholder="Sua senha atual">
+        <button class="eye-btn" onclick="toggleEye('s-atual',this)" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <div class="fg"><label>Nova Senha <span style="color:var(--text-dim)">(mín. 6 caracteres)</span></label>
+      <div class="input-wrap">
+        <input id="s-nova" type="password" placeholder="Nova senha">
+        <button class="eye-btn" onclick="toggleEye('s-nova',this)" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <div class="fg"><label>Confirmar Nova Senha</label>
+      <div class="input-wrap">
+        <input id="s-conf" type="password" placeholder="Repita a nova senha">
+        <button class="eye-btn" onclick="toggleEye('s-conf',this)" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <div id="s-strength" style="height:4px;border-radius:2px;background:var(--border);margin-bottom:14px;overflow:hidden;"><div id="s-bar" style="height:100%;width:0;transition:width .3s,background .3s;border-radius:2px;"></div></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="alterarSenha()">SALVAR</button>
+      <button class="btn btn-ghost"  style="flex:1;" onclick="closeModal('m-senha')">CANCELAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CRIAR USUÁRIO -->
+<div class="modal-bg" id="m-novo-user">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('m-novo-user')">✕</button>
+    <h3>▸ CRIAR USUÁRIO</h3>
+    <div class="fg"><label>Nome Completo</label><input id="nu-nome" placeholder="Ex: Cap. Rodrigues"></div>
+    <div class="fg"><label>Login (sem espaços)</label><input id="nu-user" placeholder="Ex: rodrigues" autocomplete="off"></div>
+    <div class="fg"><label>Cargo</label>
+      <select id="nu-cargo">
+        <option value="guarda">Guarda Municipal</option>
+        <option value="agente">Agente</option>
+        <option value="tatico">Tático</option>
+        <option value="escrivao">Escrivão</option>
+        <option value="delegado">Delegado</option>
+      </select>
+    </div>
+    <div class="fg"><label>Senha Inicial <span style="color:var(--text-dim)">(mín. 6 caracteres)</span></label>
+      <div class="input-wrap">
+        <input id="nu-pass" type="password" placeholder="••••••••">
+        <button class="eye-btn" onclick="toggleEye('nu-pass',this)" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-success btn-block" style="margin-top:6px;" onclick="criarUsuario()">CRIAR USUÁRIO</button>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAR EXCLUSÃO -->
+<div class="modal-bg" id="m-del-user">
+  <div class="modal" style="max-width:360px;">
+    <button class="modal-close" onclick="closeModal('m-del-user')">✕</button>
+    <h3 style="color:var(--danger);">▸ REMOVER USUÁRIO</h3>
+    <p style="color:var(--text-mid);font-size:.9rem;line-height:1.6;margin-bottom:20px;">
+      Confirma a remoção de <b id="del-nome-confirm" style="color:var(--text);"></b>? Esta ação não pode ser desfeita.
+    </p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-danger" style="flex:1;" onclick="confirmarDelUsuario()">REMOVER</button>
+      <button class="btn btn-ghost"  style="flex:1;" onclick="closeModal('m-del-user')">CANCELAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: REDEFINIR SENHA (Chefe) -->
+<div class="modal-bg" id="m-reset-pass">
+  <div class="modal" style="max-width:380px;">
+    <button class="modal-close" onclick="closeModal('m-reset-pass')">✕</button>
+    <h3>▸ REDEFINIR SENHA</h3>
+    <p style="color:var(--text-mid);font-size:.88rem;margin-bottom:16px;">Redefinindo senha de: <b id="reset-nome" style="color:var(--accent);"></b></p>
+    <div class="fg"><label>Nova Senha</label>
+      <div class="input-wrap">
+        <input id="r-nova" type="password" placeholder="Mín. 6 caracteres">
+        <button class="eye-btn" onclick="toggleEye('r-nova',this)" tabindex="-1">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-warn btn-block" style="margin-top:6px;" onclick="confirmarResetSenha()">REDEFINIR SENHA</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ══ STORAGE KEYS ══
+const K = { users:'gmpol_users', ocs:'gmpol_ocs', puns:'gmpol_puns', audit:'gmpol_audit' };
+
+const DEFAULT_USERS = [
+  {user:'chefe',    pass:'Chefe@123', cargo:'chefe',    nome:'Cel. Almeida',    ativo:true},
+  {user:'delegado', pass:'Del@123',   cargo:'delegado', nome:'Del. Rodrigues',   ativo:true},
+  {user:'guarda1',  pass:'User@123',  cargo:'guarda',   nome:'Gd. Santos',       ativo:true},
+  {user:'agente1',  pass:'User@123',  cargo:'agente',   nome:'Ag. Ferreira',     ativo:true},
+  {user:'tatico1',  pass:'User@123',  cargo:'tatico',   nome:'Tt. Carvalho',     ativo:true},
+  {user:'escrivao1',pass:'User@123',  cargo:'escrivao', nome:'Esc. Lima',        ativo:true},
+];
+
+function initStorage() {
+  if (!localStorage.getItem(K.users))  localStorage.setItem(K.users, JSON.stringify(DEFAULT_USERS));
+  if (!localStorage.getItem(K.ocs))    localStorage.setItem(K.ocs,   '[]');
+  if (!localStorage.getItem(K.puns))   localStorage.setItem(K.puns,  '[]');
+  if (!localStorage.getItem(K.audit))  localStorage.setItem(K.audit, '[]');
+}
+initStorage();
+
+const getUsers = () => JSON.parse(localStorage.getItem(K.users) || '[]');
+const getOcs   = () => JSON.parse(localStorage.getItem(K.ocs)   || '[]');
+const getPuns  = () => JSON.parse(localStorage.getItem(K.puns)  || '[]');
+const getAudit = () => JSON.parse(localStorage.getItem(K.audit) || '[]');
+const saveUsers= d => localStorage.setItem(K.users, JSON.stringify(d));
+const saveOcs  = d => { localStorage.setItem(K.ocs,  JSON.stringify(d)); bc('UPDATE'); };
+const savePuns = d => { localStorage.setItem(K.puns, JSON.stringify(d)); bc('UPDATE'); };
+
+function logAudit(msg, icon='📋') {
+  const a = getAudit();
+  a.unshift({msg, icon, ts: Date.now()});
+  if (a.length > 300) a.length = 300;
+  localStorage.setItem(K.audit, JSON.stringify(a));
+}
+
+// ══ BROADCAST ══
+let _bc; try { _bc = new BroadcastChannel('gmpol'); } catch(e){}
+function bc(type) { if(_bc) _bc.postMessage({type}); }
+if (_bc) _bc.onmessage = () => { renderTab(activeTab); updateNotif(); };
+
+// ══ TOAST ══
+function toast(msg, type='', dur=4200) {
+  const el = document.createElement('div');
+  el.className = `toast ${type?'t-'+type:''}`;
+  el.textContent = msg;
+  el.onclick = () => el.remove();
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), dur);
+}
+
+// ══ MODAL ══
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-bg').forEach(m =>
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); })
+);
+
+// ══ EYE TOGGLE ══
+function toggleEye(id, btn) {
+  const el = document.getElementById(id);
+  const isPass = el.type === 'password';
+  el.type = isPass ? 'text' : 'password';
+  btn.textContent = isPass ? '🙈' : '👁';
+}
+
+// ══ PASSWORD STRENGTH ══
+document.getElementById('s-nova').addEventListener('input', function() {
+  const v = this.value;
+  let score = 0;
+  if (v.length >= 6)  score++;
+  if (v.length >= 10) score++;
+  if (/[A-Z]/.test(v)) score++;
+  if (/[0-9]/.test(v)) score++;
+  if (/[^A-Za-z0-9]/.test(v)) score++;
+  const colors = ['','#ff3860','#ff6b2b','#ffdd57','#00ff88','#00d4ff'];
+  const widths  = [0,20,40,60,80,100];
+  document.getElementById('s-bar').style.width = widths[score]+'%';
+  document.getElementById('s-bar').style.background = colors[score];
+});
+
+// ══ CONSTANTS ══
+const CARGO_LABEL = {
+  guarda:'Guarda Municipal', agente:'Agente', tatico:'Tático',
+  escrivao:'Escrivão', delegado:'Delegado', chefe:'Chefe de Polícia'
+};
+const CARGO_BADGE_CLASS = {
+  guarda:'cb-guarda', agente:'cb-agente', tatico:'cb-tatico',
+  escrivao:'cb-escrivao', delegado:'cb-delegado', chefe:'cb-chefe'
+};
+
+// ══ SESSION ══
+let me = null;
+
+function doLogin() {
+  const user  = document.getElementById('l-user').value.trim();
+  const pass  = document.getElementById('l-pass').value;
+  const cargo = document.getElementById('l-cargo').value;
+  if (!user||!pass||!cargo) { toast('Preencha todos os campos.','d'); return; }
+  const found = getUsers().find(u => u.user===user && u.pass===pass && u.cargo===cargo && u.ativo!==false);
+  if (!found) { toast('Credenciais inválidas ou cargo incorreto.','d'); return; }
+  me = {...found};
+  logAudit(`Login de <b>${me.nome}</b> (${CARGO_LABEL[me.cargo]})`, '🔐');
+  showPanel();
+  toast(`Bem-vindo, ${me.nome}`, 's');
+}
+
+function doLogout() {
+  logAudit(`Logout de <b>${me.nome}</b>`, '🚪');
+  me = null; activeTab = 0;
+  document.getElementById('s-panel').classList.remove('active');
+  document.getElementById('s-login').classList.add('active');
+  document.getElementById('l-pass').value = '';
+}
+
+// ══ ALTERAR SENHA (própria) ══
+function alterarSenha() {
+  const atual = document.getElementById('s-atual').value;
+  const nova  = document.getElementById('s-nova').value;
+  const conf  = document.getElementById('s-conf').value;
+  if (!atual||!nova||!conf)   { toast('Preencha todos os campos.','d'); return; }
+  if (atual !== me.pass)      { toast('Senha atual incorreta.','d'); return; }
+  if (nova.length < 6)        { toast('Nova senha: mínimo 6 caracteres.','w'); return; }
+  if (nova !== conf)          { toast('As senhas não coincidem.','d'); return; }
+
+  const users = getUsers();
+  const idx   = users.findIndex(u => u.user === me.user);
+  if (idx===-1) return;
+  users[idx].pass = nova;
+  me.pass = nova;
+  saveUsers(users);
+  logAudit(`<b>${me.nome}</b> alterou a própria senha`, '🔑');
+  toast('Senha alterada com sucesso!','s');
+  closeModal('m-senha');
+  ['s-atual','s-nova','s-conf'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('s-bar').style.width='0';
+}
+
+// ══ CRIAR USUÁRIO (Chefe) ══
+function criarUsuario() {
+  const nome  = document.getElementById('nu-nome').value.trim();
+  const user  = document.getElementById('nu-user').value.trim().toLowerCase().replace(/\s/g,'');
+  const cargo = document.getElementById('nu-cargo').value;
+  const pass  = document.getElementById('nu-pass').value;
+  if (!nome||!user||!cargo||!pass) { toast('Preencha todos os campos.','d'); return; }
+  if (pass.length < 6) { toast('Senha mínima: 6 caracteres.','w'); return; }
+  if (!/^[a-z0-9_]+$/.test(user)) { toast('Login: apenas letras, números e _.','w'); return; }
+  const users = getUsers();
+  if (users.find(u => u.user===user)) { toast('Login já existe no sistema.','d'); return; }
+  users.push({user, pass, cargo, nome, ativo:true, criadoPor:me.user, criadoEm:Date.now()});
+  saveUsers(users);
+  logAudit(`<b>${me.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL[cargo]})`, '👤');
+  toast(`Usuário ${nome} criado com sucesso!`,'s');
+  closeModal('m-novo-user');
+  ['nu-nome','nu-user','nu-pass'].forEach(id => document.getElementById(id).value='');
+  renderTab(activeTab);
+}
+
+// ══ REMOVER USUÁRIO ══
+let _pendingDel = null;
+function pedirDelUsuario(user) {
+  const found = getUsers().find(u => u.user===user);
+  if (!found) return;
+  _pendingDel = user;
+  document.getElementById('del-nome-confirm').textContent = found.nome;
+  openModal('m-del-user');
+}
+function confirmarDelUsuario() {
+  if (!_pendingDel) return;
+  const users = getUsers();
+  const idx   = users.findIndex(u => u.user===_pendingDel);
+  if (idx===-1) return;
+  const nome  = users[idx].nome;
+  users.splice(idx,1);
+  saveUsers(users);
+  logAudit(`<b>${me.nome}</b> removeu o usuário <b>${nome}</b>`, '🗑');
+  toast(`Usuário ${nome} removido.`,'w');
+  closeModal('m-del-user');
+  _pendingDel = null;
+  renderTab(activeTab);
+}
+
+// ══ REDEFINIR SENHA (Chefe) ══
+let _resetUser = null;
+function pedirResetSenha(user) {
+  const found = getUsers().find(u => u.user===user);
+  if (!found) return;
+  _resetUser = user;
+  document.getElementById('reset-nome').textContent = found.nome;
+  document.getElementById('r-nova').value = '';
+  openModal('m-reset-pass');
+}
+function confirmarResetSenha() {
+  const nova = document.getElementById('r-nova').value;
+  if (!nova||nova.length<6) { toast('Senha mínima: 6 caracteres.','w'); return; }
+  const users = getUsers();
+  const idx   = users.findIndex(u => u.user===_resetUser);
+  if (idx===-1) return;
+  const nome  = users[idx].nome;
+  users[idx].pass = nova;
+  saveUsers(users);
+  logAudit(`<b>${me.nome}</b> redefiniu a senha de <b>${nome}</b>`, '🔒');
+  toast(`Senha de ${nome} redefinida.`,'s');
+  closeModal('m-reset-pass');
+  _resetUser = null;
+  renderTab(activeTab);
+}
+
+// ══ PANEL SETUP ══
+let activeTab = 0;
+
+function showPanel() {
+  document.getElementById('s-login').classList.remove('active');
+  document.getElementById('s-panel').classList.add('active');
+  const badge = document.getElementById('tb-badge');
+  badge.className = `cargo-badge ${CARGO_BADGE_CLASS[me.cargo]}`;
+  badge.textContent = CARGO_LABEL[me.cargo];
+  document.getElementById('tb-user').textContent = me.nome;
+  buildTabs(); renderTab(0); updateNotif();
+}
+
+function tabDefs(c) {
+  const base = [{label:'▸ INÍCIO', notif:false}];
+  if (c==='chefe')    return [...base,{label:'▸ OCORRÊNCIAS',notif:true},{label:'▸ HISTÓRICO',notif:false},{label:'▸ USUÁRIOS',notif:false},{label:'▸ AUDITORIA',notif:false}];
+  if (c==='delegado') return [...base,{label:'▸ REGISTRAR',notif:false},{label:'▸ OCORRÊNCIAS',notif:false},{label:'▸ PUNIÇÕES',notif:false}];
+  return [...base,{label:'▸ PUNIÇÕES',notif:false}];
+}
+
+function buildTabs() {
+  const defs = tabDefs(me.cargo);
+  document.getElementById('tabs').innerHTML = defs.map((t,i) => `
+    <div class="tab ${i===0?'active':''}" id="tab-${i}" onclick="switchTab(${i})">
+      ${t.label}${t.notif?`<span class="tab-n" id="tn-${i}" style="display:none"></span>`:''}
+    </div>`).join('');
+}
+
+function switchTab(idx) {
+  activeTab = idx;
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active',i===idx));
+  renderTab(idx);
+}
+
+function renderTab(idx) {
+  const c = me.cargo;
+  let html = '';
+  if (c==='chefe')    { const v=[vInicio,vOcChefe,vHistorico,vUsuarios,vAuditoria]; html=(v[idx]||vInicio)(); }
+  else if (c==='delegado') { const v=[vInicio,vRegistrar,vOcDelegado,vPunicoes];   html=(v[idx]||vInicio)(); }
+  else { const v=[vInicio,vPunicoes]; html=(v[idx]||vInicio)(); }
+  document.getElementById('content').innerHTML = html;
+}
+
+function updateNotif() {
+  if (!me) return;
+  const pend = getOcs().filter(o=>o.status==='pendente').length;
+  const pill = document.getElementById('notif-pill');
+  const txt  = document.getElementById('notif-txt');
+  const tn   = document.getElementById('tn-1');
+  if (me.cargo==='chefe' && pend>0) {
+    pill.classList.add('show'); txt.textContent = pend+' PENDENTE'+(pend>1?'S':'');
+    if(tn){tn.textContent=pend;tn.style.display='flex';}
+  } else {
+    pill.classList.remove('show');
+    if(tn) tn.style.display='none';
+  }
+}
+
+// ══ VIEWS ══
+function vInicio() {
+  const ocs  = getOcs();
+  const pend = ocs.filter(o=>o.status==='pendente').length;
+  const ace  = ocs.filter(o=>o.status==='aceita').length;
+  const rec  = ocs.filter(o=>o.status==='recusada').length;
+  const showStats = me.cargo==='delegado'||me.cargo==='chefe';
+  const msgs = {
+    guarda:'Você tem acesso de leitura ao quadro de punições da corporação.',
+    agente:'Você tem acesso de leitura ao quadro de punições da corporação.',
+    tatico:'Você tem acesso de leitura ao quadro de punições da corporação.',
+    escrivao:'Você pode consultar e registrar punições no quadro da corporação.',
+    delegado:'Registre ocorrências sobre membros, acompanhe respostas do Chefe e gerencie punições.',
+    chefe:'Você recebe e analisa todas as ocorrências dos Delegados, gerencia usuários e audita o sistema.',
+  };
+  return `
+    <div class="stitle">▸ PAINEL INICIAL</div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:6px;">${me.nome}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:14px;letter-spacing:.1em;">${CARGO_LABEL[me.cargo].toUpperCase()} — SISTEMA CENTRAL</div>
+      <p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]}</p>
+    </div>
+    ${showStats?`
+    <div class="g3">
+      <div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div>
+      <div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div>
+      <div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div>
+    </div>`:''}
+  `;
+}
+
+function vRegistrar() {
+  return `
+    <div class="stitle">▸ REGISTRAR OCORRÊNCIA</div>
+    <div class="card">
+      <div class="g2">
+        <div class="fg"><label>Nome do Jogador / Agente</label><input id="oc-nome" placeholder="Nome completo do agente"></div>
+        <div class="fg"><label>Cargo do Agente</label>
+          <select id="oc-cargo">
+            <option>Guarda Municipal</option><option>Agente</option>
+            <option selected>Tático</option><option>Escrivão</option>
+          </select>
+        </div>
+        <div class="fg g-full"><label>Depoimento / Relato da Ocorrência</label>
+          <textarea id="oc-dep" placeholder="Descreva detalhadamente o ocorrido, testemunhas, local, horário e evidências relevantes…"></textarea>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px;max-width:260px;" onclick="registrarOc()">▸ REGISTRAR OCORRÊNCIA</button>
+    </div>
+  `;
+}
+
+function registrarOc() {
+  const nome = document.getElementById('oc-nome')?.value.trim();
+  const cargo= document.getElementById('oc-cargo')?.value;
+  const dep  = document.getElementById('oc-dep')?.value.trim();
+  if (!nome||!dep) { toast('Preencha nome e depoimento.','d'); return; }
+  const ocs = getOcs();
+  ocs.push({id:'OC-'+Date.now(), delegado:me.nome, delegadoUser:me.user, nome, cargo, depoimento:dep, status:'pendente', resposta:'', ts:Date.now()});
+  saveOcs(ocs);
+  logAudit(`<b>${me.nome}</b> registrou ocorrência sobre <b>${nome}</b> (${cargo})`, '📝');
+  toast('Ocorrência enviada ao Chefe de Polícia!','s');
+  switchTab(2);
+}
+
+function vOcDelegado() {
+  const ocs = getOcs().filter(o=>o.delegadoUser===me.user).reverse();
+  return `<div class="stitle">▸ MINHAS OCORRÊNCIAS</div>${ocs.length?ocs.map(o=>ocCard(o,false)).join(''):empty('📋','Nenhuma ocorrência registrada.')}`;
+}
+
+function vOcChefe() {
+  const ocs = getOcs().filter(o=>o.status==='pendente').reverse();
+  return `<div class="stitle">▸ OCORRÊNCIAS PENDENTES</div>${ocs.length?ocs.map(o=>ocCard(o,true)).join(''):empty('✅','Nenhuma ocorrência pendente.')}`;
+}
+
+function vHistorico() {
+  const ocs = getOcs().filter(o=>o.status!=='pendente').reverse();
+  return `<div class="stitle">▸ HISTÓRICO DE OCORRÊNCIAS</div>${ocs.length?ocs.map(o=>ocCard(o,false)).join(''):empty('📂','Nenhuma ocorrência processada.')}`;
+}
+
+function ocCard(o, actions) {
+  const scMap = {pendente:'sc-p',aceita:'sc-a',recusada:'sc-r'};
+  const scLbl = {pendente:'⏳ Pendente',aceita:'✅ Aceita',recusada:'❌ Recusada'};
+  const dt    = new Date(o.ts).toLocaleString('pt-BR');
+  const actHTML = actions ? `
+    <div class="oc-actions">
+      <button class="btn btn-success btn-sm" onclick="abrirDecisao('${o.id}','aceita')">✔ ACEITAR</button>
+      <button class="btn btn-danger btn-sm"  onclick="abrirDecisao('${o.id}','recusada')">✘ RECUSAR</button>
+    </div>
+    <div class="decide-zone" id="dz-${o.id}">
+      <div class="fg" style="margin-top:10px;"><label>Motivo da decisão</label>
+        <textarea id="dm-${o.id}" placeholder="Digite o motivo de aceitar ou recusar esta ocorrência…"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-sm" id="dc-${o.id}" onclick="decidir('${o.id}')">CONFIRMAR</button>
+        <button class="btn btn-ghost btn-sm" onclick="fecharDecisao('${o.id}')">CANCELAR</button>
+      </div>
+    </div>` :
+    (o.resposta?`<div><span class="resp-lbl">Resposta do Chefe de Polícia</span><div class="dep-box" style="margin-bottom:0;">${o.resposta}</div></div>`:'');
+  return `
+    <div class="oc-wrap">
+      <div class="oc-top">
+        <div class="oc-meta">
+          <div style="font-size:.72rem;font-weight:700;color:var(--text);margin-bottom:2px;">${o.id}</div>
+          <div>${dt}</div><div>DELEGADO: <b>${o.delegado}</b></div>
+        </div>
+        <span class="status-chip ${scMap[o.status]}">${scLbl[o.status]}</span>
+      </div>
+      <div class="oc-fields">
+        <div class="oc-f"><label>Nome do Agente</label><span>${o.nome}</span></div>
+        <div class="oc-f"><label>Cargo</label><span>${o.cargo}</span></div>
+      </div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-bottom:5px;letter-spacing:.08em;text-transform:uppercase;">Depoimento</div>
+      <div class="dep-box">${o.depoimento}</div>
+      ${actHTML}
+    </div>`;
+}
+
+let _decAcao = {};
+function abrirDecisao(id, acao) {
+  document.querySelectorAll('.decide-zone').forEach(z => { if(z.id!==`dz-${id}`) z.classList.remove('open'); });
+  const dz = document.getElementById(`dz-${id}`);
+  const dc = document.getElementById(`dc-${id}`);
+  if (!dz) return;
+  if (_decAcao[id]===acao && dz.classList.contains('open')) { fecharDecisao(id); return; }
+  _decAcao[id] = acao;
+  dz.classList.add('open');
+  dc.textContent = acao==='aceita'?'✔ CONFIRMAR ACEITAR':'✘ CONFIRMAR RECUSAR';
+  dc.className   = `btn btn-sm ${acao==='aceita'?'btn-success':'btn-danger'}`;
+}
+function fecharDecisao(id) {
+  const dz = document.getElementById(`dz-${id}`);
+  if(dz) dz.classList.remove('open');
+  delete _decAcao[id];
+}
+function decidir(id) {
+  const acao   = _decAcao[id];
+  const motivo = document.getElementById(`dm-${id}`)?.value.trim();
+  if (!acao)   { toast('Selecione aceitar ou recusar.','d'); return; }
+  if (!motivo) { toast('Digite o motivo antes de confirmar.','w'); return; }
+  const ocs = getOcs();
+  const idx = ocs.findIndex(o=>o.id===id);
+  if(idx===-1) return;
+  ocs[idx].status   = acao;
+  ocs[idx].resposta = `${me.nome}: ${motivo}`;
+  saveOcs(ocs);
+  logAudit(`<b>${me.nome}</b> ${acao==='aceita'?'aceitou':'recusou'} a ocorrência <b>${id}</b> — agente: ${ocs[idx].nome}`, acao==='aceita'?'✅':'❌');
+  toast(`Ocorrência ${acao==='aceita'?'aceita ✅':'recusada ❌'}!`, acao==='aceita'?'s':'d');
+  renderTab(activeTab); updateNotif();
+}
+
+function vUsuarios() {
+  const users = getUsers();
+  const rows  = users.map(u => {
+    const isMe = u.user===me.user;
+    const isChefe = u.cargo==='chefe';
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="u-avatar">${u.nome.charAt(0).toUpperCase()}</div>
+            <div>
+              <div style="font-weight:600;">${u.nome}</div>
+              <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]}">${CARGO_LABEL[u.cargo]}</span></td>
+        <td><span style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${u.criadoPor||'padrão'}</span></td>
+        <td>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${isMe ? `<span style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>` : ''}
+            ${!isMe&&!isChefe ? `<button class="btn btn-warn btn-xs" onclick="pedirResetSenha('${u.user}')">🔑 SENHA</button>` : ''}
+            ${!isMe&&!isChefe ? `<button class="btn btn-danger btn-xs" onclick="pedirDelUsuario('${u.user}')">✘ REMOVER</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+  return `
+    <div class="stitle">▸ GERENCIAR USUÁRIOS</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+      <button class="btn btn-success btn-sm" onclick="openModal('m-novo-user')">+ CRIAR USUÁRIO</button>
+    </div>
+    <div class="card c-none" style="padding:0;overflow:hidden;">
+      <table class="tbl">
+        <thead><tr><th>USUÁRIO</th><th>CARGO</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;" class="hint">Total: <span>${users.length}</span> usuário(s) registrado(s).</div>
+  `;
+}
+
+function vAuditoria() {
+  const logs = getAudit();
+  if (!logs.length) return `<div class="stitle">▸ AUDITORIA</div>${empty('🔍','Nenhum evento registrado.')}`;
+  const items = logs.map(l=>`
+    <div class="log-entry">
+      <div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="log-icon">${l.icon||'📋'}</div>
+      <div class="log-txt">${l.msg}</div>
+    </div>`).join('');
+  return `
+    <div class="stitle">▸ AUDITORIA DO SISTEMA</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button>
+    </div>
+    <div class="card c-none" style="max-height:580px;overflow-y:auto;">${items}</div>
+    <div style="margin-top:10px;" class="hint">Últimos <span>${logs.length}</span> evento(s) registrado(s).</div>
+  `;
+}
+function limparAuditoria() {
+  if(!confirm('Limpar todo o histórico de auditoria?')) return;
+  localStorage.setItem(K.audit,'[]');
+  toast('Auditoria limpa.','w');
+  renderTab(activeTab);
+}
+
+function vPunicoes() {
+  const puns   = getPuns();
+  const canEdit= me.cargo==='escrivao'||me.cargo==='delegado'||me.cargo==='chefe';
+  const form   = canEdit?`
+    <div class="card" style="margin-bottom:22px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:16px;">▸ ADICIONAR PUNIÇÃO</div>
+      <div class="g2">
+        <div class="fg"><label>Nome do Agente</label><input id="pn-nome" placeholder="Nome completo"></div>
+        <div class="fg"><label>Nível</label>
+          <select id="pn-nivel"><option>Leve</option><option>Médio</option><option>Grave</option></select>
+        </div>
+        <div class="fg g-full"><label>Motivo da Punição</label><input id="pn-motivo" placeholder="Descreva o motivo"></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px;max-width:200px;" onclick="addPun()">▸ REGISTRAR</button>
+    </div>`:''
+  ;
+  const nc = n => ({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
+  const rows = [...puns].reverse().map((p,ri)=>{
+    const realIdx = puns.length-1-ri;
+    return `<tr>
+      <td style="font-weight:600;">${p.nome}</td>
+      <td style="color:var(--text-mid);font-size:.88rem;">${p.motivo}</td>
+      <td><span class="status-chip ${nc(p.nivel)}">${p.nivel}</span></td>
+      <td style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${p.autor}</td>
+      ${canEdit?`<td><button class="btn btn-danger btn-xs" onclick="delPun(${realIdx})">✘</button></td>`:'<td></td>'}
+    </tr>`;
+  }).join('');
+  return `
+    <div class="stitle">▸ QUADRO DE PUNIÇÕES</div>
+    ${form}
+    <div class="card c-none" style="padding:0;overflow:hidden;">
+      <table class="tbl">
+        <thead><tr><th>NOME</th><th>MOTIVO</th><th>NÍVEL</th><th>REGISTRADO POR</th><th></th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="5" style="text-align:center;padding:30px;font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);">Nenhuma punição registrada.</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+function addPun() {
+  const nome  = document.getElementById('pn-nome')?.value.trim();
+  const motivo= document.getElementById('pn-motivo')?.value.trim();
+  const nivel = document.getElementById('pn-nivel')?.value;
+  if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}
+  const puns = getPuns();
+  puns.push({nome,motivo,nivel,autor:me.nome,ts:Date.now()});
+  savePuns(puns);
+  logAudit(`<b>${me.nome}</b> registrou punição <b>${nivel}</b> para <b>${nome}</b>`,'⚠️');
+  toast('Punição registrada.','s');
+  renderTab(activeTab);
+}
+function delPun(idx) {
+  const puns = getPuns();
+  const nome = puns[idx]?.nome||'';
+  puns.splice(idx,1);
+  savePuns(puns);
+  logAudit(`<b>${me.nome}</b> removeu punição de <b>${nome}</b>`,'🗑');
+  toast('Punição removida.','w');
+  renderTab(activeTab);
+}
+
+function empty(ico,txt) {
+  return `<div class="empty"><div class="empty-ico">${ico}</div><p>${txt}</p></div>`;
+}
+</script>
+</body>
+</html>
