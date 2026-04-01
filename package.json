@@ -1,7 +1,7 @@
 {
   "name": "gmpol-sistema-central",
-  "version": "1.0.0",
-  "description": "Sistema Central GMPOL com WebSocket e LocalStorage",
+  "version": "2.0.0",
+  "description": "GMPOL Sistema Central com WebSocket, Backend REST e Persistência Local",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
