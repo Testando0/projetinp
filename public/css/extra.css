@@ -1,0 +1,163 @@
+/* ══ EXTRA STYLES — GMPOL v2 ══ */
+
+/* Master cargo badge */
+.cb-master {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: 1px solid #7c3aed;
+  box-shadow: 0 0 12px rgba(124,58,237,.4);
+}
+
+/* Status chip cancelada */
+.sc-c {
+  background: rgba(100,100,120,.18);
+  color: #888;
+  border: 1px solid #555;
+}
+
+/* WS status bar (login) */
+.ws-status-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .6rem;
+  letter-spacing: .1em;
+  padding: 4px;
+  background: rgba(0,0,0,.5);
+  color: var(--text-dim);
+}
+
+/* WS pill no topbar */
+.ws-pill {
+  font-size: .85rem;
+  margin-right: 4px;
+  opacity: .8;
+}
+
+/* Modal grande */
+.modal-lg { max-width: 680px !important; }
+
+/* Cargo select (master) */
+.cargo-select {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: .78rem;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.cargo-select:focus { outline: none; border-color: var(--accent); }
+
+/* Ponto agente block */
+.ponto-agente-block {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.ponto-agente-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--card-hover);
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s;
+}
+.ponto-agente-header:hover { background: rgba(255,255,255,.05); }
+
+.ponto-agente-body { padding: 0 4px; }
+.ponto-agente-body table { margin: 0; }
+
+/* Filter bar */
+.filter-bar .btn { font-size: .65rem; padding: 5px 12px; }
+
+/* Stat box 4 cols */
+.g3[style*="4"] { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 600px) {
+  .g3[style*="4"] { grid-template-columns: repeat(2, 1fr); }
+  .modal-lg { max-width: 95vw !important; }
+}
+
+/* Relógio */
+#rel-clock {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: .08em;
+  text-shadow: 0 0 20px rgba(var(--accent-rgb),.5);
+}
+
+/* Log entries mais compactos */
+.log-entry {
+  display: grid;
+  grid-template-columns: 80px 24px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.log-entry:last-child { border-bottom: none; }
+.log-time { font-family: 'Share Tech Mono', monospace; font-size: .58rem; color: var(--text-dim); }
+.log-icon { font-size: .85rem; text-align: center; }
+.log-txt  { font-size: .78rem; color: var(--text-mid); }
+
+/* Btn xs */
+.btn-xs {
+  padding: 3px 8px !important;
+  font-size: .6rem !important;
+  min-height: unset !important;
+}
+
+/* Status chip  */
+.status-chip { font-size: .6rem !important; }
+
+/* Resp label */
+.resp-lbl {
+  display: block;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .58rem;
+  color: var(--text-dim);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+/* Table */
+.tbl { font-size: .82rem; }
+.tbl th { font-size: .65rem; }
+
+/* Toast fade */
+.toast { transition: opacity .4s ease; }
+
+/* Accent RGB vars for glow */
+:root {
+  --accent-rgb: 0,200,255;
+  --accent3-rgb: 0,220,130;
+}
+
+/* ══ TIPO BADGE (Ocorrência / Denúncia) ══ */
+.tipo-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.tipo-oc {
+  background: rgba(0,150,255,.15);
+  color: #4db8ff;
+  border: 1px solid rgba(0,150,255,.3);
+}
+.tipo-denuncia {
+  background: rgba(255,160,0,.15);
+  color: #ffb347;
+  border: 1px solid rgba(255,160,0,.3);
+}
