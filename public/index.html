@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GMPOL — Sistema Central</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/extra.css">
+</head>
+<body>
+
+  <!-- ══════════════ TELA DE LOGIN ══════════════ -->
+  <div id="s-login" class="screen active">
+    <div class="login-mark">GMPOL</div>
+    <div class="login-sub">Grupamento Municipal de Policiamento</div>
+    <div class="login-card">
+      <h2>▸ ACESSO RESTRITO</h2>
+      <div class="fg">
+        <label>Usuário</label>
+        <input type="text" id="l-user" placeholder="Login do sistema" autocomplete="username">
+      </div>
+      <div class="fg">
+        <label>Senha</label>
+        <div class="input-wrap">
+          <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="eye-btn" id="eye-btn" onclick="toggleSenhaVisivel()" tabindex="-1" title="Mostrar/ocultar senha">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" id="btn-login" onclick="login()">▸ AUTENTICAR</button>
+      <div class="hint-box">
+        <p class="hint">Acesso monitorado. O uso indevido resultará em punição administrativa e bloqueio permanente.</p>
+      </div>
+    </div>
+    <div id="ws-status" class="ws-status-bar">🔴 DESCONECTADO</div>
+  </div>
+
+  <!-- ══════════════ PAINEL PRINCIPAL ══════════════ -->
+  <div id="s-panel" class="screen">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-l">
+        <!-- Hamburger (mobile) -->
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleNavDrawer()" aria-label="Menu">
+          ☰
+        </button>
+        <div class="topbar-logo">GMPOL</div>
+        <div class="topbar-div"></div>
+        <div id="tb-badge" class="cargo-badge">CARGO</div>
+      </div>
+
+      <div class="topbar-r">
+        <div id="ws-pill" class="ws-pill">🔴</div>
+        <div id="notif-pill" class="notif-pill">
+          <div class="notif-dot"></div>
+          <span id="notif-txt">0 PENDENTES</span>
+        </div>
+        <div id="tb-user" class="topbar-user">NOME</div>
+
+        <!-- Settings -->
+        <div class="settings-wrap">
+          <button class="settings-btn" onclick="toggleSettings()" title="Configurações">⚙</button>
+          <div id="settings-menu" class="settings-menu">
+            <button class="settings-item" onclick="openModal('m-senha')">🔑 Alterar Senha</button>
+            <div class="settings-divider"></div>
+            <button class="settings-item danger" onclick="logout()">🔒 Sair do Sistema</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- TABS (desktop) -->
+    <nav id="tabs" class="tabs"></nav>
+
+    <!-- NAV DRAWER (mobile) -->
+    <div class="nav-drawer-overlay" id="nav-overlay" onclick="closeNavDrawer()"></div>
+    <div id="nav-drawer" class="nav-drawer"></div>
+
+    <!-- CONTENT -->
+    <main id="content" class="content"></main>
+  </div>
+
+  <!-- ══════════════ MODAL: ALTERAR SENHA ══════════════ -->
+  <div id="m-senha" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h">
+        <h3>▸ ALTERAR SENHA</h3>
+        <button class="modal-close" onclick="closeModal('m-senha')">&times;</button>
+      </div>
+      <div class="modal-b">
+        <div class="fg"><label>Senha Atual</label><input type="password" id="s-atual"></div>
+        <div class="fg"><label>Nova Senha</label><input type="password" id="s-nova"></div>
+        <div class="fg"><label>Confirmar Nova Senha</label><input type="password" id="s-conf"></div>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-senha')">CANCELAR</button>
+        <button class="btn btn-primary btn-sm" onclick="alterarSenhaPropria()">SALVAR ALTERAÇÕES</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: NOVO USUÁRIO ══════════════ -->
+  <div id="m-novo-user" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h">
+        <h3>▸ CRIAR NOVO USUÁRIO</h3>
+        <button class="modal-close" onclick="closeModal('m-novo-user')">&times;</button>
+      </div>
+      <div class="modal-b">
+        <div class="fg"><label>Nome Completo</label><input type="text" id="nu-nome"></div>
+        <div class="fg"><label>Login (Único)</label><input type="text" id="nu-user"></div>
+        <div class="fg">
+          <label>Cargo</label>
+          <select id="nu-cargo">
+            <option value="guarda">Guarda Municipal</option>
+            <option value="agente">Agente de Polícia</option>
+            <option value="tatico">Policiamento Tático</option>
+            <option value="escrivao">Escrivão de Polícia</option>
+            <option value="delegado">Delegado de Polícia</option>
+            <option value="chefe">Chefe de Polícia</option>
+            <option value="master">Administrador Master</option>
+          </select>
+        </div>
+        <div class="fg"><label>Senha Inicial</label><input type="password" id="nu-pass"></div>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-novo-user')">CANCELAR</button>
+        <button class="btn btn-success btn-sm" onclick="criarUsuario()">CRIAR ACESSO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: EDITAR OCORRÊNCIA ══════════════ -->
+  <div id="m-edit-oc" class="modal-overlay">
+    <div class="modal modal-lg">
+      <div class="modal-h">
+        <h3>▸ EDITAR OCORRÊNCIA</h3>
+        <button class="modal-close" onclick="closeModal('m-edit-oc')">&times;</button>
+      </div>
+      <div class="modal-b">
+        <div class="g2">
+          <div class="fg"><label>Nome do Agente</label><input type="text" id="eo-nome"></div>
+          <div class="fg"><label>Cargo do Agente</label>
+            <select id="eo-cargo">
+              <option>Guarda Municipal</option>
+              <option>Agente de Polícia</option>
+              <option>Policiamento Tático</option>
+              <option>Escrivão de Polícia</option>
+              <option>Delegado de Polícia</option>
+              <option>Chefe de Polícia</option>
+              <option>Administrador Master</option>
+              <option>Civil</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="fg"><label>Status</label>
+            <select id="eo-status">
+              <option value="pendente">⏳ Pendente</option>
+              <option value="aceita">✅ Aceita</option>
+              <option value="recusada">❌ Recusada</option>
+              <option value="cancelada">🚫 Cancelada</option>
+            </select>
+          </div>
+          <div class="fg"><label>Delegado</label><input type="text" id="eo-delegado"></div>
+          <div class="fg g-full"><label>Depoimento</label><textarea id="eo-dep"></textarea></div>
+          <div class="fg g-full"><label>Resposta / Observação</label><textarea id="eo-resp"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-edit-oc')">CANCELAR</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarEdicaoOc()">SALVAR ALTERAÇÕES</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: REDEFINIR SENHA ══════════════ -->
+  <div id="m-reset-senha" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h">
+        <h3>▸ REDEFINIR SENHA</h3>
+        <button class="modal-close" onclick="closeModal('m-reset-senha')">&times;</button>
+      </div>
+      <div class="modal-b">
+        <p id="rs-info" style="color:var(--text-mid);margin-bottom:16px;font-size:.9rem;"></p>
+        <div class="fg"><label>Nova Senha</label><input type="password" id="rs-nova"></div>
+        <div class="fg"><label>Confirmar Nova Senha</label><input type="password" id="rs-conf"></div>
+        <input type="hidden" id="rs-target">
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-reset-senha')">CANCELAR</button>
+        <button class="btn btn-warn btn-sm" onclick="confirmarResetSenha()">🔑 REDEFINIR SENHA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: CONFIRMAR DELETE ══════════════ -->
+  <div id="m-confirm-del" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h">
+        <h3>▸ CONFIRMAR EXCLUSÃO</h3>
+        <button class="modal-close" onclick="closeModal('m-confirm-del')">&times;</button>
+      </div>
+      <div class="modal-b">
+        <p id="del-info" style="color:var(--danger);font-size:.95rem;line-height:1.6;"></p>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-confirm-del')">CANCELAR</button>
+        <button class="btn btn-danger btn-sm" id="del-confirm-btn">✘ CONFIRMAR EXCLUSÃO</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- ══ HAMBURGER / NAV DRAWER ══ -->
+  <script>
+    let _drawerOpen = false;
+
+    function buildNavDrawer() {
+      if (!me) return;
+      const defs = tabDefs(me.cargo);
+      const drawer = document.getElementById('nav-drawer');
+      if (!drawer) return;
+      drawer.innerHTML = defs.map((t, i) => {
+        const hasNotif = t.notif;
+        return `<div class="nav-drawer-item${i === activeTab ? ' active' : ''}" onclick="switchTabMobile(${i})">
+          ${t.label}
+          ${hasNotif ? `<span class="tab-n-badge" id="tnd-${i}" style="display:none">0</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+
+    function switchTabMobile(idx) {
+      closeNavDrawer();
+      switchTab(idx);
+      // update active state in drawer
+      document.querySelectorAll('.nav-drawer-item').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+      });
+    }
+
+    function toggleNavDrawer() {
+      _drawerOpen ? closeNavDrawer() : openNavDrawer();
+    }
+    function openNavDrawer() {
+      buildNavDrawer();
+      document.getElementById('nav-drawer')?.classList.add('open');
+      document.getElementById('nav-overlay')?.classList.add('open');
+      _drawerOpen = true;
+    }
+    function closeNavDrawer() {
+      document.getElementById('nav-drawer')?.classList.remove('open');
+      document.getElementById('nav-overlay')?.classList.remove('open');
+      _drawerOpen = false;
+    }
+
+    // Patch switchTab to also update drawer
+    const _origSwitchTab = window.switchTab;
+    // Will be patched after app.js loads — handled in app.js override below
+    document.addEventListener('DOMContentLoaded', () => {
+      // close settings/drawer on outside click
+      document.addEventListener('click', (e) => {
+        const wrap = document.querySelector('.settings-wrap');
+        if (wrap && !wrap.contains(e.target)) {
+          document.getElementById('settings-menu')?.classList.remove('open');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
