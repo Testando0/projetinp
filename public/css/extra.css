@@ -1,0 +1,118 @@
+/* ══ EXTRA STYLES — GMPOL B&W ══ */
+
+/* Master cargo badge */
+.cb-master {
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.3);
+  box-shadow: 0 0 10px rgba(255,255,255,.06);
+}
+
+/* Status chip cancelada */
+.sc-c {
+  background: rgba(100,100,120,.1);
+  color: #555;
+  border: 1px solid #282828;
+}
+
+/* WS status bar (login) */
+.ws-status-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .58rem;
+  letter-spacing: .12em;
+  padding: 5px;
+  background: rgba(0,0,0,.7);
+  color: var(--text-dim);
+  border-top: 1px solid #111;
+}
+
+/* Modal grande */
+.modal-lg { max-width: 680px !important; }
+
+/* Cargo select (master) */
+.cargo-select {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: .82rem;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.cargo-select:focus { outline: none; border-color: #444; }
+
+/* Ponto agente block */
+.ponto-agente-block {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.ponto-agente-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; background: var(--surface2);
+  cursor: pointer; user-select: none; transition: background .15s;
+}
+.ponto-agente-header:hover { background: rgba(255,255,255,.05); }
+.ponto-agente-body { padding: 0 4px; }
+.ponto-agente-body table { margin: 0; }
+
+/* Filter bar */
+.filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.filter-bar .btn { font-size: .62rem; padding: 5px 12px; }
+
+/* Stat box 4 cols */
+@media (min-width: 601px) {
+  .g4 { grid-template-columns: repeat(4, 1fr) !important; }
+}
+@media (max-width: 600px) {
+  .g4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .modal-lg { max-width: 95vw !important; }
+}
+
+/* Relógio */
+#rel-clock {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: .08em;
+  color: #fff;
+}
+
+/* Accent RGB vars */
+:root {
+  --accent-rgb: 255,255,255;
+  --accent3-rgb: 80,208,144;
+}
+
+/* Tipo badge */
+.tipo-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .56rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.tipo-oc {
+  background: rgba(255,255,255,.06);
+  color: #ccc;
+  border: 1px solid rgba(255,255,255,.12);
+}
+.tipo-denuncia {
+  background: rgba(224,192,96,.1);
+  color: var(--warn);
+  border: 1px solid rgba(224,192,96,.2);
+}
+
+/* Table wrapper for mobile scroll */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 4px; }
+
+/* Topbar right responsive */
+@media (max-width: 520px) {
+  .notif-pill { display: none !important; }
+}
