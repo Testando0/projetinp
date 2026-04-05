@@ -1,11 +1,7 @@
 /**
- * GMPOL Sistema Central v2.1 — Render Edition
- *
- * Compatível com Render Web Service (Free e Paid).
- * - Usa process.env.PORT (obrigatório no Render)
- * - Persiste data.json em /tmp (gratuito) ou no diretório do app (paid + disk)
- * - WebSocket nativo compatível com o proxy do Render
- * - Zero dependências externas (apenas módulos built-in do Node.js)
+ * GMPOL Sistema Central v2.2 — Render Edition
+ * Persistência corrigida: /tmp + seed de data.json
+ * WebSocket robusto + HTTP fallback endpoints
  */
 
 const http   = require('http');
@@ -14,20 +10,10 @@ const path   = require('path');
 const crypto = require('crypto');
 
 // ══ BANCO DE DADOS ══
-// No plano gratuito do Render o sistema de arquivos é efêmero.
-// Usamos /tmp como fallback — dados sobrevivem entre requests mas resetam no deploy.
-// Para persistência real no Render, ative "Persistent Disk" nas configurações do serviço
-// e mude DATA_FILE para: path.join(__dirname, 'data.json')
-
-const DATA_FILE = (() => {
-  // Se o arquivo data.json existe no diretório do app, usa ele (disco persistente ou dev local)
-  const local = path.join(__dirname, 'data.json');
-  if (fs.existsSync(local)) return local;
-  // Fallback: /tmp (plano gratuito)
-  return path.join('/tmp', 'gmpol-data.json');
-})();
-
-console.log('[DB] Arquivo de dados:', DATA_FILE);
+// Render free tier: app dir é READ-ONLY. Sempre escreve em /tmp.
+// Na inicialização, lê /tmp. Se vazio, semeia de __dirname/data.json.
+const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
+const SEED_FILE = path.join(__dirname, 'data.json');
 
 function getDefaultData() {
   const now = Date.now();
@@ -42,56 +28,78 @@ function getDefaultData() {
 }
 
 function loadData() {
+  // 1) Tenta /tmp (dados ao vivo de sessões anteriores)
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-      const def = getDefaultData();
-      return {
-        users:  Array.isArray(parsed.users)  ? parsed.users  : def.users,
-        ocs:    Array.isArray(parsed.ocs)    ? parsed.ocs    : [],
-        puns:   Array.isArray(parsed.puns)   ? parsed.puns   : [],
-        pontos: Array.isArray(parsed.pontos) ? parsed.pontos : [],
-        audit:  Array.isArray(parsed.audit)  ? parsed.audit  : []
-      };
+    if (fs.existsSync(TMP_FILE)) {
+      const raw = fs.readFileSync(TMP_FILE, 'utf8');
+      const p   = JSON.parse(raw);
+      if (p && Array.isArray(p.users) && p.users.length > 0) {
+        console.log('[DB] Carregado de /tmp:', TMP_FILE);
+        return sanitize(p);
+      }
     }
-  } catch (e) {
-    console.error('[DB] Erro ao carregar:', e.message);
-  }
+  } catch (e) { console.warn('[DB] /tmp ilegível:', e.message); }
+
+  // 2) Tenta seed de __dirname/data.json
+  try {
+    if (fs.existsSync(SEED_FILE)) {
+      const raw = fs.readFileSync(SEED_FILE, 'utf8');
+      const p   = JSON.parse(raw);
+      if (p && Array.isArray(p.users)) {
+        console.log('[DB] Carregado de seed:', SEED_FILE);
+        const data = sanitize(p);
+        // Copia para /tmp para próximas inicializações
+        try { fs.writeFileSync(TMP_FILE, JSON.stringify(data, null, 2)); } catch (_) {}
+        return data;
+      }
+    }
+  } catch (e) { console.warn('[DB] Seed ilegível:', e.message); }
+
+  // 3) Dados padrão
+  console.log('[DB] Usando dados padrão.');
   const def = getDefaultData();
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
+  try { fs.writeFileSync(TMP_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
   return def;
+}
+
+function sanitize(p) {
+  const def = getDefaultData();
+  return {
+    users:  Array.isArray(p.users)  ? p.users  : def.users,
+    ocs:    Array.isArray(p.ocs)    ? p.ocs    : [],
+    puns:   Array.isArray(p.puns)   ? p.puns   : [],
+    pontos: Array.isArray(p.pontos) ? p.pontos : [],
+    audit:  Array.isArray(p.audit)  ? p.audit  : []
+  };
 }
 
 let _saveTimer = null;
 function saveData() {
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    try { fs.writeFileSync(DATA_FILE, JSON.stringify(DB, null, 2)); }
+    try { fs.writeFileSync(TMP_FILE, JSON.stringify(DB, null, 2)); }
     catch (e) { console.error('[DB] Erro ao salvar:', e.message); }
-  }, 200);
+  }, 150);
 }
 function saveDataSync() {
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(DB, null, 2)); }
-  catch (e) { console.error('[DB] Erro ao salvar sync:', e.message); }
+  try { fs.writeFileSync(TMP_FILE, JSON.stringify(DB, null, 2)); }
+  catch (e) { console.error('[DB] Erro sync:', e.message); }
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários carregados.`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições`);
 
 // ══ WEBSOCKET NATIVO ══
 const wsClients = new Set();
 
 function wsHandshake(req, socket) {
   const key = req.headers['sec-websocket-key'];
-  if (!key) { socket.destroy(); return null; }
-  const accept = crypto
-    .createHash('sha1')
-    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
-    .digest('base64');
+  if (!key) { socket.destroy(); return false; }
+  const accept = crypto.createHash('sha1')
+    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
   socket.write(
     'HTTP/1.1 101 Switching Protocols\r\n' +
-    'Upgrade: websocket\r\n' +
-    'Connection: Upgrade\r\n' +
+    'Upgrade: websocket\r\nConnection: Upgrade\r\n' +
     `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
   );
   return true;
@@ -101,8 +109,7 @@ function wsParseFrame(buf) {
   if (buf.length < 2) return null;
   const opcode = buf[0] & 0x0f;
   const masked = (buf[1] & 0x80) !== 0;
-  let len      = buf[1] & 0x7f;
-  let offset   = 2;
+  let len = buf[1] & 0x7f, offset = 2;
   if (len === 126) { if (buf.length < 4) return null; len = buf.readUInt16BE(2); offset = 4; }
   else if (len === 127) { if (buf.length < 10) return null; len = Number(buf.readBigUInt64BE(2)); offset = 10; }
   if (buf.length < offset + (masked ? 4 : 0) + len) return null;
@@ -111,9 +118,7 @@ function wsParseFrame(buf) {
     const mask = buf.slice(offset, offset + 4); offset += 4;
     payload = Buffer.alloc(len);
     for (let i = 0; i < len; i++) payload[i] = buf[offset + i] ^ mask[i % 4];
-  } else {
-    payload = buf.slice(offset, offset + len);
-  }
+  } else { payload = buf.slice(offset, offset + len); }
   return { opcode, payload, frameLen: offset + len };
 }
 
@@ -130,14 +135,6 @@ function wsBuildFrame(data, opcode = 1) {
 function wsSend(socket, obj) {
   try { if (socket.writable) socket.write(wsBuildFrame(JSON.stringify(obj))); } catch (_) {}
 }
-function wsSendPong(socket, payload) {
-  try { if (socket.writable) socket.write(wsBuildFrame(payload || Buffer.alloc(0), 0x0a)); } catch (_) {}
-}
-function wsClose(socket) {
-  try { if (socket.writable) socket.write(wsBuildFrame(Buffer.alloc(0), 0x08)); } catch (_) {}
-  wsClients.delete(socket);
-  try { socket.destroy(); } catch (_) {}
-}
 function broadcast(type, payload) {
   const frame = wsBuildFrame(JSON.stringify({ type, payload }));
   wsClients.forEach(s => {
@@ -146,7 +143,6 @@ function broadcast(type, payload) {
   });
 }
 
-// ══ HELPERS ══
 function pub(u) { const { pass, ...r } = u; return r; }
 
 function audit(msg, icon = '📋') {
@@ -158,31 +154,24 @@ function audit(msg, icon = '📋') {
 
 // ══ MIME TYPES ══
 const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.css':  'text/css',
-  '.js':   'application/javascript',
-  '.json': 'application/json',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
-  '.ico':  'image/x-icon',
-  '.svg':  'image/svg+xml',
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css',
+  '.js': 'application/javascript',    '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
 };
 
 function serveStatic(req, res) {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/index.html';
   const filePath = path.join(__dirname, 'public', urlPath);
-  // Segurança: não sair da pasta public
   if (!filePath.startsWith(path.join(__dirname, 'public'))) {
     res.writeHead(403); res.end('Forbidden'); return;
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      // SPA fallback: qualquer rota desconhecida serve o index.html
       fs.readFile(path.join(__dirname, 'public', 'index.html'), (e2, d2) => {
         if (e2) { res.writeHead(404); res.end('Not found'); return; }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(d2);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d2);
       });
       return;
     }
@@ -195,11 +184,8 @@ function serveStatic(req, res) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; if (body.length > 2e6) reject(new Error('Payload muito grande')); });
-    req.on('end', () => {
-      try { resolve(body ? JSON.parse(body) : {}); }
-      catch (_) { resolve({}); }
-    });
+    req.on('data', c => { body += c; if (body.length > 2e6) reject(new Error('Payload grande')); });
+    req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch (_) { resolve({}); } });
     req.on('error', reject);
   });
 }
@@ -207,8 +193,8 @@ function readBody(req) {
 function jsonRes(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
-    'Content-Type':  'application/json',
-    'Access-Control-Allow-Origin':  '*',
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Length': Buffer.byteLength(body)
@@ -220,17 +206,17 @@ function jsonRes(res, status, data) {
 async function handleAPI(req, res) {
   const method = req.method;
   const url    = req.url.split('?')[0];
-  let body = {};
 
   if (method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin':  '*',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type'
     });
     return res.end();
   }
 
+  let body = {};
   if (['POST', 'PUT', 'DELETE'].includes(method)) {
     try { body = await readBody(req); }
     catch (e) { return jsonRes(res, 400, { error: 'Body inválido.' }); }
@@ -238,7 +224,19 @@ async function handleAPI(req, res) {
 
   // ── HEALTH ──
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length });
+    return jsonRes(res, 200, {
+      ok: true, uptime: Math.floor(process.uptime()),
+      clientes: wsClients.size, usuarios: DB.users.length,
+      ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length
+    });
+  }
+
+  // ── ESTADO COMPLETO (HTTP fallback para clientes sem WS) ──
+  if (method === 'GET' && url === '/api/state') {
+    return jsonRes(res, 200, {
+      ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos,
+      users: DB.users.map(pub), audit: DB.audit
+    });
   }
 
   // ── AUTH ──
@@ -247,17 +245,14 @@ async function handleAPI(req, res) {
     if (!user || !pass) return jsonRes(res, 400, { error: 'Preencha usuário e senha.' });
     const u = DB.users.find(u =>
       u.user === String(user).trim().toLowerCase() &&
-      u.pass === String(pass) &&
-      u.ativo
+      u.pass === String(pass) && u.ativo
     );
     if (!u) return jsonRes(res, 401, { error: 'Credenciais inválidas ou conta desativada.' });
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
   // ── USUÁRIOS ──
-  if (method === 'GET' && url === '/api/users') {
-    return jsonRes(res, 200, DB.users.map(pub));
-  }
+  if (method === 'GET'  && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
     const { nome, user, cargo, pass, criadoPor } = body;
@@ -273,13 +268,12 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
+  const mSenha  = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
-    const username = mSenha[1];
+    const i = DB.users.findIndex(u => u.user === mSenha[1]);
+    if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { novaSenha, feitorPor } = body;
     if (!novaSenha || novaSenha.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
-    const i = DB.users.findIndex(u => u.user === username);
-    if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     DB.users[i].pass = novaSenha;
     saveData();
     audit(`<b>${feitorPor}</b> redefiniu a senha de <b>${DB.users[i].nome}</b>`, '🔑');
@@ -289,37 +283,34 @@ async function handleAPI(req, res) {
 
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
-    const username = mStatus[1];
-    const { ativo, feitorPor } = body;
-    const i = DB.users.findIndex(u => u.user === username);
+    const i = DB.users.findIndex(u => u.user === mStatus[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const { ativo, feitorPor } = body;
     DB.users[i].ativo = Boolean(ativo);
     saveData();
-    audit(`<b>${feitorPor}</b> ${ativo ? 'ativou' : 'desativou'} a conta de <b>${DB.users[i].nome}</b>`, ativo ? '✅' : '🚫');
+    audit(`<b>${feitorPor}</b> ${ativo ? 'ativou' : 'desativou'} <b>${DB.users[i].nome}</b>`, ativo ? '✅' : '🚫');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
+  const mCargo  = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
-    const username = mCargo[1];
-    const { cargo, feitorPor } = body;
-    const i = DB.users.findIndex(u => u.user === username);
+    const i = DB.users.findIndex(u => u.user === mCargo[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
-    const antigo = DB.users[i].cargo;
+    const { cargo, feitorPor } = body;
+    const old = DB.users[i].cargo;
     DB.users[i].cargo = cargo;
     saveData();
-    audit(`<b>${feitorPor}</b> alterou cargo de <b>${DB.users[i].nome}</b>: ${antigo} → ${cargo}`, '🏷️');
+    audit(`<b>${feitorPor}</b> alterou cargo de <b>${DB.users[i].nome}</b>: ${old} → ${cargo}`, '🏷️');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
 
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
-    const username = mDelUser[1];
-    const { feitorPor } = body;
-    const i = DB.users.findIndex(u => u.user === username);
+    const i = DB.users.findIndex(u => u.user === mDelUser[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const { feitorPor } = body;
     const nome = DB.users[i].nome;
     DB.users.splice(i, 1);
     saveData();
@@ -329,15 +320,17 @@ async function handleAPI(req, res) {
   }
 
   // ── OCORRÊNCIAS ──
-  if (method === 'GET' && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
+  if (method === 'GET'  && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
 
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
     if (!oc || !oc.id) return jsonRes(res, 400, { error: 'Dados inválidos.' });
-    DB.ocs.push(oc);
-    saveData();
-    audit(`<b>${oc.delegado}</b> registrou ocorrência sobre <b>${oc.nome}</b>`, '📝');
-    broadcast('NEW_OC', oc);
+    if (!DB.ocs.find(o => o.id === oc.id)) {
+      DB.ocs.push(oc);
+      saveData();
+      audit(`<b>${oc.delegado}</b> registrou ${oc.tipo || 'ocorrência'} sobre <b>${oc.nome}</b>`, '📝');
+      broadcast('NEW_OC', oc);
+    }
     return jsonRes(res, 200, { ok: true });
   }
 
@@ -365,7 +358,7 @@ async function handleAPI(req, res) {
   }
 
   // ── PUNIÇÕES ──
-  if (method === 'GET' && url === '/api/puns') return jsonRes(res, 200, DB.puns);
+  if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
 
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
@@ -378,10 +371,9 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mPunId = url.match(/^\/api\/puns\/id\/([^/]+)$/);
+  const mPunId  = url.match(/^\/api\/puns\/id\/([^/]+)$/);
   if (method === 'DELETE' && mPunId) {
-    const punId = mPunId[1];
-    const i = DB.puns.findIndex(p => p.id === punId);
+    const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
     const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1);
@@ -404,7 +396,7 @@ async function handleAPI(req, res) {
   }
 
   // ── PONTOS ──
-  if (method === 'GET' && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
+  if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
 
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -417,8 +409,7 @@ async function handleAPI(req, res) {
   }
 
   // ── AUDITORIA ──
-  if (method === 'GET' && url === '/api/audit') return jsonRes(res, 200, DB.audit);
-
+  if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = [];
     saveData();
@@ -429,22 +420,17 @@ async function handleAPI(req, res) {
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
-// ══ SERVIDOR HTTP ══
+// ══ HTTP SERVER ══
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-
-  if (req.url.startsWith('/api') || req.url === '/health') {
-    return handleAPI(req, res);
-  }
+  if (req.url.startsWith('/api') || req.url === '/health') return handleAPI(req, res);
   serveStatic(req, res);
 });
 
-// ══ UPGRADE PARA WEBSOCKET ══
+// ══ WEBSOCKET UPGRADE ══
 httpServer.on('upgrade', (req, socket, head) => {
   if (req.url !== '/ws') { socket.destroy(); return; }
-
-  const ok = wsHandshake(req, socket);
-  if (!ok) return;
+  if (!wsHandshake(req, socket)) return;
 
   socket.isAlive = true;
   socket._buffer = Buffer.alloc(0);
@@ -453,15 +439,12 @@ httpServer.on('upgrade', (req, socket, head) => {
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
 
-  // Enviar estado completo ao novo cliente
+  // Envia estado completo ao conectar
   wsSend(socket, {
     type: 'INIT',
     payload: {
-      ocs:    DB.ocs,
-      puns:   DB.puns,
-      pontos: DB.pontos,
-      users:  DB.users.map(pub),
-      audit:  DB.audit
+      ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos,
+      users: DB.users.map(pub), audit: DB.audit
     }
   });
 
@@ -471,11 +454,9 @@ httpServer.on('upgrade', (req, socket, head) => {
       const frame = wsParseFrame(socket._buffer);
       if (!frame) break;
       socket._buffer = socket._buffer.slice(frame.frameLen);
-
       if (frame.opcode === 0x08) { wsClose(socket); return; }
       if (frame.opcode === 0x09) { wsSendPong(socket, frame.payload); continue; }
       if (frame.opcode === 0x0a) { socket.isAlive = true; continue; }
-
       if (frame.opcode === 0x01 || frame.opcode === 0x02) {
         try {
           const msg = JSON.parse(frame.payload.toString('utf8'));
@@ -485,39 +466,37 @@ httpServer.on('upgrade', (req, socket, head) => {
     }
   });
 
-  socket.on('close', () => {
-    wsClients.delete(socket);
-    console.log(`[WS] - ${ip} | Total: ${wsClients.size}`);
-  });
-
-  socket.on('error', (e) => {
-    wsClients.delete(socket);
-    console.error(`[WS] Erro (${ip}):`, e.message);
-  });
+  socket.on('close', () => { wsClients.delete(socket); console.log(`[WS] - ${ip} | Total: ${wsClients.size}`); });
+  socket.on('error', (e) => { wsClients.delete(socket); console.error(`[WS] Erro (${ip}):`, e.message); });
 });
 
-// Heartbeat — detecta conexões mortas a cada 25s
-// Importante para o Render que tem timeout de 55s em conexões inativas
+function wsSendPong(socket, payload) {
+  try { if (socket.writable) socket.write(wsBuildFrame(payload || Buffer.alloc(0), 0x0a)); } catch (_) {}
+}
+function wsClose(socket) {
+  try { if (socket.writable) socket.write(wsBuildFrame(Buffer.alloc(0), 0x08)); } catch (_) {}
+  wsClients.delete(socket);
+  try { socket.destroy(); } catch (_) {}
+}
+
+// Heartbeat a cada 25s (Render timeout = 55s)
 setInterval(() => {
-  wsClients.forEach(socket => {
-    if (!socket.isAlive) { wsClose(socket); return; }
-    socket.isAlive = false;
-    try { socket.write(wsBuildFrame(Buffer.alloc(0), 0x09)); }
-    catch (_) { wsClose(socket); }
+  wsClients.forEach(s => {
+    if (!s.isAlive) { wsClose(s); return; }
+    s.isAlive = false;
+    try { s.write(wsBuildFrame(Buffer.alloc(0), 0x09)); }
+    catch (_) { wsClose(s); }
   });
 }, 25000);
 
-// ══ INICIAR ══
-// O Render EXIGE process.env.PORT — nunca hardcode a porta
+// ══ START ══
 const PORT = process.env.PORT || 3000;
-
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v2.1         ║');
+  console.log('║   🚔  GMPOL Sistema Central v2.2         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   LOGINS PADRÃO                          ║');
   console.log('║   master   / master123                   ║');
   console.log('║   chefe    / chefe123                    ║');
   console.log('║   delegado / del123                      ║');
