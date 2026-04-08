@@ -506,3 +506,24 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 process.on('SIGTERM', () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('SIGINT',  () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('uncaughtException', (e) => { console.error('[FATAL]', e); saveDataSync(); });
+
+// ══ KEEP-ALIVE (Render Free Tier) ══
+// Faz auto-ping a cada 14 min para evitar que o serviço durma.
+// Também configure o UptimeRobot (gratuito) apontando para:
+//   https://SEU-APP.onrender.com/health
+const RENDER_URL = process.env.RENDER_EXTERNAL_URL || null;
+if (RENDER_URL) {
+  const keepAliveUrl = RENDER_URL.replace(/\/$/, '') + '/health';
+  setInterval(() => {
+    const proto = keepAliveUrl.startsWith('https') ? require('https') : require('http');
+    const req = proto.get(keepAliveUrl, (res) => {
+      console.log(`[KeepAlive] Ping OK — status ${res.statusCode}`);
+      res.resume();
+    });
+    req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
+    req.end();
+  }, 14 * 60 * 1000); // 14 minutos
+  console.log(`[KeepAlive] Auto-ping ativo → ${keepAliveUrl}`);
+} else {
+  console.log('[KeepAlive] Defina RENDER_EXTERNAL_URL nas env vars do Render para ativar o auto-ping.');
+}
