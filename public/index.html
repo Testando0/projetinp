@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GMPOL — Sistema Central</title>
+  <title>BLACK CLOVER — Sistema Central</title>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/extra.css">
@@ -12,7 +12,7 @@
 
   <!-- ══════════════ TELA DE LOGIN ══════════════ -->
   <div id="s-login" class="screen active">
-    <div class="login-mark">GMPOL</div>
+    <div class="login-mark">BLACK CLOVER</div>
     <div class="login-sub">Grupamento Municipal de Policiamento</div>
     <div class="login-card">
       <h2>▸ ACESSO RESTRITO</h2>
@@ -24,7 +24,7 @@
         <label>Senha</label>
         <div class="input-wrap">
           <input type="password" id="l-pass" placeholder="••••••••" autocomplete="current-password">
-          <button type="button" class="eye-btn" id="eye-btn" onclick="toggleSenhaVisivel()" tabindex="-1" title="Mostrar/ocultar senha">👁</button>
+          <button type="button" class="eye-btn" id="eye-btn" onclick="toggleSenhaVisivel()" tabindex="-1">👁</button>
         </div>
       </div>
       <button class="btn btn-primary btn-block" id="btn-login" onclick="login()">▸ AUTENTICAR</button>
@@ -35,21 +35,48 @@
     <div id="ws-status" class="ws-status-bar">🔴 DESCONECTADO</div>
   </div>
 
+  <!-- ══════════════ TELA DE SUSPENSÃO ══════════════ -->
+  <div id="s-ban" class="screen">
+    <div class="ban-container">
+      <div class="ban-icon">⛔</div>
+      <div class="ban-title">ACESSO SUSPENSO</div>
+      <div class="ban-subtitle">Você foi temporariamente suspenso do sistema</div>
+
+      <div class="ban-timer-wrap">
+        <div class="ban-timer-label">TEMPO RESTANTE</div>
+        <div id="ban-timer" class="ban-timer">00:00:00</div>
+      </div>
+
+      <div class="ban-info-grid">
+        <div class="ban-info-row">
+          <span class="ban-info-label">APLICADO POR</span>
+          <span id="ban-by" class="ban-info-value">—</span>
+        </div>
+        <div class="ban-info-row">
+          <span class="ban-info-label">MOTIVO</span>
+          <span id="ban-reason" class="ban-info-value">—</span>
+        </div>
+        <div class="ban-info-row">
+          <span class="ban-info-label">EXPIRA EM</span>
+          <span id="ban-expires" class="ban-info-value">—</span>
+        </div>
+      </div>
+
+      <div id="ban-status-msg" class="ban-status-msg">
+        Aguarde o fim da suspensão para recuperar o acesso ao sistema.
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════ PAINEL PRINCIPAL ══════════════ -->
   <div id="s-panel" class="screen">
-
-    <!-- TOPBAR -->
     <header class="topbar">
       <div class="topbar-l">
-        <!-- Hamburger (mobile) -->
-        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleNavDrawer()" aria-label="Menu">
-          ☰
-        </button>
-        <div class="topbar-logo">GMPOL</div>
+        <button class="hamburger-btn" id="hamburger-btn" onclick="toggleNavDrawer()" aria-label="Menu">☰</button>
+        <div class="topbar-logo">BLACK CLOVER</div>
         <div class="topbar-div"></div>
         <div id="tb-badge" class="cargo-badge">CARGO</div>
       </div>
-
       <div class="topbar-r">
         <div id="ws-pill" class="ws-pill">🔴</div>
         <div id="notif-pill" class="notif-pill">
@@ -57,8 +84,6 @@
           <span id="notif-txt">0 PENDENTES</span>
         </div>
         <div id="tb-user" class="topbar-user">NOME</div>
-
-        <!-- Settings -->
         <div class="settings-wrap">
           <button class="settings-btn" onclick="toggleSettings()" title="Configurações">⚙</button>
           <div id="settings-menu" class="settings-menu">
@@ -69,25 +94,16 @@
         </div>
       </div>
     </header>
-
-    <!-- TABS (desktop) -->
     <nav id="tabs" class="tabs"></nav>
-
-    <!-- NAV DRAWER (mobile) -->
     <div class="nav-drawer-overlay" id="nav-overlay" onclick="closeNavDrawer()"></div>
     <div id="nav-drawer" class="nav-drawer"></div>
-
-    <!-- CONTENT -->
     <main id="content" class="content"></main>
   </div>
 
   <!-- ══════════════ MODAL: ALTERAR SENHA ══════════════ -->
   <div id="m-senha" class="modal-overlay">
     <div class="modal">
-      <div class="modal-h">
-        <h3>▸ ALTERAR SENHA</h3>
-        <button class="modal-close" onclick="closeModal('m-senha')">&times;</button>
-      </div>
+      <div class="modal-h"><h3>▸ ALTERAR SENHA</h3><button class="modal-close" onclick="closeModal('m-senha')">&times;</button></div>
       <div class="modal-b">
         <div class="fg"><label>Senha Atual</label><input type="password" id="s-atual"></div>
         <div class="fg"><label>Nova Senha</label><input type="password" id="s-nova"></div>
@@ -103,23 +119,19 @@
   <!-- ══════════════ MODAL: NOVO USUÁRIO ══════════════ -->
   <div id="m-novo-user" class="modal-overlay">
     <div class="modal">
-      <div class="modal-h">
-        <h3>▸ CRIAR NOVO USUÁRIO</h3>
-        <button class="modal-close" onclick="closeModal('m-novo-user')">&times;</button>
-      </div>
+      <div class="modal-h"><h3>▸ CRIAR NOVO USUÁRIO</h3><button class="modal-close" onclick="closeModal('m-novo-user')">&times;</button></div>
       <div class="modal-b">
         <div class="fg"><label>Nome Completo</label><input type="text" id="nu-nome"></div>
         <div class="fg"><label>Login (Único)</label><input type="text" id="nu-user"></div>
         <div class="fg">
           <label>Cargo</label>
           <select id="nu-cargo">
-            <option value="guarda">Guarda Municipal</option>
-            <option value="agente">Agente de Polícia</option>
-            <option value="tatico">Policiamento Tático</option>
-            <option value="escrivao">Escrivão de Polícia</option>
-            <option value="delegado">Delegado de Polícia</option>
-            <option value="chefe">Chefe de Polícia</option>
-            <option value="master">Administrador Master</option>
+            <option value="sentinela">Sentinela</option>
+            <option value="cacador">Caçador Noturno</option>
+            <option value="guardiao">Guardião</option>
+            <option value="observador">Observador Negro</option>
+            <option value="capitao">Capitão Arcano</option>
+            <option value="rei">Rei Master</option>
           </select>
         </div>
         <div class="fg"><label>Senha Inicial</label><input type="password" id="nu-pass"></div>
@@ -131,27 +143,64 @@
     </div>
   </div>
 
+  <!-- ══════════════ MODAL: REBAIXAR (motivo obrigatório) ══════════════ -->
+  <div id="m-rebaixar" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h"><h3>▸ CONFIRMAR REBAIXAMENTO</h3><button class="modal-close" onclick="cancelarRebaixar()">&times;</button></div>
+      <div class="modal-b">
+        <div id="rb-info" style="color:var(--text-mid);font-size:.9rem;line-height:1.6;margin-bottom:16px;padding:10px;background:rgba(var(--danger-rgb,.8,.1,.1),.06);border:1px solid rgba(239,68,68,.2);border-radius:4px;"></div>
+        <div class="fg">
+          <label>Motivo do Rebaixamento <span style="color:var(--danger);">*</span></label>
+          <textarea id="rb-motivo" placeholder="Descreva o motivo do rebaixamento. Aparecerá nos logs do sistema." style="min-height:90px;"></textarea>
+        </div>
+        <p style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:8px;">
+          ⚠ O motivo ficará registrado nos logs: "X rebaixou Y por motivo Z"
+        </p>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="cancelarRebaixar()">CANCELAR</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmarRebaixar()">📉 CONFIRMAR REBAIXAMENTO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: SUSPENSÃO TEMPORÁRIA ══════════════ -->
+  <div id="m-ban" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-h"><h3>▸ APLICAR SUSPENSÃO TEMPORÁRIA</h3><button class="modal-close" onclick="closeModal('m-ban')">&times;</button></div>
+      <div class="modal-b">
+        <div id="bn-info" style="color:var(--text-mid);font-size:.9rem;margin-bottom:16px;padding:10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:4px;"></div>
+        <div class="fg">
+          <label>Duração (minutos) <span style="color:var(--danger);">*</span></label>
+          <input type="number" id="bn-duracao" min="1" max="10080" placeholder="Ex: 60 = 1 hora, 1440 = 1 dia">
+        </div>
+        <div class="fg">
+          <label>Motivo da Suspensão <span style="color:var(--danger);">*</span></label>
+          <textarea id="bn-motivo" placeholder="Descreva o motivo da suspensão temporária…" style="min-height:80px;"></textarea>
+        </div>
+        <p style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:8px;">
+          ⛔ O usuário verá uma tela de bloqueio com cronômetro regressivo até o fim da suspensão.
+        </p>
+      </div>
+      <div class="modal-f">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('m-ban')">CANCELAR</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmarBan()">⛔ APLICAR SUSPENSÃO</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════ MODAL: EDITAR OCORRÊNCIA ══════════════ -->
   <div id="m-edit-oc" class="modal-overlay">
     <div class="modal modal-lg">
-      <div class="modal-h">
-        <h3>▸ EDITAR OCORRÊNCIA</h3>
-        <button class="modal-close" onclick="closeModal('m-edit-oc')">&times;</button>
-      </div>
+      <div class="modal-h"><h3>▸ EDITAR OCORRÊNCIA</h3><button class="modal-close" onclick="closeModal('m-edit-oc')">&times;</button></div>
       <div class="modal-b">
         <div class="g2">
           <div class="fg"><label>Nome do Agente</label><input type="text" id="eo-nome"></div>
           <div class="fg"><label>Cargo do Agente</label>
             <select id="eo-cargo">
-              <option>Guarda Municipal</option>
-              <option>Agente de Polícia</option>
-              <option>Policiamento Tático</option>
-              <option>Escrivão de Polícia</option>
-              <option>Delegado de Polícia</option>
-              <option>Chefe de Polícia</option>
-              <option>Administrador Master</option>
-              <option>Civil</option>
-              <option>Outro</option>
+              <option>Sentinela</option><option>Caçador Noturno</option><option>Guardião</option>
+              <option>Observador Negro</option><option>Capitão Arcano</option><option>Rei Master</option>
+              <option>Civil</option><option>Outro</option>
             </select>
           </div>
           <div class="fg"><label>Status</label>
@@ -162,7 +211,7 @@
               <option value="cancelada">🚫 Cancelada</option>
             </select>
           </div>
-          <div class="fg"><label>Delegado</label><input type="text" id="eo-delegado"></div>
+          <div class="fg"><label>Responsável</label><input type="text" id="eo-delegado"></div>
           <div class="fg g-full"><label>Depoimento</label><textarea id="eo-dep"></textarea></div>
           <div class="fg g-full"><label>Resposta / Observação</label><textarea id="eo-resp"></textarea></div>
         </div>
@@ -177,10 +226,7 @@
   <!-- ══════════════ MODAL: REDEFINIR SENHA ══════════════ -->
   <div id="m-reset-senha" class="modal-overlay">
     <div class="modal">
-      <div class="modal-h">
-        <h3>▸ REDEFINIR SENHA</h3>
-        <button class="modal-close" onclick="closeModal('m-reset-senha')">&times;</button>
-      </div>
+      <div class="modal-h"><h3>▸ REDEFINIR SENHA</h3><button class="modal-close" onclick="closeModal('m-reset-senha')">&times;</button></div>
       <div class="modal-b">
         <p id="rs-info" style="color:var(--text-mid);margin-bottom:16px;font-size:.9rem;"></p>
         <div class="fg"><label>Nova Senha</label><input type="password" id="rs-nova"></div>
@@ -197,10 +243,7 @@
   <!-- ══════════════ MODAL: CONFIRMAR DELETE ══════════════ -->
   <div id="m-confirm-del" class="modal-overlay">
     <div class="modal">
-      <div class="modal-h">
-        <h3>▸ CONFIRMAR EXCLUSÃO</h3>
-        <button class="modal-close" onclick="closeModal('m-confirm-del')">&times;</button>
-      </div>
+      <div class="modal-h"><h3>▸ CONFIRMAR EXCLUSÃO</h3><button class="modal-close" onclick="closeModal('m-confirm-del')">&times;</button></div>
       <div class="modal-b">
         <p id="del-info" style="color:var(--danger);font-size:.95rem;line-height:1.6;"></p>
       </div>
@@ -215,61 +258,5 @@
 
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
-
-  <!-- ══ HAMBURGER / NAV DRAWER ══ -->
-  <script>
-    let _drawerOpen = false;
-
-    function buildNavDrawer() {
-      if (!me) return;
-      const defs = tabDefs(me.cargo);
-      const drawer = document.getElementById('nav-drawer');
-      if (!drawer) return;
-      drawer.innerHTML = defs.map((t, i) => {
-        const hasNotif = t.notif;
-        return `<div class="nav-drawer-item${i === activeTab ? ' active' : ''}" onclick="switchTabMobile(${i})">
-          ${t.label}
-          ${hasNotif ? `<span class="tab-n-badge" id="tnd-${i}" style="display:none">0</span>` : ''}
-        </div>`;
-      }).join('');
-    }
-
-    function switchTabMobile(idx) {
-      closeNavDrawer();
-      switchTab(idx);
-      // update active state in drawer
-      document.querySelectorAll('.nav-drawer-item').forEach((el, i) => {
-        el.classList.toggle('active', i === idx);
-      });
-    }
-
-    function toggleNavDrawer() {
-      _drawerOpen ? closeNavDrawer() : openNavDrawer();
-    }
-    function openNavDrawer() {
-      buildNavDrawer();
-      document.getElementById('nav-drawer')?.classList.add('open');
-      document.getElementById('nav-overlay')?.classList.add('open');
-      _drawerOpen = true;
-    }
-    function closeNavDrawer() {
-      document.getElementById('nav-drawer')?.classList.remove('open');
-      document.getElementById('nav-overlay')?.classList.remove('open');
-      _drawerOpen = false;
-    }
-
-    // Patch switchTab to also update drawer
-    const _origSwitchTab = window.switchTab;
-    // Will be patched after app.js loads — handled in app.js override below
-    document.addEventListener('DOMContentLoaded', () => {
-      // close settings/drawer on outside click
-      document.addEventListener('click', (e) => {
-        const wrap = document.querySelector('.settings-wrap');
-        if (wrap && !wrap.contains(e.target)) {
-          document.getElementById('settings-menu')?.classList.remove('open');
-        }
-      });
-    });
-  </script>
 </body>
 </html>
