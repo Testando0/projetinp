@@ -1,7 +1,8 @@
 /**
- * GMPOL Sistema Central v2.2 — Render Edition
- * Persistência corrigida: /tmp + seed de data.json
- * WebSocket robusto + HTTP fallback endpoints
+ * GMPOL Sistema Central v3.0
+ * Novos cargos: Sentinela, Caçador Noturno, Guardião, Observador Negro, Capitão Arcano, Rei Master
+ * Sistema de suspensão temporária com tela bloqueada + cronômetro
+ * Rebaixamento exige motivo — aparece nos logs
  */
 
 const http   = require('http');
@@ -9,9 +10,20 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
+// ══ CARGO PERM (server-side) ══
+const CARGO_PERM_SRV = {
+  rei: 6, capitao: 5, observador: 4, guardiao: 3, cacador: 2, sentinela: 1
+};
+const CARGO_LABEL_SRV = {
+  rei:       'Rei Master',
+  capitao:   'Capitão Arcano',
+  observador:'Observador Negro',
+  guardiao:  'Guardião',
+  cacador:   'Caçador Noturno',
+  sentinela: 'Sentinela'
+};
+
 // ══ BANCO DE DADOS ══
-// Render free tier: app dir é READ-ONLY. Sempre escreve em /tmp.
-// Na inicialização, lê /tmp. Se vazio, semeia de __dirname/data.json.
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
 
@@ -19,16 +31,15 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master',   pass: 'master123', cargo: 'master',   nome: 'Administrador Master', ativo: true, criadoPor: 'sistema', criadoEm: now },
-      { user: 'chefe',    pass: 'chefe123',  cargo: 'chefe',    nome: 'Chefe de Polícia',      ativo: true, criadoPor: 'sistema', criadoEm: now },
-      { user: 'delegado', pass: 'del123',    cargo: 'delegado', nome: 'Delegado Silva',         ativo: true, criadoPor: 'chefe',   criadoEm: now }
+      { user: 'rei',      pass: 'rei123',     cargo: 'rei',      nome: 'Rei Master',       ativo: true, criadoPor: 'sistema', criadoEm: now },
+      { user: 'capitao',  pass: 'capitao123', cargo: 'capitao',  nome: 'Capitão Padrão',   ativo: true, criadoPor: 'sistema', criadoEm: now },
+      { user: 'sentinela',pass: 'sent123',    cargo: 'sentinela',nome: 'Sentinela Padrão',  ativo: true, criadoPor: 'capitao', criadoEm: now }
     ],
     ocs: [], puns: [], pontos: [], audit: []
   };
 }
 
 function loadData() {
-  // 1) Tenta /tmp (dados ao vivo de sessões anteriores)
   try {
     if (fs.existsSync(TMP_FILE)) {
       const raw = fs.readFileSync(TMP_FILE, 'utf8');
@@ -39,8 +50,6 @@ function loadData() {
       }
     }
   } catch (e) { console.warn('[DB] /tmp ilegível:', e.message); }
-
-  // 2) Tenta seed de __dirname/data.json
   try {
     if (fs.existsSync(SEED_FILE)) {
       const raw = fs.readFileSync(SEED_FILE, 'utf8');
@@ -48,14 +57,11 @@ function loadData() {
       if (p && Array.isArray(p.users)) {
         console.log('[DB] Carregado de seed:', SEED_FILE);
         const data = sanitize(p);
-        // Copia para /tmp para próximas inicializações
         try { fs.writeFileSync(TMP_FILE, JSON.stringify(data, null, 2)); } catch (_) {}
         return data;
       }
     }
   } catch (e) { console.warn('[DB] Seed ilegível:', e.message); }
-
-  // 3) Dados padrão
   console.log('[DB] Usando dados padrão.');
   const def = getDefaultData();
   try { fs.writeFileSync(TMP_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
@@ -126,9 +132,9 @@ function wsBuildFrame(data, opcode = 1) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
   const len = payload.length;
   let header;
-  if (len < 126)       { header = Buffer.alloc(2);  header[0] = 0x80 | opcode; header[1] = len; }
-  else if (len < 65536){ header = Buffer.alloc(4);  header[0] = 0x80 | opcode; header[1] = 126; header.writeUInt16BE(len, 2); }
-  else                 { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
+  if (len < 126)        { header = Buffer.alloc(2);  header[0] = 0x80 | opcode; header[1] = len; }
+  else if (len < 65536) { header = Buffer.alloc(4);  header[0] = 0x80 | opcode; header[1] = 126; header.writeUInt16BE(len, 2); }
+  else                  { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
   return Buffer.concat([header, payload]);
 }
 
@@ -155,7 +161,7 @@ function audit(msg, icon = '📋') {
 // ══ MIME TYPES ══
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css',
-  '.js': 'application/javascript',    '.json': 'application/json',
+  '.js': 'application/javascript',     '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
 };
@@ -231,7 +237,7 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ── ESTADO COMPLETO (HTTP fallback para clientes sem WS) ──
+  // ── ESTADO COMPLETO ──
   if (method === 'GET' && url === '/api/state') {
     return jsonRes(res, 200, {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos,
@@ -248,11 +254,20 @@ async function handleAPI(req, res) {
       u.pass === String(pass) && u.ativo
     );
     if (!u) return jsonRes(res, 401, { error: 'Credenciais inválidas ou conta desativada.' });
+    // Verificar suspensão ativa
+    if (u.banExpires && u.banExpires > Date.now()) {
+      return jsonRes(res, 403, {
+        banned:    true,
+        expiresAt: u.banExpires,
+        reason:    u.banReason || 'Suspensão temporária.',
+        banBy:     u.banBy     || 'Sistema'
+      });
+    }
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
   // ── USUÁRIOS ──
-  if (method === 'GET'  && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
+  if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
     const { nome, user, cargo, pass, criadoPor } = body;
@@ -260,15 +275,32 @@ async function handleAPI(req, res) {
     const login = String(user).trim().toLowerCase().replace(/\s/g, '');
     if (DB.users.find(u => u.user === login)) return jsonRes(res, 400, { error: 'Login já existe.' });
     if (pass.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
+    // Validar que o criador não está atribuindo cargo igual ou superior ao seu
+    const criador = DB.users.find(u => u.user === criadoPor);
+    if (criador && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) {
+      return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
+    }
     const novo = { user: login, pass, cargo, nome, ativo: true, criadoPor: criadoPor || 'sistema', criadoEm: Date.now() };
     DB.users.push(novo);
     saveData();
-    audit(`<b>${criadoPor}</b> criou o usuário <b>${nome}</b> (${cargo})`, '👤');
+    audit(`<b>${criadoPor}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mSenha  = url.match(/^\/api\/users\/([^/]+)\/senha$/);
+  // ── CHECK BAN (para restauração de sessão) ──
+  const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
+  if (method === 'GET' && mBanCheck) {
+    const u = DB.users.find(u => u.user === mBanCheck[1]);
+    if (!u) return jsonRes(res, 200, { banned: false });
+    if (u.banExpires && u.banExpires > Date.now()) {
+      return jsonRes(res, 200, { banned: true, expiresAt: u.banExpires, reason: u.banReason, banBy: u.banBy });
+    }
+    return jsonRes(res, 200, { banned: false });
+  }
+
+  // ── SENHA ──
+  const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
@@ -281,6 +313,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ── STATUS ──
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
@@ -293,19 +326,110 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mCargo  = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
+  // ── CARGO (rebaixamento exige motivo) ──
+  const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
-    const { cargo, feitorPor } = body;
-    const old = DB.users[i].cargo;
+
+    const { cargo, feitorPor, motivo } = body;
+    const targetUser = DB.users[i];
+
+    // Rei Master é irrebaixável
+    if (targetUser.cargo === 'rei') {
+      return jsonRes(res, 403, { error: 'O Rei Master não pode ser rebaixado.' });
+    }
+
+    // Validar que o executor tem permissão para o cargo-alvo
+    const executor = DB.users.find(u => u.user === feitorPor);
+    const execPerm = executor ? (CARGO_PERM_SRV[executor.cargo]||0) : 0;
+    if ((CARGO_PERM_SRV[cargo]||0) >= execPerm) {
+      return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
+    }
+
+    const oldPerm = CARGO_PERM_SRV[targetUser.cargo] || 0;
+    const newPerm = CARGO_PERM_SRV[cargo] || 0;
+    const isRebaixamento = newPerm < oldPerm;
+
+    if (isRebaixamento && !motivo) {
+      return jsonRes(res, 400, { error: 'Motivo obrigatório para rebaixamento.' });
+    }
+
+    const oldCargo = targetUser.cargo;
     DB.users[i].cargo = cargo;
     saveData();
-    audit(`<b>${feitorPor}</b> alterou cargo de <b>${DB.users[i].nome}</b>: ${old} → ${cargo}`, '🏷️');
+
+    let logMsg, logIcon;
+    if (isRebaixamento) {
+      logMsg = `<b>${feitorPor}</b> rebaixou <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo} — motivo: ${motivo}`;
+      logIcon = '📉';
+    } else {
+      logMsg = `<b>${feitorPor}</b> promoveu <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo}`;
+      logIcon = '📈';
+    }
+
+    audit(logMsg, logIcon);
     broadcast('USERS_UPDATED', DB.users.map(pub));
+    broadcast('CARGO_CHANGED', {
+      userLogin:    DB.users[i].user,
+      oldCargo,
+      newCargo:     cargo,
+      tipo:         isRebaixamento ? 'rebaixado' : 'promovido',
+      motivo:       motivo || null,
+      feitorPorNome: feitorPor
+    });
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ── BAN TEMPORÁRIO ──
+  const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
+  if (mBan) {
+    if (method === 'POST') {
+      const i = DB.users.findIndex(u => u.user === mBan[1]);
+      if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+      const { duracao, motivo, feitorPor, feitorPorNome } = body;
+      const mins = parseInt(duracao) || 0;
+      if (mins <= 0) return jsonRes(res, 400, { error: 'Duração inválida.' });
+      if (!motivo)   return jsonRes(res, 400, { error: 'Motivo obrigatório.' });
+      // Validar permissão
+      const executor = DB.users.find(u => u.user === feitorPor);
+      const execPerm = executor ? (CARGO_PERM_SRV[executor.cargo]||0) : 0;
+      const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
+      if (execPerm <= tgtPerm) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
+      const expiresAt = Date.now() + mins * 60 * 1000;
+      DB.users[i].banExpires = expiresAt;
+      DB.users[i].banReason  = motivo;
+      DB.users[i].banBy      = feitorPorNome || feitorPor;
+      saveData();
+      const nome = DB.users[i].nome;
+      audit(`<b>${feitorPorNome||feitorPor}</b> suspendeu <b>${nome}</b> por ${mins} min(s) — motivo: ${motivo}`, '⛔');
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      broadcast('USER_BANNED', {
+        userLogin: DB.users[i].user,
+        expiresAt,
+        reason:   motivo,
+        banBy:    feitorPorNome || feitorPor,
+        duracao:  mins
+      });
+      return jsonRes(res, 200, { ok: true });
+    }
+    if (method === 'DELETE') {
+      const i = DB.users.findIndex(u => u.user === mBan[1]);
+      if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+      const { feitorPor } = body;
+      const nome = DB.users[i].nome;
+      DB.users[i].banExpires = null;
+      DB.users[i].banReason  = null;
+      DB.users[i].banBy      = null;
+      saveData();
+      audit(`<b>${feitorPor}</b> removeu a suspensão de <b>${nome}</b>`, '✅');
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      broadcast('USER_UNBANNED', { userLogin: DB.users[i].user });
+      return jsonRes(res, 200, { ok: true });
+    }
+  }
+
+  // ── DELETE USUÁRIO ──
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
@@ -321,7 +445,6 @@ async function handleAPI(req, res) {
 
   // ── OCORRÊNCIAS ──
   if (method === 'GET'  && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
-
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
     if (!oc || !oc.id) return jsonRes(res, 400, { error: 'Dados inválidos.' });
@@ -359,7 +482,6 @@ async function handleAPI(req, res) {
 
   // ── PUNIÇÕES ──
   if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
-
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
     if (!pun || !pun.nome) return jsonRes(res, 400, { error: 'Dados inválidos.' });
@@ -371,7 +493,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  const mPunId  = url.match(/^\/api\/puns\/id\/([^/]+)$/);
+  const mPunId = url.match(/^\/api\/puns\/id\/([^/]+)$/);
   if (method === 'DELETE' && mPunId) {
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
@@ -397,7 +519,6 @@ async function handleAPI(req, res) {
 
   // ── PONTOS ──
   if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
-
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
     if (!ponto || !ponto.userLogin) return jsonRes(res, 400, { error: 'Dados inválidos.' });
@@ -431,23 +552,15 @@ const httpServer = http.createServer(async (req, res) => {
 httpServer.on('upgrade', (req, socket, head) => {
   if (req.url !== '/ws') { socket.destroy(); return; }
   if (!wsHandshake(req, socket)) return;
-
   socket.isAlive = true;
   socket._buffer = Buffer.alloc(0);
   wsClients.add(socket);
-
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-
-  // Envia estado completo ao conectar
   wsSend(socket, {
     type: 'INIT',
-    payload: {
-      ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos,
-      users: DB.users.map(pub), audit: DB.audit
-    }
+    payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, users: DB.users.map(pub), audit: DB.audit }
   });
-
   socket.on('data', (chunk) => {
     socket._buffer = Buffer.concat([socket._buffer, chunk]);
     while (socket._buffer.length >= 2) {
@@ -465,7 +578,6 @@ httpServer.on('upgrade', (req, socket, head) => {
       }
     }
   });
-
   socket.on('close', () => { wsClients.delete(socket); console.log(`[WS] - ${ip} | Total: ${wsClients.size}`); });
   socket.on('error', (e) => { wsClients.delete(socket); console.error(`[WS] Erro (${ip}):`, e.message); });
 });
@@ -479,7 +591,6 @@ function wsClose(socket) {
   try { socket.destroy(); } catch (_) {}
 }
 
-// Heartbeat a cada 25s (Render timeout = 55s)
 setInterval(() => {
   wsClients.forEach(s => {
     if (!s.isAlive) { wsClose(s); return; }
@@ -493,13 +604,13 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v2.2         ║');
+  console.log('║   👑  GMPOL Sistema Central v3.0         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   master   / master123                   ║');
-  console.log('║   chefe    / chefe123                    ║');
-  console.log('║   delegado / del123                      ║');
+  console.log('║   rei       / rei123                     ║');
+  console.log('║   capitao   / capitao123                 ║');
+  console.log('║   sentinela / sent123                    ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
@@ -507,23 +618,14 @@ process.on('SIGTERM', () => { saveDataSync(); httpServer.close(() => process.exi
 process.on('SIGINT',  () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('uncaughtException', (e) => { console.error('[FATAL]', e); saveDataSync(); });
 
-// ══ KEEP-ALIVE (Render Free Tier) ══
-// Faz auto-ping a cada 14 min para evitar que o serviço durma.
-// Também configure o UptimeRobot (gratuito) apontando para:
-//   https://SEU-APP.onrender.com/health
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL || null;
 if (RENDER_URL) {
   const keepAliveUrl = RENDER_URL.replace(/\/$/, '') + '/health';
   setInterval(() => {
     const proto = keepAliveUrl.startsWith('https') ? require('https') : require('http');
-    const req = proto.get(keepAliveUrl, (res) => {
-      console.log(`[KeepAlive] Ping OK — status ${res.statusCode}`);
-      res.resume();
-    });
+    const req = proto.get(keepAliveUrl, (res) => { res.resume(); });
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
-  }, 14 * 60 * 1000); // 14 minutos
-  console.log(`[KeepAlive] Auto-ping ativo → ${keepAliveUrl}`);
-} else {
-  console.log('[KeepAlive] Defina RENDER_EXTERNAL_URL nas env vars do Render para ativar o auto-ping.');
+  }, 14 * 60 * 1000);
+  console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
 }
