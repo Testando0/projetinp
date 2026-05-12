@@ -1,35 +1,8 @@
 {
   "users": [
-    {
-      "user": "master",
-      "pass": "master123",
-      "cargo": "master",
-      "nome": "Administrador Master",
-      "ativo": true,
-      "criadoPor": "sistema",
-      "criadoEm": 1700000000000
-    },
-    {
-      "user": "chefe",
-      "pass": "chefe123",
-      "cargo": "chefe",
-      "nome": "Chefe de Polícia",
-      "ativo": true,
-      "criadoPor": "sistema",
-      "criadoEm": 1700000000000
-    },
-    {
-      "user": "delegado",
-      "pass": "del123",
-      "cargo": "delegado",
-      "nome": "Delegado Silva",
-      "ativo": true,
-      "criadoPor": "chefe",
-      "criadoEm": 1700000000000
-    }
+    {"user":"rei","pass":"rei123","cargo":"rei","nome":"Rei Master","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
+    {"user":"capitao","pass":"capitao123","cargo":"capitao","nome":"Capitão Padrão","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
+    {"user":"sentinela","pass":"sent123","cargo":"sentinela","nome":"Sentinela Padrão","ativo":true,"criadoPor":"capitao","criadoEm":1700000000000}
   ],
-  "ocs": [],
-  "puns": [],
-  "pontos": [],
-  "audit": []
+  "ocs":[],"puns":[],"pontos":[],"audit":[]
 }
