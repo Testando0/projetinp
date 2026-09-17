@@ -1,17 +1,21 @@
 // ══ CONFIGURAÇÕES E CONSTANTES ══
 const CARGO_LABEL = {
-  rei:       'Rei Master',
-  capitao:   'Capitão Arcano',
-  observador:'Observador Negro',
-  guardiao:  'Guardião',
-  cacador:   'Caçador Noturno',
-  sentinela: 'Sentinela'
+  admin:     'Admin master',
+  chefe:     'Chefe de polícia',
+  delegado:  'Delegado',
+  escrivao:  'Escrivão',
+  tatico:    'Tático',
+  agente:    'Agente oficial',
+  gm:        'Guarda municipal'
 };
 const CARGO_BADGE_CLASS = {
-  rei:'cb-rei', capitao:'cb-capitao', observador:'cb-observador',
-  guardiao:'cb-guardiao', cacador:'cb-cacador', sentinela:'cb-sentinela'
+  admin:'cb-master', chefe:'cb-chefe', delegado:'cb-delegado',
+  escrivao:'cb-escrivao', tatico:'cb-tatico', agente:'cb-agente', gm:'cb-guarda'
 };
-const CARGO_PERM = { rei:6, capitao:5, observador:4, guardiao:3, cacador:2, sentinela:1 };
+const CARGO_PERM = { admin:7, chefe:6, delegado:5, escrivao:4, tatico:3, agente:2, gm:1 };
+const CARGO_BASE_MINUTES = {
+  gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0
+};
 
 // ══ ESTADO ══
 let me=null, activeTab=0;
@@ -79,7 +83,6 @@ async function checkSession(){
       let parsed;
       try{parsed=JSON.parse(saved);}catch(_){sessionStorage.removeItem('gmpol_session');showLogin();return;}
       if(!parsed||!parsed.user||!parsed.cargo){sessionStorage.removeItem('gmpol_session');showLogin();return;}
-      // Garantir que pass nunca esteja na sessão
       const{pass:_p,...meSafe}=parsed;
       me=meSafe;
       _loadStateFromCache();
@@ -111,7 +114,6 @@ async function login(){
     if(!res){throw new Error('Resposta inválida do servidor.');}
     if(res.banned){showBanScreen({expiresAt:res.expiresAt,reason:res.reason,banBy:res.banBy});return;}
     if(!res.user){throw new Error('Dados de usuário inválidos.');}
-    // Garantir que o campo 'pass' nunca seja armazenado localmente
     const{pass:_p,...meSafe}=res.user;
     me=meSafe;
     sessionStorage.setItem('gmpol_session',JSON.stringify(me));
@@ -204,8 +206,9 @@ function tabDefs(c){
     {label:'▸ PUNIÇÕES',key:'puns',notif:false},
     {label:'▸ PONTO',key:'pontos',notif:false}
   ];
-  if(p>=5)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ AUDITORIA',key:'audit',notif:false}];
-  if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false}];
+  if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ AUDITORIA',key:'audit',notif:false}];
+  if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false}];
+  if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true}];
   return[...base,...common];
 }
 
@@ -262,12 +265,13 @@ function vInicio(){
   const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
   const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
   const msgs={
-    rei:'Acesso total ao sistema. Você controla tudo: registros, usuários, punições, cargos e auditoria. O Rei Master é irrebaixável.',
-    capitao:'Você pode rebaixar e aumentar cargos, aplicar punições para menores patentes e gerenciar usuários.',
-    observador:'Você pode punir diretamente sem aprovação e aplicar suspensões temporárias. Revise os registros pendentes.',
-    guardiao:'Você controla Sentinelas e Caçadores Noturnos, podendo revisar e gerenciar suas atividades.',
-    cacador:'Você pode registrar ocorrências, bater ponto e solicitar punições para Sentinelas.',
-    sentinela:'Você pode registrar ocorrências, bater ponto e solicitar advertências para os demais membros.'
+    admin:'Acesso total ao sistema. Você controla tudo: registros, usuários, punições, cargos e auditoria.',
+    chefe:'Você pode alterar cargos, gerenciar usuários e supervisionar a corporação.',
+    delegado:'Você pode aceitar ou recusar ocorrências e logs, além de supervisionar os Escrivãos.',
+    escrivao:'Você pode aceitar ou recusar as ocorrências enviadas e auxiliar na administração.',
+    tatico:'Você pode solicitar rebaixamento ou punição para membros inferiores e registrar ocorrências.',
+    agente:'Você pode registrar ocorrências, bater ponto e auxiliar os Táticos.',
+    gm:'Você pode registrar ocorrências e bater seu ponto para cumprir as 1h30 de turno.'
   };
   const today=new Date().toLocaleDateString('pt-BR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   return `<div class="stitle">▸ PAINEL INICIAL</div>
@@ -287,11 +291,11 @@ function vInicio(){
 function vRegistrar(){
   return `<div class="stitle">▸ REGISTRAR OCORRÊNCIA / DENÚNCIA</div>
     <div class="card">
-      <p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar. Será analisado por Observadores, Capitães ou pelo Rei.</p>
+      <p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar. Será analisado por Táticos ou superiores.</p>
       <div class="g2">
         <div class="fg"><label>Tipo</label><select id="oc-tipo"><option value="Ocorrência">Ocorrência</option><option value="Denúncia">Denúncia</option></select></div>
         <div class="fg"><label>Nome do Envolvido</label><input id="oc-nome" placeholder="Nome completo"></div>
-        <div class="fg"><label>Cargo do Envolvido</label><select id="oc-cargo"><option>Sentinela</option><option>Caçador Noturno</option><option>Guardião</option><option>Observador Negro</option><option>Capitão Arcano</option><option>Rei Master</option><option>Civil</option><option>Outro</option></select></div>
+        <div class="fg"><label>Cargo do Envolvido</label><select id="oc-cargo"><option>Guarda municipal</option><option>Agente oficial</option><option>Tático</option><option>Escrivão</option><option>Delegado</option><option>Chefe de polícia</option><option>Admin master</option><option>Civil</option><option>Outro</option></select></div>
         <div class="fg g-full"><label>Depoimento / Relato</label><textarea id="oc-dep" placeholder="Descreva detalhadamente…"></textarea></div>
       </div>
       <button class="btn btn-primary" style="margin-top:8px;max-width:260px;" onclick="registrarOc()">▸ ENVIAR REGISTRO</button>
@@ -314,12 +318,12 @@ function vOcDelegado(){const ocs=STATE.ocs.filter(o=>o.delegadoUser===me.user).r
 function vOcAdmin(){
   const myP=CARGO_PERM[me.cargo]||0;
   const ocs=STATE.ocs.filter(o=>o.status==='pendente').reverse();
-  return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=6)).join(''):empty('✅','Nenhum registro pendente.'));
+  return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=7)).join(''):empty('✅','Nenhum registro pendente.'));
 }
 
 function vHistorico(){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente').reverse();
-  const isRei=(CARGO_PERM[me.cargo]||0)>=6;
+  const isRei=(CARGO_PERM[me.cargo]||0)>=7;
   return `<div class="stitle">▸ HISTÓRICO</div>
     <div class="filter-bar"><button class="btn btn-sm btn-ghost" onclick="filtrarHist('')">TODOS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('aceita')">✅ ACEITAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('recusada')">❌ RECUSADAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('cancelada')">🚫 CANCELADAS</button></div>
     <div id="hist-list">${ocs.length?ocs.map(o=>ocCard(o,false,isRei)).join(''):empty('📂','Nenhuma ocorrência processada.')}</div>`;
@@ -328,7 +332,7 @@ function vHistorico(){
 function filtrarHist(status){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente'&&(!status||o.status===status)).reverse();
   const el=document.getElementById('hist-list');
-  if(el)el.innerHTML=ocs.length?ocs.map(o=>ocCard(o,false,(CARGO_PERM[me.cargo]||0)>=6)).join(''):empty('📂','Nenhuma ocorrência nesta categoria.');
+  if(el)el.innerHTML=ocs.length?ocs.map(o=>ocCard(o,false,(CARGO_PERM[me.cargo]||0)>=7)).join(''):empty('📂','Nenhuma ocorrência nesta categoria.');
 }
 
 function ocCard(o,actions,masterMode){
@@ -336,7 +340,7 @@ function ocCard(o,actions,masterMode){
   const scLbl={pendente:'⏳ Pendente',aceita:'✅ Aceita',recusada:'❌ Recusada',cancelada:'🚫 Cancelada'};
   const dt=new Date(o.ts).toLocaleString('pt-BR');
   const tipoBadge=o.tipo==='Denúncia'?'<span class="tipo-badge tipo-denuncia">📢 DENÚNCIA</span>':'<span class="tipo-badge tipo-oc">📋 OCORRÊNCIA</span>';
-  const masterBtns=masterMode?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><span style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--accent);align-self:center;">REI:</span><button class="btn btn-warn btn-xs" onclick="abrirEditarOc('${o.id}')">✏️ EDITAR</button><button class="btn btn-danger btn-xs" onclick="confirmarDeleteOc('${o.id}')">🗑 DELETAR</button>${o.status!=='cancelada'?'<button class="btn btn-xs" style="background:var(--text-dim);color:#000;" onclick="cancelarOc(\''+o.id+'\')">🚫 CANCELAR</button>':''}</div>`:'';
+  const masterBtns=masterMode?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><span style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--accent);align-self:center;">ADMIN:</span><button class="btn btn-warn btn-xs" onclick="abrirEditarOc('${o.id}')">✏️ EDITAR</button><button class="btn btn-danger btn-xs" onclick="confirmarDeleteOc('${o.id}')">🗑 DELETAR</button>${o.status!=='cancelada'?'<button class="btn btn-xs" style="background:var(--text-dim);color:#000;" onclick="cancelarOc(\''+o.id+'\')">🚫 CANCELAR</button>':''}</div>`:'';
   const actHTML=actions?`<div class="oc-actions"><button class="btn btn-success btn-sm" onclick="abrirDecisao('${o.id}','aceita')">✔ ACEITAR</button><button class="btn btn-danger btn-sm" onclick="abrirDecisao('${o.id}','recusada')">✘ RECUSAR</button></div><div class="decide-zone" id="dz-${o.id}"><div class="fg" style="margin-top:10px;"><label>Motivo</label><textarea id="dm-${o.id}"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" id="dc-${o.id}" onclick="decidir('${o.id}')">CONFIRMAR</button><button class="btn btn-ghost btn-sm" onclick="fecharDecisao('${o.id}')">CANCELAR</button></div></div></div>`:(o.resposta?'<div><span class="resp-lbl">Resposta</span><div class="dep-box" style="margin-bottom:0;">'+o.resposta+'</div></div>':'');
   return `<div class="oc-wrap"><div class="oc-top"><div class="oc-meta"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">${tipoBadge}<span style="font-size:.72rem;font-weight:700;color:var(--text);">${o.id}</span></div><div>${dt}</div><div>POR: <b>${o.autor||o.delegado}</b></div></div><span class="status-chip ${scMap[o.status]||'sc-p'}">${scLbl[o.status]||o.status}</span></div><div class="oc-fields"><div class="oc-f"><label>Envolvido</label><span>${o.nome}</span></div><div class="oc-f"><label>Cargo</label><span>${o.cargo}</span></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-bottom:5px;letter-spacing:.08em;">RELATO</div><div class="dep-box">${o.depoimento}</div>${actHTML}${masterBtns}</div>`;
 }
@@ -397,11 +401,11 @@ function vUsuarios(){
   const rows=STATE.users.map(u=>{
     const isMe=u.user===me.user, tP=CARGO_PERM[u.cargo]||0;
     const canAct=!isMe&&myP>tP;
-    const isRei=u.cargo==='rei';
+    const isRei=u.cargo==='admin';
     const isBanned=u.banExpires&&u.banExpires>Date.now();
     const bannedBadge=isBanned?'<span class="ban-badge">⛔ SUSPENSO</span>':'';
     const opts=Object.entries(CARGO_LABEL).filter(([k])=>(CARGO_PERM[k]||0)<myP).map(([k,v])=>'<option value="'+k+'" '+(u.cargo===k?'selected':'')+'>'+v+'</option>').join('');
-    const cargoCell=(canAct&&!isRei&&opts)
+    const cargoCell=(canAct&&!isRei&&myP>=6&&opts)
       ?'<select class="cargo-select" onchange="alterarCargo(\''+u.user+'\', this.value, this)">'+opts+'</select>'
       :'<span class="cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'')+'">'+(CARGO_LABEL[u.cargo]||u.cargo)+'</span>';
     const nn=u.nome.replace(/'/g,"\\'");
@@ -417,12 +421,12 @@ function vUsuarios(){
         (canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+
         (canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+
         (canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+
-        (canAct&&myP>=5?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+( u.ativo?'🚫':'✅')+'</button>':'')+
-        (myP>=6&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+
+        (canAct&&myP>=6?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+( u.ativo?'🚫':'✅')+'</button>':'')+
+        (myP>=7&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+
       '</div></td></tr>';
   }).join('');
   return '<div class="stitle">▸ GERENCIAR USUÁRIOS</div>'+
-    (myP>=5?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+
+    (myP>=6?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+
     '<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '<div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).</div>';
 }
@@ -432,14 +436,12 @@ async function criarUsuario(){
   if(!nome||!user||!cargo||!pass){toast('Preencha todos os campos.','d');return;}
   if(pass.length<6){toast('Senha mínima: 6 caracteres.','w');return;}
   if(!/^[a-z0-9_]+$/.test(user)){toast('Login: apenas letras, números e _.','w');return;}
-  // Não permitir criar usuário com cargo >= o seu
   if((CARGO_PERM[cargo]||0)>=(CARGO_PERM[me.cargo]||0)){toast('Você não pode criar usuários com cargo igual ou superior ao seu.','d');return;}
   try{await API.createUser({nome,user,cargo,pass,criadoPor:me.user});toast('Usuário '+nome+' criado!','s');closeModal('m-novo-user');['nu-nome','nu-user','nu-pass'].forEach(id=>document.getElementById(id).value='');}
   catch(e){toast(e.message||'Erro.','d');}
 }
 
 function abrirCriarUsuario(){
-  // Preencher select com cargos menores que o do usuário atual
   const myP=CARGO_PERM[me.cargo]||0;
   const sel=document.getElementById('nu-cargo');
   if(sel){
@@ -473,7 +475,6 @@ function confirmarDeleteUser(username,nome){
 async function deleteUser(un){try{await API.deleteUser(un,me.nome);toast('Excluído.','w');}catch(e){toast(e.message,'d');}}
 async function toggleStatus(un,ativo){try{await API.toggleUserStatus(un,ativo,me.nome);toast('Conta '+(ativo?'ativada':'desativada')+'.', ativo?'s':'w');}catch(e){toast(e.message,'d');}}
 
-// ── Alterar cargo — rebaixamento exige motivo ──
 function alterarCargo(username,novoCargo,selectEl){
   const tU=STATE.users.find(u=>u.user===username);if(!tU)return;
   const oP=CARGO_PERM[tU.cargo]||0, nP=CARGO_PERM[novoCargo]||0;
@@ -505,7 +506,6 @@ function cancelarRebaixar(){
   _pendingCargoChange=null; closeModal('m-rebaixar');
 }
 
-// ── Suspensão temporária ──
 function abrirBanModal(username,nome,cargo){
   _pendingBan={username,nome};
   document.getElementById('bn-info').innerHTML='Suspender <b>'+nome+'</b> — <span class="cargo-badge '+(CARGO_BADGE_CLASS[cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[cargo]||cargo)+'</span>';
@@ -530,13 +530,13 @@ async function removerBan(username,nome){
 
 // ══ VIEW: PUNIÇÕES ══
 function vPunicoes(){
-  const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=4;
+  const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=3;
   const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
   const form=canEdit?`<div class="card" style="margin-bottom:22px;">
     <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:16px;">▸ REGISTRAR PUNIÇÃO</div>
     <div class="g2"><div class="fg"><label>Nome do Agente</label><input id="pn-nome"></div><div class="fg"><label>Nível</label><select id="pn-nivel"><option>Leve</option><option>Médio</option><option>Grave</option></select></div><div class="fg g-full"><label>Motivo</label><input id="pn-motivo"></div></div>
     <button class="btn btn-primary" style="margin-top:10px;max-width:200px;" onclick="addPun()">▸ REGISTRAR</button>
-  </div>`:`<div class="card c-none" style="margin-bottom:16px;padding:12px 16px;border:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);">▸ Apenas Observadores Negros e acima podem registrar punições diretamente.</div>`;
+  </div>`:`<div class="card c-none" style="margin-bottom:16px;padding:12px 16px;border:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);">▸ Apenas Táticos e acima podem registrar punições diretamente.</div>`;
   const rows=[...STATE.puns].reverse().map((p,ri)=>{
     const realIdx=STATE.puns.length-1-ri;
     return '<tr><td style="font-weight:600;">'+p.nome+'</td><td style="color:var(--text-mid);">'+p.motivo+'</td><td><span class="status-chip '+nc(p.nivel)+'">'+p.nivel+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+p.autor+'</td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">'+new Date(p.ts).toLocaleDateString('pt-BR')+'</td>'+(canEdit?'<td><button class="btn btn-danger btn-xs" onclick="delPun('+realIdx+')">✘</button></td>':'<td></td>')+'</tr>';
@@ -558,25 +558,41 @@ async function delPun(idx){
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
-  const hoje=new Date().toDateString(), jaHoje=mine.some(p=>new Date(p.ts).toDateString()===hoje);
+  const lastPonto = mine.length ? mine[mine.length - 1] : null;
+  const isClockedIn = lastPonto && lastPonto.type === 'entrada';
   const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});
+  const hoje=new Date().toDateString();
   const hoje2=STATE.pontos.filter(p=>new Date(p.ts).toDateString()===hoje);
 
   const FM="font-family:'Share Tech Mono',monospace;";
   const FO="font-family:'Orbitron',sans-serif;";
 
   const minhaTab=mine.length
-    ?'<table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>DIA</th></tr></thead><tbody>'
-      +[...mine].reverse().slice(0,20).map(function(p){const d=new Date(p.ts);return(
+    ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
+      +[...mine].reverse().slice(0,20).map(function(p){const d=new Date(p.ts);
+        let det = '';
+        if(p.type === 'saida' && p.trabalhado !== undefined){
+           const h = Math.floor(p.trabalhado / 60);
+           const m = p.trabalhado % 60;
+           det = '<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
+           if(p.extraReais > 0) det += '<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';
+           if(p.debtMins > 0) {
+               const dh = Math.floor(p.debtMins / 60);
+               const dm = p.debtMins % 60;
+               det += '<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';
+           }
+        }
+        return(
         '<tr><td style="'+FM+'">'+d.toLocaleDateString('pt-BR')+'</td>'
+        +'<td style="'+FM+(p.type==='entrada'?'color:#4ade80;':'color:#f87171;')+'">'+(p.type==='entrada'?'\u25b6 ENTRADA':'\u23f9 SAÍDA')+'</td>'
         +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
-        +'<td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+d.toLocaleDateString('pt-BR',{weekday:'long'}).toUpperCase()+'</td></tr>'
+        +'<td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>'
       );}).join('')+'</tbody></table>'
     :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
 
-  const botaoPonto=jaHoje
-    ?'<div style="display:inline-block;padding:10px 24px;background:rgba(var(--accent3-rgb),.1);border:1px solid var(--accent3);border-radius:4px;'+FM+'font-size:.7rem;color:var(--accent3);">\u2705 PONTO REGISTRADO HOJE</div>'
-    :'<button class="btn btn-primary" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto()">\u25b8 BATER PONTO AGORA</button>';
+  const botaoPonto = isClockedIn
+    ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
+    : '<button class="btn btn-primary" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
 
   var supervHtml='';
   if(isSuperv){
@@ -649,10 +665,31 @@ function startClock(){
     if(de)de.textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();
   },1000);
 }
-async function baterPonto(){
+async function baterPonto(type){
   const now=new Date();
-  const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),data:now.toLocaleDateString('pt-BR'),ts:now.getTime()};
-  try{await API.createPonto(p);toast('✅ Ponto às '+p.hora+'!','s');renderTab(activeTab);}catch(e){toast(e.message||'Erro.','d');}
+  const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),data:now.toLocaleDateString('pt-BR'),ts:now.getTime()};
+  try{
+    const res=await API.createPonto(p);
+    if(type==='entrada'){
+      toast('✅ Entrada registrada às '+p.hora+'!','s');
+    } else {
+      if(res && res.ponto && res.ponto.trabalhado !== undefined){
+        const h = Math.floor(res.ponto.trabalhado / 60);
+        const m = res.ponto.trabalhado % 60;
+        let msg = '✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
+        if(res.ponto.extraReais > 0) msg += '<br><b style="color:#4ade80;">Horas extras: R$ '+res.ponto.extraReais+',00</b>';
+        if(res.ponto.debtMins > 0){
+            const dh = Math.floor(res.ponto.debtMins / 60);
+            const dm = res.ponto.debtMins % 60;
+            msg += '<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';
+        }
+        toast(msg, 's', 8000);
+      } else {
+        toast('✅ Saída registrada às '+p.hora+'!','s');
+      }
+    }
+    renderTab(activeTab);
+  }catch(e){toast(e.message||'Erro.','d');}
 }
 
 // ══ VIEW: AUDITORIA ══
@@ -672,7 +709,6 @@ async function alterarSenhaPropria(){
   if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}
   if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}
   if(nv!==cf){toast('Confirmação de senha não confere.','d');return;}
-  // Verificar senha atual via login
   try{
     const check=await API.login(me.user,at);
     if(!check||check.banned){toast('Senha atual incorreta.','d');return;}
@@ -698,10 +734,10 @@ document.addEventListener('click',e=>{
   if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');
 });
 
-function toast(txt,type='i'){
+function toast(txt,type='i',duration=3800){
   const c=document.getElementById('toast-container'),t=document.createElement('div');
   t.className='toast '+type; t.innerHTML='<span>'+txt+'</span>'; c.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},3800);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
