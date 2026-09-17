@@ -1,8 +1,8 @@
 {
   "users": [
-    {"user":"admin","pass":"admin123","cargo":"admin","nome":"Admin Master","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000,"cicloDias":[],"folgaDia":null},
+    {"user":"master","pass":"masterx512","cargo":"admin","nome":"Master","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000,"cicloDias":[],"folgaDia":null},
     {"user":"chefe","pass":"chefe123","cargo":"chefe","nome":"Chefe Padrão","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000,"cicloDias":[],"folgaDia":null},
-    {"user":"gm","pass":"gm123","cargo":"gm","nome":"GM Padrão","ativo":true,"criadoPor":"chefe","criadoEm":1700000000000,"cicloDias":[],"folgaDia":null}
+    {"user":"gm","pass":"gm123","cargo":"gm","nome":"GM Padrão","ativo":true,"criadoPor":"master","criadoEm":1700000000000,"cicloDias":[],"folgaDia":null}
   ],
   "ocs":[],
   "puns":[],
