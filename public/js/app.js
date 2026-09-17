@@ -15,7 +15,8 @@ const CARGO_BADGE_CLASS = {
 const CARGO_PERM = { admin:7, chefe:6, delegado:5, escrivao:4, tatico:3, agente:2, gm:1 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ══ MASTER: acesso total ══
+// ══ SESSÃO PERSISTENTE (fica logado até sair manualmente) ══
+const SESSION_KEY = 'gmpol_session';
 function isMaster(){ return !!me && me.user === 'master'; }
 
 // ══ HORÁRIO DE BRASÍLIA ══
@@ -29,6 +30,14 @@ let me=null, activeTab=0;
 let STATE={ocs:[],puns:[],pontos:[],users:[],audit:[]};
 let _pendingCargoChange=null, _pendingBan=null, _banTimer=null, _clockInterval;
 let _busyPonto=false, _busyPun=false;
+let _keepIv=null;
+
+// ══ KEEP-ALIVE: mantém o servidor hospedado acordado ══
+function startKeepAlive(){
+  stopKeepAlive();
+  _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); }, 240000); // a cada 4 min
+}
+function stopKeepAlive(){ clearInterval(_keepIv); _keepIv=null; }
 
 // ══ WEBSOCKET HANDLERS (só UI) ══
 function handleSocketMessage(data){
@@ -51,7 +60,7 @@ function handleSocketMessage(data){
     case 'USERS_UPDATED':
       if(me){
         const mu=(payload||[]).find(u=>u.user===me.user);
-        if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo};sessionStorage.setItem('gmpol_session',JSON.stringify(me));
+        if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo};saveSession();
           const badge=document.getElementById('tb-badge');
           if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}
       }
@@ -68,13 +77,13 @@ function handleSocketMessage(data){
     case 'USER_UNBANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:null,banReason:null,banBy:null}:u);
       if(activeTab===getTabIdx('users'))renderTab(activeTab);
-      if(me&&payload.userLogin===me.user){sessionStorage.removeItem('gmpol_session');location.reload();}
+      if(me&&payload.userLogin===me.user){clearSession();location.reload();}
       break;
     case 'CARGO_CHANGED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,cargo:payload.newCargo}:u);
       if(activeTab===getTabIdx('users'))renderTab(activeTab);
       if(me&&payload.userLogin===me.user){
-        me.cargo=payload.newCargo; sessionStorage.setItem('gmpol_session',JSON.stringify(me));
+        me.cargo=payload.newCargo; saveSession();
         const nl=CARGO_LABEL[payload.newCargo]||payload.newCargo;
         const ic=payload.tipo==='promovido'?'📈':'📉';
         const msg=payload.tipo==='promovido'
@@ -91,22 +100,51 @@ function handleSocketMessage(data){
 
 function getTabIdx(name){if(!me)return -1;return tabDefs(me.cargo).findIndex(t=>t.key===name);}
 
+// ══ HELPERS DE SESSÃO ══
+function saveSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(me)); }catch(_){} }
+function clearSession(){ try{ localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); }catch(_){} }
+function readSession(){
+  try{
+    let saved=localStorage.getItem(SESSION_KEY);
+    if(!saved){ // migra sessão antiga de sessionStorage
+      const ss=sessionStorage.getItem(SESSION_KEY);
+      if(ss){ localStorage.setItem(SESSION_KEY,ss); sessionStorage.removeItem(SESSION_KEY); saved=ss; }
+    }
+    return saved;
+  }catch(_){ return null; }
+}
+
 // ══ SESSION ══
 async function checkSession(){
+  const saved=readSession();
+  if(!saved){ showLogin(); return; }
+  let parsed;
+  try{ parsed=JSON.parse(saved); }catch(_){ clearSession(); showLogin(); return; }
+  if(!parsed||!parsed.user||!parsed.cargo){ clearSession(); showLogin(); return; }
+  if(parsed.user==='admin'){ clearSession(); showLogin(); return; } // migração admin→master
+  const{pass:_p,...meSafe}=parsed;
+  me=meSafe;
+  _loadStateFromCache();
+
+  // Valida a sessão contra o servidor (se responder). Se o usuário não existir mais → volta pro login.
   try{
-    const saved=sessionStorage.getItem('gmpol_session');
-    if(saved){
-      let parsed;
-      try{parsed=JSON.parse(saved);}catch(_){sessionStorage.removeItem('gmpol_session');showLogin();return;}
-      if(!parsed||!parsed.user||!parsed.cargo){sessionStorage.removeItem('gmpol_session');showLogin();return;}
-      if(parsed.user==='admin'){sessionStorage.removeItem('gmpol_session');showLogin();return;} // migração admin→master
-      const{pass:_p,...meSafe}=parsed;
-      me=meSafe;
-      _loadStateFromCache();
-      try{const bc=await API.checkBan(me.user);if(bc&&bc.banned){showBanScreen(bc);return;}}catch(_){}
-      showPanel();
-    } else showLogin();
-  }catch(e){sessionStorage.removeItem('gmpol_session');showLogin();}
+    const st=await API.getState();
+    if(st&&Array.isArray(st.users)){
+      const su=st.users.find(u=>u.user===me.user);
+      if(!su||!su.ativo){ clearSession(); me=null; showLogin(); return; }
+      me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};
+      saveSession();
+      if(su.banExpires&&su.banExpires>Date.now()){ showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy}); return; }
+      // estado fresco do servidor
+      STATE.users=st.users;
+      if(Array.isArray(st.ocs))STATE.ocs=st.ocs;
+      if(Array.isArray(st.puns))STATE.puns=st.puns;
+      if(Array.isArray(st.pontos))STATE.pontos=st.pontos;
+      if(Array.isArray(st.audit))STATE.audit=st.audit;
+    }
+  }catch(_){ /* servidor dormindo/offline: entra com cache e reconecta via WS */ }
+
+  showPanel();
 }
 
 function _loadStateFromCache(){
@@ -119,7 +157,23 @@ function _loadStateFromCache(){
   if(Array.isArray(c.audit))STATE.audit=c.audit;
 }
 
-// ══ LOGIN / LOGOUT ══
+// ══ LOGIN COM RETENTATIVAS (servidor pode estar acordando) ══
+async function apiLoginRetry(u,p,btn){
+  let lastErr=null;
+  for(let i=0;i<3;i++){
+    try{ return await API.login(u,p); }
+    catch(e){
+      lastErr=e;
+      const msg=e.message||'';
+      const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);
+      if(!retryable) throw e; // senha errada de verdade → não repete
+      if(btn)btn.textContent='▸ SERVIDOR ACORDANDO… ('+(i+2)+'/3)';
+      await new Promise(r=>setTimeout(r,1200*(i+1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function login(){
   const u=document.getElementById('l-user').value.trim().toLowerCase();
   const p=document.getElementById('l-pass').value;
@@ -127,13 +181,13 @@ async function login(){
   const btn=document.getElementById('btn-login');
   if(btn){btn.disabled=true;btn.textContent='▸ AUTENTICANDO…';}
   try{
-    const res=await API.login(u,p);
+    const res=await apiLoginRetry(u,p,btn);
     if(!res){throw new Error('Resposta inválida do servidor.');}
     if(res.banned){showBanScreen({expiresAt:res.expiresAt,reason:res.reason,banBy:res.banBy});return;}
     if(!res.user){throw new Error('Dados de usuário inválidos.');}
     const{pass:_p,...meSafe}=res.user;
     me=meSafe;
-    sessionStorage.setItem('gmpol_session',JSON.stringify(me));
+    saveSession(); // ← localStorage: permanece até sair manualmente
     activeTab=0; showPanel(); toast('Bem-vindo, '+me.nome+'!','s');
   }catch(e){toast(e.message||'Erro ao autenticar.','d');}
   finally{if(btn){btn.disabled=false;btn.textContent='▸ AUTENTICAR';}}
@@ -150,8 +204,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.get
 
 function logout(){
   me=null;activeTab=0;
-  sessionStorage.removeItem('gmpol_session');
+  clearSession();          // ← só aqui a sessão é apagada
+  stopKeepAlive();
   clearInterval(_clockInterval);clearInterval(_banTimer);
+  if(typeof LSCache!=='undefined')LSCache.clear();
   location.reload();
 }
 
@@ -177,7 +233,7 @@ function startBanCountdown(expiresAt){
       clearInterval(_banTimer); el.textContent='00:00:00';
       const m=document.getElementById('ban-status-msg');
       if(m){m.textContent='✅ Suspensão encerrada. Redirecionando...';m.style.color='#4ade80';}
-      setTimeout(()=>{sessionStorage.removeItem('gmpol_session');location.reload();},3000);
+      setTimeout(()=>{clearSession();location.reload();},3000);
       return;
     }
     const h=Math.floor(rem/3600000),mn=Math.floor((rem%3600000)/60000),s=Math.floor((rem%60000)/1000);
@@ -211,6 +267,7 @@ function showPanel(){
   badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');
   badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;
   document.getElementById('tb-user').textContent=me.nome;
+  startKeepAlive(); // mantém o servidor acordado enquanto logado
   activeTab=0; buildTabs(); renderTab(0); updateNotif();
 }
 
@@ -412,7 +469,7 @@ async function cancelarOc(id){
   try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ VIEW: USUÁRIOS (MASTER controla todos) ══
+// ══ VIEW: USUÁRIOS ══
 function vUsuarios(){
   const myP=CARGO_PERM[me.cargo]||0;
   const master=isMaster();
