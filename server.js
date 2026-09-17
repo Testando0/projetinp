@@ -1,8 +1,7 @@
 /**
- * GMPOL Sistema Central v3.0
- * Novos cargos: Sentinela, Caçador Noturno, Guardião, Observador Negro, Capitão Arcano, Rei Master
- * Sistema de suspensão temporária com tela bloqueada + cronômetro
- * Rebaixamento exige motivo — aparece nos logs
+ * GMPOL Sistema Central v4.0
+ * Novos cargos: Guarda municipal, Agente oficial, Tático, Escrivão, Delegado, Chefe de polícia, Admin master
+ * Sistema de ponto com entrada, saída e cálculo de horas extras
  */
 
 const http   = require('http');
@@ -12,15 +11,26 @@ const crypto = require('crypto');
 
 // ══ CARGO PERM (server-side) ══
 const CARGO_PERM_SRV = {
-  rei: 6, capitao: 5, observador: 4, guardiao: 3, cacador: 2, sentinela: 1
+  admin: 7, chefe: 6, delegado: 5, escrivao: 4, tatico: 3, agente: 2, gm: 1
 };
 const CARGO_LABEL_SRV = {
-  rei:       'Rei Master',
-  capitao:   'Capitão Arcano',
-  observador:'Observador Negro',
-  guardiao:  'Guardião',
-  cacador:   'Caçador Noturno',
-  sentinela: 'Sentinela'
+  admin:     'Admin master',
+  chefe:     'Chefe de polícia',
+  delegado:  'Delegado',
+  escrivao:  'Escrivão',
+  tatico:    'Tático',
+  agente:    'Agente oficial',
+  gm:        'Guarda municipal'
+};
+
+const CARGO_BASE_MINUTES = {
+  gm: 90,        // 1h30
+  agente: 150,   // 2h30
+  tatico: 210,   // 3h30
+  escrivao: 240, // 4h00
+  delegado: 300, // 5h00
+  chefe: 0,      
+  admin: 0       
 };
 
 // ══ BANCO DE DADOS ══
@@ -31,9 +41,9 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'rei',      pass: 'rei123',     cargo: 'rei',      nome: 'Rei Master',       ativo: true, criadoPor: 'sistema', criadoEm: now },
-      { user: 'capitao',  pass: 'capitao123', cargo: 'capitao',  nome: 'Capitão Padrão',   ativo: true, criadoPor: 'sistema', criadoEm: now },
-      { user: 'sentinela',pass: 'sent123',    cargo: 'sentinela',nome: 'Sentinela Padrão',  ativo: true, criadoPor: 'capitao', criadoEm: now }
+      { user: 'admin',   pass: 'admin123',   cargo: 'admin',   nome: 'Admin Master',     ativo: true, criadoPor: 'sistema', criadoEm: now },
+      { user: 'chefe',   pass: 'chefe123',   cargo: 'chefe',   nome: 'Chefe Padrão',     ativo: true, criadoPor: 'sistema', criadoEm: now },
+      { user: 'gm',      pass: 'gm123',      cargo: 'gm',      nome: 'GM Padrão',        ativo: true, criadoPor: 'chefe',   criadoEm: now }
     ],
     ocs: [], puns: [], pontos: [], audit: []
   };
@@ -228,7 +238,6 @@ async function handleAPI(req, res) {
     catch (e) { return jsonRes(res, 400, { error: 'Body inválido.' }); }
   }
 
-  // ── HEALTH ──
   if (method === 'GET' && url === '/health') {
     return jsonRes(res, 200, {
       ok: true, uptime: Math.floor(process.uptime()),
@@ -237,7 +246,6 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ── ESTADO COMPLETO ──
   if (method === 'GET' && url === '/api/state') {
     return jsonRes(res, 200, {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos,
@@ -245,7 +253,6 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ── AUTH ──
   if (method === 'POST' && url === '/api/login') {
     const { user, pass } = body;
     if (!user || !pass) return jsonRes(res, 400, { error: 'Preencha usuário e senha.' });
@@ -254,7 +261,6 @@ async function handleAPI(req, res) {
       u.pass === String(pass) && u.ativo
     );
     if (!u) return jsonRes(res, 401, { error: 'Credenciais inválidas ou conta desativada.' });
-    // Verificar suspensão ativa
     if (u.banExpires && u.banExpires > Date.now()) {
       return jsonRes(res, 403, {
         banned:    true,
@@ -266,7 +272,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
-  // ── USUÁRIOS ──
   if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
@@ -275,9 +280,12 @@ async function handleAPI(req, res) {
     const login = String(user).trim().toLowerCase().replace(/\s/g, '');
     if (DB.users.find(u => u.user === login)) return jsonRes(res, 400, { error: 'Login já existe.' });
     if (pass.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
-    // Validar que o criador não está atribuindo cargo igual ou superior ao seu
+    
     const criador = DB.users.find(u => u.user === criadoPor);
-    if (criador && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) {
+    if (!criador || (CARGO_PERM_SRV[criador.cargo]||0) < 6) {
+      return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
+    }
+    if ((CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) {
       return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
     }
     const novo = { user: login, pass, cargo, nome, ativo: true, criadoPor: criadoPor || 'sistema', criadoEm: Date.now() };
@@ -288,7 +296,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── CHECK BAN (para restauração de sessão) ──
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
   if (method === 'GET' && mBanCheck) {
     const u = DB.users.find(u => u.user === mBanCheck[1]);
@@ -299,7 +306,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { banned: false });
   }
 
-  // ── SENHA ──
   const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
@@ -313,7 +319,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── STATUS ──
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
@@ -326,7 +331,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── CARGO (rebaixamento exige motivo) ──
   const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
@@ -335,14 +339,15 @@ async function handleAPI(req, res) {
     const { cargo, feitorPor, motivo } = body;
     const targetUser = DB.users[i];
 
-    // Rei Master é irrebaixável
-    if (targetUser.cargo === 'rei') {
-      return jsonRes(res, 403, { error: 'O Rei Master não pode ser rebaixado.' });
+    if (targetUser.cargo === 'admin') {
+      return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
     }
 
-    // Validar que o executor tem permissão para o cargo-alvo
     const executor = DB.users.find(u => u.user === feitorPor);
-    const execPerm = executor ? (CARGO_PERM_SRV[executor.cargo]||0) : 0;
+    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) {
+      return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
+    }
+    const execPerm = CARGO_PERM_SRV[executor.cargo]||0;
     if ((CARGO_PERM_SRV[cargo]||0) >= execPerm) {
       return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
     }
@@ -381,7 +386,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── BAN TEMPORÁRIO ──
   const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
   if (mBan) {
     if (method === 'POST') {
@@ -391,11 +395,12 @@ async function handleAPI(req, res) {
       const mins = parseInt(duracao) || 0;
       if (mins <= 0) return jsonRes(res, 400, { error: 'Duração inválida.' });
       if (!motivo)   return jsonRes(res, 400, { error: 'Motivo obrigatório.' });
-      // Validar permissão
+      
       const executor = DB.users.find(u => u.user === feitorPor);
       const execPerm = executor ? (CARGO_PERM_SRV[executor.cargo]||0) : 0;
       const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
-      if (execPerm <= tgtPerm) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
+      if (execPerm <= tgtPerm || execPerm < 3) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
+      
       const expiresAt = Date.now() + mins * 60 * 1000;
       DB.users[i].banExpires = expiresAt;
       DB.users[i].banReason  = motivo;
@@ -429,7 +434,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ── DELETE USUÁRIO ──
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
@@ -443,7 +447,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── OCORRÊNCIAS ──
   if (method === 'GET'  && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
@@ -480,7 +483,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ── PUNIÇÕES ──
   if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
@@ -517,19 +519,53 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── PONTOS ──
   if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
-    if (!ponto || !ponto.userLogin) return jsonRes(res, 400, { error: 'Dados inválidos.' });
+    if (!ponto || !ponto.userLogin || !ponto.type) return jsonRes(res, 400, { error: 'Dados inválidos.' });
+    
     DB.pontos.push(ponto);
+    
+    if (ponto.type === 'saida') {
+        const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a,b) => b.ts - a.ts);
+        if (entradas.length > 0) {
+            const entrada = entradas[0];
+            const diffMs = ponto.ts - entrada.ts;
+            const diffMins = Math.round(diffMs / 60000);
+            const baseMins = CARGO_BASE_MINUTES[ponto.cargo] || 0;
+            
+            const extraMins = Math.max(0, diffMins - baseMins);
+            const extraBlocks = Math.floor(extraMins / 30);
+            const extraMoney = extraBlocks * 20;
+            
+            const debtMins = Math.max(0, baseMins - diffMins);
+            
+            ponto.trabalhado = diffMins;
+            ponto.extraMins = extraMins;
+            ponto.extraReais = extraMoney;
+            ponto.debtMins = debtMins;
+        }
+    }
+
     saveData();
-    audit(`<b>${ponto.nome}</b> bateu ponto às ${ponto.hora}`, '⏱️');
+    const hora = new Date(ponto.ts).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    let auditMsg = `<b>${ponto.nome}</b> ${ponto.type === 'entrada' ? 'bateu ponto às ' + hora : 'encerrou o turno às ' + hora}`;
+    if (ponto.type === 'saida' && ponto.trabalhado !== undefined) {
+        const h = Math.floor(ponto.trabalhado / 60);
+        const m = ponto.trabalhado % 60;
+        auditMsg += ` — total de ${h} horas${m > 0 ? ' e ' + m + ' minutos' : ''} trabalhadas.`;
+        if (ponto.extraReais > 0) {
+            auditMsg += ` <b style="color:#4ade80;">(Total horas extras ${Math.floor(ponto.extraMins/30)} - R$ ${ponto.extraReais})</b>`;
+        }
+        if (ponto.debtMins > 0) {
+            auditMsg += ` <b style="color:#f87171;">(Deve horas: ${Math.floor(ponto.debtMins/60)}h${(ponto.debtMins%60).toString().padStart(2,'0')})</b>`;
+        }
+    }
+    audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
-    return jsonRes(res, 200, { ok: true });
+    return jsonRes(res, 200, { ok: true, ponto });
   }
 
-  // ── AUDITORIA ──
   if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = [];
@@ -541,14 +577,12 @@ async function handleAPI(req, res) {
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
-// ══ HTTP SERVER ══
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/api') || req.url === '/health') return handleAPI(req, res);
   serveStatic(req, res);
 });
 
-// ══ WEBSOCKET UPGRADE ══
 httpServer.on('upgrade', (req, socket, head) => {
   if (req.url !== '/ws') { socket.destroy(); return; }
   if (!wsHandshake(req, socket)) return;
@@ -600,17 +634,16 @@ setInterval(() => {
   });
 }, 25000);
 
-// ══ START ══
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   👑  GMPOL Sistema Central v3.0         ║');
+  console.log('║   👑  GMPOL Sistema Central v4.0         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   rei       / rei123                     ║');
-  console.log('║   capitao   / capitao123                 ║');
-  console.log('║   sentinela / sent123                    ║');
+  console.log('║   admin     / admin123                   ║');
+  console.log('║   chefe     / chefe123                   ║');
+  console.log('║   gm        / gm123                      ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
