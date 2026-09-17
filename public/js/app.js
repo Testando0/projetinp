@@ -15,6 +15,9 @@ const CARGO_BADGE_CLASS = {
 const CARGO_PERM = { admin:7, chefe:6, delegado:5, escrivao:4, tatico:3, agente:2, gm:1 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
+// ══ MASTER: acesso total ══
+function isMaster(){ return !!me && me.user === 'master'; }
+
 // ══ HORÁRIO DE BRASÍLIA ══
 function brTimeSec(){return new Date().toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 function brDate(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});}
@@ -27,7 +30,7 @@ let STATE={ocs:[],puns:[],pontos:[],users:[],audit:[]};
 let _pendingCargoChange=null, _pendingBan=null, _banTimer=null, _clockInterval;
 let _busyPonto=false, _busyPun=false;
 
-// ══ WEBSOCKET HANDLERS (só UI — o estado é mutado apenas pelo api.js) ══
+// ══ WEBSOCKET HANDLERS (só UI) ══
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
@@ -96,6 +99,7 @@ async function checkSession(){
       let parsed;
       try{parsed=JSON.parse(saved);}catch(_){sessionStorage.removeItem('gmpol_session');showLogin();return;}
       if(!parsed||!parsed.user||!parsed.cargo){sessionStorage.removeItem('gmpol_session');showLogin();return;}
+      if(parsed.user==='admin'){sessionStorage.removeItem('gmpol_session');showLogin();return;} // migração admin→master
       const{pass:_p,...meSafe}=parsed;
       me=meSafe;
       _loadStateFromCache();
@@ -278,7 +282,7 @@ function vInicio(){
   const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
   const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
   const msgs={
-    admin:'Acesso total ao sistema. Você controla tudo: registros, usuários, punições, cargos e auditoria.',
+    admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo: rebaixar qualquer cargo (inclusive Admin Master e Chefe), criar usuários de qualquer patente, suspender, excluir e controlar o sistema inteiro.' : 'Acesso total ao sistema.',
     chefe:'Você pode alterar cargos, gerenciar usuários e supervisionar a corporação.',
     delegado:'Você pode aceitar ou recusar ocorrências e logs, além de supervisionar os Escrivãos.',
     escrivao:'Você pode aceitar ou recusar as ocorrências enviadas e auxiliar na administração.',
@@ -331,12 +335,12 @@ function vOcDelegado(){const ocs=STATE.ocs.filter(o=>o.delegadoUser===me.user).r
 function vOcAdmin(){
   const myP=CARGO_PERM[me.cargo]||0;
   const ocs=STATE.ocs.filter(o=>o.status==='pendente').reverse();
-  return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=7)).join(''):empty('✅','Nenhum registro pendente.'));
+  return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=7||isMaster())).join(''):empty('✅','Nenhum registro pendente.'));
 }
 
 function vHistorico(){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente').reverse();
-  const isRei=(CARGO_PERM[me.cargo]||0)>=7;
+  const isRei=(CARGO_PERM[me.cargo]||0)>=7||isMaster();
   return `<div class="stitle">▸ HISTÓRICO</div>
     <div class="filter-bar"><button class="btn btn-sm btn-ghost" onclick="filtrarHist('')">TODOS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('aceita')">✅ ACEITAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('recusada')">❌ RECUSADAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('cancelada')">🚫 CANCELADAS</button></div>
     <div id="hist-list">${ocs.length?ocs.map(o=>ocCard(o,false,isRei)).join(''):empty('📂','Nenhuma ocorrência processada.')}</div>`;
@@ -345,7 +349,7 @@ function vHistorico(){
 function filtrarHist(status){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente'&&(!status||o.status===status)).reverse();
   const el=document.getElementById('hist-list');
-  if(el)el.innerHTML=ocs.length?ocs.map(o=>ocCard(o,false,(CARGO_PERM[me.cargo]||0)>=7)).join(''):empty('📂','Nenhuma ocorrência nesta categoria.');
+  if(el)el.innerHTML=ocs.length?ocs.map(o=>ocCard(o,false,(CARGO_PERM[me.cargo]||0)>=7||isMaster())).join(''):empty('📂','Nenhuma ocorrência nesta categoria.');
 }
 
 function ocCard(o,actions,masterMode){
@@ -408,17 +412,18 @@ async function cancelarOc(id){
   try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ VIEW: USUÁRIOS ══
+// ══ VIEW: USUÁRIOS (MASTER controla todos) ══
 function vUsuarios(){
   const myP=CARGO_PERM[me.cargo]||0;
+  const master=isMaster();
   const rows=STATE.users.map(u=>{
     const isMe=u.user===me.user, tP=CARGO_PERM[u.cargo]||0;
-    const canAct=!isMe&&myP>tP;
-    const isRei=u.cargo==='admin';
+    const canAct=!isMe&&(master||myP>tP);
+    const isRei=(u.cargo==='admin')&&!master;
     const isBanned=u.banExpires&&u.banExpires>Date.now();
     const bannedBadge=isBanned?'<span class="ban-badge">⛔ SUSPENSO</span>':'';
-    const opts=Object.entries(CARGO_LABEL).filter(([k])=>(CARGO_PERM[k]||0)<myP).map(([k,v])=>'<option value="'+k+'" '+(u.cargo===k?'selected':'')+'>'+v+'</option>').join('');
-    const cargoCell=(canAct&&!isRei&&myP>=6&&opts)
+    const opts=Object.entries(CARGO_LABEL).filter(([k])=>master||(CARGO_PERM[k]||0)<myP).map(([k,v])=>'<option value="'+k+'" '+(u.cargo===k?'selected':'')+'>'+v+'</option>').join('');
+    const cargoCell=(canAct&&!isRei&&(master||myP>=6)&&opts)
       ?'<select class="cargo-select" onchange="alterarCargo(\''+u.user+'\', this.value, this)">'+opts+'</select>'
       :'<span class="cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'')+'">'+(CARGO_LABEL[u.cargo]||u.cargo)+'</span>';
     const nn=u.nome.replace(/'/g,"\\'");
@@ -434,12 +439,12 @@ function vUsuarios(){
         (canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+
         (canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+
         (canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+
-        (canAct&&myP>=6?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+( u.ativo?'🚫':'✅')+'</button>':'')+
-        (myP>=7&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+
+        (canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+( u.ativo?'🚫':'✅')+'</button>':'')+
+        ((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+
       '</div></td></tr>';
   }).join('');
   return '<div class="stitle">▸ GERENCIAR USUÁRIOS</div>'+
-    (myP>=6?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+
+    ((master||myP>=6)?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+
     '<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '<div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).</div>';
 }
@@ -449,7 +454,7 @@ async function criarUsuario(){
   if(!nome||!user||!cargo||!pass){toast('Preencha todos os campos.','d');return;}
   if(pass.length<6){toast('Senha mínima: 6 caracteres.','w');return;}
   if(!/^[a-z0-9_]+$/.test(user)){toast('Login: apenas letras, números e _.','w');return;}
-  if((CARGO_PERM[cargo]||0)>=(CARGO_PERM[me.cargo]||0)){toast('Você não pode criar usuários com cargo igual ou superior ao seu.','d');return;}
+  if(!isMaster()&&(CARGO_PERM[cargo]||0)>=(CARGO_PERM[me.cargo]||0)){toast('Você não pode criar usuários com cargo igual ou superior ao seu.','d');return;}
   try{await API.createUser({nome,user,cargo,pass,criadoPor:me.user});toast('Usuário '+nome+' criado!','s');closeModal('m-novo-user');['nu-nome','nu-user','nu-pass'].forEach(id=>document.getElementById(id).value='');}
   catch(e){toast(e.message||'Erro.','d');}
 }
@@ -459,7 +464,7 @@ function abrirCriarUsuario(){
   const sel=document.getElementById('nu-cargo');
   if(sel){
     sel.innerHTML=Object.entries(CARGO_LABEL)
-      .filter(([k])=>(CARGO_PERM[k]||0)<myP)
+      .filter(([k])=>isMaster()||(CARGO_PERM[k]||0)<myP)
       .reverse()
       .map(([k,v])=>'<option value="'+k+'">'+v+'</option>')
       .join('');
@@ -541,7 +546,7 @@ async function removerBan(username,nome){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PUNIÇÕES (com trava anti-clique-duplo) ══
+// ══ VIEW: PUNIÇÕES ══
 function vPunicoes(){
   const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=3;
   const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
@@ -574,7 +579,7 @@ async function delPun(idx){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PONTO (horário de Brasília + folga 6+1) ══
+// ══ VIEW: PONTO ══
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
@@ -587,7 +592,6 @@ function vPontos(){
   const FM="font-family:'Share Tech Mono',monospace;";
   const FO="font-family:'Orbitron',sans-serif;";
 
-  // ══ CICLO DE FOLGA ══
   const uMe=STATE.users.find(u=>u.user===me.user);
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
@@ -704,7 +708,6 @@ function startClock(){
 
 async function baterPonto(type){
   if(_busyPonto)return; _busyPonto=true;
-  const btn=document.getElementById('btn-ponto');
   try{
     const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};
     const res=await API.createPonto(p);
@@ -783,5 +786,5 @@ function toast(txt,type='i',duration=3800){
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-// ══ INIT ═
+// ══ INIT ══
 window.onload=()=>{initWebSocket();checkSession();};
