@@ -1,8 +1,11 @@
 {
   "users": [
-    {"user":"rei","pass":"rei123","cargo":"rei","nome":"Rei Master","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
-    {"user":"capitao","pass":"capitao123","cargo":"capitao","nome":"Capitão Padrão","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
-    {"user":"sentinela","pass":"sent123","cargo":"sentinela","nome":"Sentinela Padrão","ativo":true,"criadoPor":"capitao","criadoEm":1700000000000}
+    {"user":"admin","pass":"admin123","cargo":"admin","nome":"Admin Master","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
+    {"user":"chefe","pass":"chefe123","cargo":"chefe","nome":"Chefe Padrão","ativo":true,"criadoPor":"sistema","criadoEm":1700000000000},
+    {"user":"gm","pass":"gm123","cargo":"gm","nome":"GM Padrão","ativo":true,"criadoPor":"chefe","criadoEm":1700000000000}
   ],
-  "ocs":[],"puns":[],"pontos":[],"audit":[]
+  "ocs":[],
+  "puns":[],
+  "pontos":[],
+  "audit":[]
 }
