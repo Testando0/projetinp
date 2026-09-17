@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v3.0 ══
+// ══ API CLIENT — GMPOL v5.0 (WebSocket único + anti-duplicidade) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -34,7 +34,6 @@ const API = {
     catch (e) { throw new Error('Sem conexão com o servidor.'); }
     let data;
     try { data = await res.json(); } catch (_) { throw new Error('Resposta inválida do servidor.'); }
-    // Caso especial: usuário suspenso retorna 403 com banned:true
     if (res.status === 403 && data && data.banned) return data;
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
     return data;
@@ -70,35 +69,44 @@ const API = {
   clearAudit: () => API.request('DELETE', '/audit'),
 };
 
-// ══ WEBSOCKET ROBUSTO ══
+// ══ WEBSOCKET ROBUSTO — CONEXÃO ÚNICA (corrige registros duplicados) ══
 let _ws = null, _wsConnected = false, _wsAttempts = 0, _wsTimer = null, _pingIv = null, _pollIv = null;
 
 function initWebSocket() {
   clearTimeout(_wsTimer);
+  // 🔒 Se já existe socket ABERTO ou CONECTANDO, NÃO cria outro (evita duplicidade)
+  if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
+  // Mata socket zumbi anterior
+  if (_ws) { try { _ws.onopen = null; _ws.onmessage = null; _ws.onclose = null; _ws.onerror = null; _ws.close(); } catch (_) {} _ws = null; }
+
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const url   = `${proto}//${window.location.host}/ws`;
   try { _ws = new WebSocket(url); } catch (_) { _scheduleReconnect(); return; }
 
-  _ws.onopen = () => {
+  const myWs = _ws;
+  myWs.onopen = () => {
+    if (_ws !== myWs) return;
     _wsConnected = true; _wsAttempts = 0;
     _setWsStatus(true); _stopPolling();
     clearInterval(_pingIv);
     _pingIv = setInterval(() => {
-      if (_ws && _ws.readyState === WebSocket.OPEN) {
-        try { _ws.send(JSON.stringify({ type: 'PING' })); } catch (_) {}
+      if (_ws === myWs && myWs.readyState === WebSocket.OPEN) {
+        try { myWs.send(JSON.stringify({ type: 'PING' })); } catch (_) {}
       }
     }, 20000);
   };
 
-  _ws.onmessage = e => {
+  myWs.onmessage = e => {
+    if (_ws !== myWs) return;
     try { _handleServerMsg(JSON.parse(e.data)); } catch (err) { console.error('[WS] Msg inválida:', err); }
   };
 
-  _ws.onclose = evt => {
-    _wsConnected = false; _setWsStatus(false); clearInterval(_pingIv);
+  myWs.onclose = () => {
+    if (_ws !== myWs) return;
+    _wsConnected = false; _ws = null; _setWsStatus(false); clearInterval(_pingIv);
     _startPolling(); _scheduleReconnect();
   };
-  _ws.onerror = () => {};
+  myWs.onerror = () => {};
 }
 
 function _scheduleReconnect() {
@@ -150,24 +158,29 @@ function _handleServerMsg(msg) {
     STATE.ocs = STATE.ocs.filter(o => o.id !== payload.id); LSCache.merge('ocs', STATE.ocs);
   }
   if (type === 'NEW_PUN' && typeof STATE !== 'undefined') {
-    STATE.puns.push(payload); LSCache.merge('puns', STATE.puns);
+    // 🔒 anti-duplicidade por ID
+    if (!STATE.puns.find(x => x.id === payload.id)) { STATE.puns.push(payload); LSCache.merge('puns', STATE.puns); }
   }
   if (type === 'PUNS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.puns = payload; LSCache.merge('puns', STATE.puns);
   }
   if (type === 'NEW_PONTO' && typeof STATE !== 'undefined') {
-    STATE.pontos.push(payload); LSCache.merge('pontos', STATE.pontos);
+    // 🔒 anti-duplicidade por ID
+    if (!STATE.pontos.find(x => x.id === payload.id)) { STATE.pontos.push(payload); LSCache.merge('pontos', STATE.pontos); }
   }
   if (type === 'USERS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.users = payload; LSCache.merge('users', STATE.users);
   }
   if (type === 'AUDIT_NEW' && typeof STATE !== 'undefined') {
-    STATE.audit.unshift(payload); STATE.audit = STATE.audit.slice(0, 300); LSCache.merge('audit', STATE.audit);
+    if (!STATE.audit.find(a => a.ts === payload.ts && a.msg === payload.msg)) {
+      STATE.audit.unshift(payload); STATE.audit = STATE.audit.slice(0, 300); LSCache.merge('audit', STATE.audit);
+    }
   }
   if (type === 'AUDIT_CLEARED' && typeof STATE !== 'undefined') {
     STATE.audit = []; LSCache.merge('audit', []);
   }
 
+  // app.js cuida apenas da UI (não duplica estado)
   if (typeof handleSocketMessage === 'function') {
     try { handleSocketMessage(msg); } catch (_) {}
   }
@@ -180,19 +193,16 @@ function _setWsStatus(connected) {
   if (bar)  bar.textContent  = connected ? '🟢 CONECTADO' : '🔴 RECONECTANDO…';
 }
 
-// Reconectar quando a aba voltar a ficar visível (mobile vai dormir)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     if (!_wsConnected || !_ws || _ws.readyState !== WebSocket.OPEN) {
       clearTimeout(_wsTimer);
       initWebSocket();
     }
-    // Forçar refresh de estado via polling imediato
     API.getState().then(s => _applyServerState(s)).catch(() => {});
   }
 });
 
-// Reconectar ao ganhar foco (troca de aba no desktop)
 window.addEventListener('focus', () => {
   if (!_wsConnected || !_ws || _ws.readyState !== WebSocket.OPEN) {
     clearTimeout(_wsTimer);
