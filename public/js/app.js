@@ -13,36 +13,49 @@ const CARGO_BADGE_CLASS = {
   escrivao:'cb-escrivao', tatico:'cb-tatico', agente:'cb-agente', gm:'cb-guarda'
 };
 const CARGO_PERM = { admin:7, chefe:6, delegado:5, escrivao:4, tatico:3, agente:2, gm:1 };
-const CARGO_BASE_MINUTES = {
-  gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0
-};
+const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
+
+// ══ HORÁRIO DE BRASÍLIA ══
+function brTimeSec(){return new Date().toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+function brDate(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});}
+function brDateOf(ts){return new Date(ts).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});}
+function brDateLong(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();}
 
 // ══ ESTADO ══
 let me=null, activeTab=0;
 let STATE={ocs:[],puns:[],pontos:[],users:[],audit:[]};
 let _pendingCargoChange=null, _pendingBan=null, _banTimer=null, _clockInterval;
+let _busyPonto=false, _busyPun=false;
 
-// ══ WEBSOCKET HANDLERS ══
+// ══ WEBSOCKET HANDLERS (só UI — o estado é mutado apenas pelo api.js) ══
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
     case 'INIT':
-      STATE.ocs=payload.ocs||[]; STATE.puns=payload.puns||[];
-      STATE.pontos=payload.pontos||[]; STATE.users=payload.users||[]; STATE.audit=payload.audit||[];
       updateNotif(); if(me)renderTab(activeTab); break;
     case 'NEW_OC':
-      if(!STATE.ocs.find(o=>o.id===payload.id)){
-        STATE.ocs.push(payload); updateNotif(); renderTab(activeTab);
-        if(me&&payload.delegadoUser!==me.user) toast('Nova ocorrência: '+payload.id,'w');
-      } break;
-    case 'OC_UPDATED':{const i=STATE.ocs.findIndex(o=>o.id===payload.id);if(i!==-1){STATE.ocs[i]=payload;updateNotif();renderTab(activeTab);}break;}
-    case 'OC_DELETED': STATE.ocs=STATE.ocs.filter(o=>o.id!==payload.id);updateNotif();renderTab(activeTab);break;
-    case 'NEW_PUN': STATE.puns.push(payload);renderTab(activeTab);toast('Nova punição para '+payload.nome,'w');break;
-    case 'PUNS_UPDATED': STATE.puns=payload;renderTab(activeTab);break;
-    case 'NEW_PONTO': STATE.pontos.push(payload);renderTab(activeTab);if(me&&payload.userLogin!==me.user)toast(payload.nome+' bateu ponto às '+payload.hora,'i');break;
-    case 'USERS_UPDATED': STATE.users=payload;if(activeTab===getTabIdx('users'))renderTab(activeTab);break;
-    case 'AUDIT_NEW': STATE.audit.unshift(payload);if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
-    case 'AUDIT_CLEARED': STATE.audit=[];if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
+      updateNotif(); renderTab(activeTab);
+      if(me&&payload.delegadoUser!==me.user) toast('Nova ocorrência: '+payload.id,'w');
+      break;
+    case 'OC_UPDATED': updateNotif(); renderTab(activeTab); break;
+    case 'OC_DELETED': updateNotif(); renderTab(activeTab); break;
+    case 'NEW_PUN': renderTab(activeTab); toast('Nova punição para '+payload.nome,'w'); break;
+    case 'PUNS_UPDATED': renderTab(activeTab); break;
+    case 'NEW_PONTO': renderTab(activeTab); if(me&&payload.userLogin!==me.user&&payload.type!=='folga') toast(payload.nome+' registrou ponto.','i'); break;
+    case 'FOLGA_GRANTED':
+      if(me&&payload.userLogin===me.user) toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);
+      renderTab(activeTab); break;
+    case 'USERS_UPDATED':
+      if(me){
+        const mu=(payload||[]).find(u=>u.user===me.user);
+        if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo};sessionStorage.setItem('gmpol_session',JSON.stringify(me));
+          const badge=document.getElementById('tb-badge');
+          if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}
+      }
+      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos'))renderTab(activeTab);
+      break;
+    case 'AUDIT_NEW': if(activeTab===getTabIdx('audit'))renderTab(activeTab); break;
+    case 'AUDIT_CLEARED': if(activeTab===getTabIdx('audit'))renderTab(activeTab); break;
     case 'USER_BANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:payload.expiresAt,banReason:payload.reason,banBy:payload.banBy}:u);
       if(activeTab===getTabIdx('users'))renderTab(activeTab);
@@ -67,7 +80,7 @@ function handleSocketMessage(data){
         showCargoNotif(msg,payload.tipo==='promovido'?'s':'d');
         const badge=document.getElementById('tb-badge');
         if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}
-        buildTabs(); renderTab(0); activeTab=0;
+        activeTab=0; buildTabs(); renderTab(0);
       } break;
     case 'PONG': break;
   }
@@ -146,7 +159,7 @@ function showBanScreen(info){
   if(!s)return; s.classList.add('active');
   document.getElementById('ban-by').textContent=info.banBy||'Sistema';
   document.getElementById('ban-reason').textContent=info.reason||'Suspensão temporária.';
-  document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR');
+  document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
   startBanCountdown(info.expiresAt);
 }
 
@@ -191,7 +204,7 @@ function showPanel(){
   document.getElementById('s-ban').classList.remove('active');
   document.getElementById('s-panel').classList.add('active');
   const badge=document.getElementById('tb-badge');
-  badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-sentinela');
+  badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');
   badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;
   document.getElementById('tb-user').textContent=me.nome;
   activeTab=0; buildTabs(); renderTab(0); updateNotif();
@@ -273,25 +286,25 @@ function vInicio(){
     agente:'Você pode registrar ocorrências, bater ponto e auxiliar os Táticos.',
     gm:'Você pode registrar ocorrências e bater seu ponto para cumprir as 1h30 de turno.'
   };
-  const today=new Date().toLocaleDateString('pt-BR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const today=brDateLong();
   return `<div class="stitle">▸ PAINEL INICIAL</div>
     <div class="card" style="margin-bottom:20px;">
       <div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — SISTEMA CENTRAL</div>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today.toUpperCase()}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div>
       <p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo ao sistema.'}</p>
     </div>
     ${p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:''}
     <div class="card" style="margin-top:20px;">
       <div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>
-      ${STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>'}
+      ${STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>'}
     </div>`;
 }
 
 function vRegistrar(){
   return `<div class="stitle">▸ REGISTRAR OCORRÊNCIA / DENÚNCIA</div>
     <div class="card">
-      <p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar. Será analisado por Táticos ou superiores.</p>
+      <p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar. Será analisado por Escrivães ou superiores.</p>
       <div class="g2">
         <div class="fg"><label>Tipo</label><select id="oc-tipo"><option value="Ocorrência">Ocorrência</option><option value="Denúncia">Denúncia</option></select></div>
         <div class="fg"><label>Nome do Envolvido</label><input id="oc-nome" placeholder="Nome completo"></div>
@@ -338,7 +351,7 @@ function filtrarHist(status){
 function ocCard(o,actions,masterMode){
   const scMap={pendente:'sc-p',aceita:'sc-a',recusada:'sc-r',cancelada:'sc-c'};
   const scLbl={pendente:'⏳ Pendente',aceita:'✅ Aceita',recusada:'❌ Recusada',cancelada:'🚫 Cancelada'};
-  const dt=new Date(o.ts).toLocaleString('pt-BR');
+  const dt=new Date(o.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
   const tipoBadge=o.tipo==='Denúncia'?'<span class="tipo-badge tipo-denuncia">📢 DENÚNCIA</span>':'<span class="tipo-badge tipo-oc">📋 OCORRÊNCIA</span>';
   const masterBtns=masterMode?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"><span style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--accent);align-self:center;">ADMIN:</span><button class="btn btn-warn btn-xs" onclick="abrirEditarOc('${o.id}')">✏️ EDITAR</button><button class="btn btn-danger btn-xs" onclick="confirmarDeleteOc('${o.id}')">🗑 DELETAR</button>${o.status!=='cancelada'?'<button class="btn btn-xs" style="background:var(--text-dim);color:#000;" onclick="cancelarOc(\''+o.id+'\')">🚫 CANCELAR</button>':''}</div>`:'';
   const actHTML=actions?`<div class="oc-actions"><button class="btn btn-success btn-sm" onclick="abrirDecisao('${o.id}','aceita')">✔ ACEITAR</button><button class="btn btn-danger btn-sm" onclick="abrirDecisao('${o.id}','recusada')">✘ RECUSAR</button></div><div class="decide-zone" id="dz-${o.id}"><div class="fg" style="margin-top:10px;"><label>Motivo</label><textarea id="dm-${o.id}"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" id="dc-${o.id}" onclick="decidir('${o.id}')">CONFIRMAR</button><button class="btn btn-ghost btn-sm" onclick="fecharDecisao('${o.id}')">CANCELAR</button></div></div></div>`:(o.resposta?'<div><span class="resp-lbl">Resposta</span><div class="dep-box" style="margin-bottom:0;">'+o.resposta+'</div></div>':'');
@@ -528,49 +541,69 @@ async function removerBan(username,nome){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PUNIÇÕES ══
+// ══ VIEW: PUNIÇÕES (com trava anti-clique-duplo) ══
 function vPunicoes(){
   const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=3;
   const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
   const form=canEdit?`<div class="card" style="margin-bottom:22px;">
     <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:16px;">▸ REGISTRAR PUNIÇÃO</div>
     <div class="g2"><div class="fg"><label>Nome do Agente</label><input id="pn-nome"></div><div class="fg"><label>Nível</label><select id="pn-nivel"><option>Leve</option><option>Médio</option><option>Grave</option></select></div><div class="fg g-full"><label>Motivo</label><input id="pn-motivo"></div></div>
-    <button class="btn btn-primary" style="margin-top:10px;max-width:200px;" onclick="addPun()">▸ REGISTRAR</button>
+    <button class="btn btn-primary" id="btn-addpun" style="margin-top:10px;max-width:200px;" onclick="addPun()">▸ REGISTRAR</button>
   </div>`:`<div class="card c-none" style="margin-bottom:16px;padding:12px 16px;border:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);">▸ Apenas Táticos e acima podem registrar punições diretamente.</div>`;
   const rows=[...STATE.puns].reverse().map((p,ri)=>{
     const realIdx=STATE.puns.length-1-ri;
-    return '<tr><td style="font-weight:600;">'+p.nome+'</td><td style="color:var(--text-mid);">'+p.motivo+'</td><td><span class="status-chip '+nc(p.nivel)+'">'+p.nivel+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+p.autor+'</td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">'+new Date(p.ts).toLocaleDateString('pt-BR')+'</td>'+(canEdit?'<td><button class="btn btn-danger btn-xs" onclick="delPun('+realIdx+')">✘</button></td>':'<td></td>')+'</tr>';
+    return '<tr><td style="font-weight:600;">'+p.nome+'</td><td style="color:var(--text-mid);">'+p.motivo+'</td><td><span class="status-chip '+nc(p.nivel)+'">'+p.nivel+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+p.autor+'</td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">'+new Date(p.ts).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'})+'</td>'+(canEdit?'<td><button class="btn btn-danger btn-xs" onclick="delPun('+realIdx+')">✘</button></td>':'<td></td>')+'</tr>';
   }).join('');
   return '<div class="stitle">▸ QUADRO DE PUNIÇÕES</div>'+form+'<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>NOME</th><th>MOTIVO</th><th>NÍVEL</th><th>REGISTRADO POR</th><th>DATA</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:30px;font-family:\'Share Tech Mono\',monospace;font-size:.68rem;color:var(--text-dim);">Nenhuma punição registrada.</td></tr>')+'</tbody></table></div></div>';
 }
 async function addPun(){
-  const nome=document.getElementById('pn-nome')?.value.trim(),motivo=document.getElementById('pn-motivo')?.value.trim(),nivel=document.getElementById('pn-nivel')?.value;
-  if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}
-  try{await API.createPun({nome,motivo,nivel,autor:me.nome,ts:Date.now()});toast('Punição registrada.','s');document.getElementById('pn-nome').value='';document.getElementById('pn-motivo').value='';}
-  catch(e){toast(e.message||'Erro.','d');}
+  if(_busyPun)return; _busyPun=true;
+  const btn=document.getElementById('btn-addpun'); if(btn){btn.disabled=true;btn.textContent='▸ REGISTRANDO…';}
+  try{
+    const nome=document.getElementById('pn-nome')?.value.trim(),motivo=document.getElementById('pn-motivo')?.value.trim(),nivel=document.getElementById('pn-nivel')?.value;
+    if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}
+    await API.createPun({nome,motivo,nivel,autor:me.nome,ts:Date.now()});
+    toast('Punição registrada.','s');
+    const n=document.getElementById('pn-nome'),m=document.getElementById('pn-motivo');
+    if(n)n.value=''; if(m)m.value='';
+  }catch(e){toast(e.message||'Erro.','d');}
+  finally{ setTimeout(()=>{_busyPun=false; const b=document.getElementById('btn-addpun'); if(b){b.disabled=false;b.textContent='▸ REGISTRAR';} },1200); }
 }
 async function delPun(idx){
   try{const p=STATE.puns[idx];if(p&&p.id)await API.deletePunById(p.id,me.nome);else await API.deletePun(idx,me.nome);toast('Removida.','w');}
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PONTO ══
+// ══ VIEW: PONTO (horário de Brasília + folga 6+1) ══
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
   const lastPonto = mine.length ? mine[mine.length - 1] : null;
   const isClockedIn = lastPonto && lastPonto.type === 'entrada';
   const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});
-  const hoje=new Date().toDateString();
-  const hoje2=STATE.pontos.filter(p=>new Date(p.ts).toDateString()===hoje);
+  const hojeBr=brDate();
+  const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);
 
   const FM="font-family:'Share Tech Mono',monospace;";
   const FO="font-family:'Orbitron',sans-serif;";
 
+  // ══ CICLO DE FOLGA ══
+  const uMe=STATE.users.find(u=>u.user===me.user);
+  const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
+  const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
+  let folgaHtml='';
+  if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">\ud83c\udf34 HOJE \u00c9 SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
+  else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">\ud83c\udf34 Pr\u00f3xima folga concedida: '+folgaDia+'</div>';
+  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados \u2014 a cada 6 dias, 1 dia de folga.</div>';
+
   const minhaTab=mine.length
     ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
-      +[...mine].reverse().slice(0,20).map(function(p){const d=new Date(p.ts);
+      +[...mine].reverse().slice(0,20).map(function(p){
         let det = '';
+        let tipoLbl, tipoCor;
+        if(p.type==='entrada'){ tipoLbl='\u25b6 ENTRADA'; tipoCor='color:#4ade80;'; }
+        else if(p.type==='folga'){ tipoLbl='\ud83c\udf34 FOLGA'; tipoCor='color:var(--warn);'; det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>'; }
+        else { tipoLbl='\u23f9 SAÍDA'; tipoCor='color:#f87171;'; }
         if(p.type === 'saida' && p.trabalhado !== undefined){
            const h = Math.floor(p.trabalhado / 60);
            const m = p.trabalhado % 60;
@@ -583,8 +616,8 @@ function vPontos(){
            }
         }
         return(
-        '<tr><td style="'+FM+'">'+d.toLocaleDateString('pt-BR')+'</td>'
-        +'<td style="'+FM+(p.type==='entrada'?'color:#4ade80;':'color:#f87171;')+'">'+(p.type==='entrada'?'\u25b6 ENTRADA':'\u23f9 SAÍDA')+'</td>'
+        '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td>'
+        +'<td style="'+FM+tipoCor+'">'+tipoLbl+'</td>'
         +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
         +'<td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>'
       );}).join('')+'</tbody></table>'
@@ -592,15 +625,17 @@ function vPontos(){
 
   const botaoPonto = isClockedIn
     ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
-    : '<button class="btn btn-primary" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
+    : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
 
   var supervHtml='';
   if(isSuperv){
     const tabelaHoje=hoje2.length
       ?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'
-        +hoje2.map(function(p){return(
+        +hoje2.map(function(p){
+          const lbl = p.type==='folga' ? '\ud83c\udf34' : p.hora;
+          return(
           '<tr><td><b>'+p.nome+'</b></td>'
-          +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
+          +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td>'
           +'<td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>'
         );}).join('')+'</tbody></table>'
       :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
@@ -611,11 +646,10 @@ function vPontos(){
       const nm=u?u.nome:login;
       const cg=u?u.cargo:'';
       const rows=[...pts].reverse().map(function(p){
-        const d=new Date(p.ts);
         return '<tr>'
-          +'<td style="'+FM+'">'+d.toLocaleDateString('pt-BR')+'</td>'
+          +'<td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td>'
           +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
-          +'<td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+d.toLocaleDateString('pt-BR',{weekday:'long'}).toUpperCase()+'</td>'
+          +'<td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td>'
           +'</tr>';
       }).join('');
       return '<div class="ponto-agente-block">'
@@ -626,7 +660,7 @@ function vPontos(){
           +'<span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span>'
         +'</div>'
         +'<div id="pa-'+login+'" style="display:none;">'
-          +'<table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>DIA</th></tr></thead><tbody>'+rows+'</tbody></table>'
+          +'<table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table>'
         +'</div></div>';
     }).join('');
 
@@ -647,6 +681,8 @@ function vPontos(){
       +'<div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div>'
       +'<div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'
       +botaoPonto
+      +folgaHtml
+      +cicloHtml
     +'</div>'
     +'<div class="card" style="margin-bottom:20px;">'
       +'<div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'
@@ -659,44 +695,50 @@ function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.sty
 function startClock(){
   clearInterval(_clockInterval);
   _clockInterval=setInterval(()=>{
-    const now=new Date(),ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');
+    const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');
     if(!ce){clearInterval(_clockInterval);return;}
-    ce.textContent=now.toLocaleTimeString('pt-BR');
-    if(de)de.textContent=now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();
+    ce.textContent=brTimeSec();
+    if(de)de.textContent=brDateLong();
   },1000);
 }
+
 async function baterPonto(type){
-  const now=new Date();
-  const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),data:now.toLocaleDateString('pt-BR'),ts:now.getTime()};
+  if(_busyPonto)return; _busyPonto=true;
+  const btn=document.getElementById('btn-ponto');
   try{
+    const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};
     const res=await API.createPonto(p);
+    if(res&&res.error){toast(res.error,'d');return;}
     if(type==='entrada'){
-      toast('✅ Entrada registrada às '+p.hora+'!','s');
+      toast('✅ Entrada registrada às '+p.hora+' (horário de Brasília)!','s');
     } else {
-      if(res && res.ponto && res.ponto.trabalhado !== undefined){
-        const h = Math.floor(res.ponto.trabalhado / 60);
-        const m = res.ponto.trabalhado % 60;
+      const rp=(res&&res.ponto)?res.ponto:{};
+      if(rp.trabalhado !== undefined){
+        const h = Math.floor(rp.trabalhado / 60);
+        const m = rp.trabalhado % 60;
         let msg = '✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
-        if(res.ponto.extraReais > 0) msg += '<br><b style="color:#4ade80;">Horas extras: R$ '+res.ponto.extraReais+',00</b>';
-        if(res.ponto.debtMins > 0){
-            const dh = Math.floor(res.ponto.debtMins / 60);
-            const dm = res.ponto.debtMins % 60;
+        if(rp.extraReais > 0) msg += '<br><b style="color:#4ade80;">Horas extras: R$ '+rp.extraReais+',00</b>';
+        if(rp.debtMins > 0){
+            const dh = Math.floor(rp.debtMins / 60);
+            const dm = rp.debtMins % 60;
             msg += '<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';
         }
-        toast(msg, 's', 8000);
+        if(rp.folgaDia) msg += '<br><b style="color:var(--warn);">🌴 Folga concedida para '+rp.folgaDia+'!</b>';
+        toast(msg, 's', 9000);
       } else {
         toast('✅ Saída registrada às '+p.hora+'!','s');
       }
     }
     renderTab(activeTab);
   }catch(e){toast(e.message||'Erro.','d');}
+  finally{ setTimeout(()=>{_busyPonto=false;},1500); }
 }
 
 // ══ VIEW: AUDITORIA ══
 function vAuditoria(){
   const logs=STATE.audit;
   if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');
-  return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';
+  return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';
 }
 async function limparAuditoria(){
   if(!confirm('Limpar auditoria?'))return;
@@ -741,5 +783,5 @@ function toast(txt,type='i',duration=3800){
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-// ══ INIT ══
+// ══ INIT ═
 window.onload=()=>{initWebSocket();checkSession();};
