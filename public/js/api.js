@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.0 (WebSocket único + anti-duplicidade) ══
+// ══ API CLIENT — GMPOL v5.2 (retry automático + WS único + anti-duplicidade) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -25,15 +25,28 @@ const LSCache = {
   clear() { try { localStorage.removeItem(LS_KEY); } catch (_) {} }
 };
 
+function _sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
 const API = {
-  async request(method, path, body = null) {
+  // Retry automático: servidor hospedado pode "dormir"; a 1ª chamada falha e a 2ª acorda ele
+  async request(method, path, body = null, _retry = 0) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== null) opts.body = JSON.stringify(body);
     let res;
-    try { res = await fetch('/api' + path, opts); }
-    catch (e) { throw new Error('Sem conexão com o servidor.'); }
+    try {
+      res = await fetch('/api' + path, opts);
+    } catch (e) {
+      if (_retry < 2) { await _sleep(900 * (_retry + 1)); return API.request(method, path, body, _retry + 1); }
+      throw new Error('Sem conexão com o servidor.');
+    }
     let data;
-    try { data = await res.json(); } catch (_) { throw new Error('Resposta inválida do servidor.'); }
+    const txt = await res.text();
+    try { data = txt ? JSON.parse(txt) : {}; }
+    catch (_) {
+      // Resposta não-JSON (página de "sleep" do hospedeiro) → tenta acordar e repete
+      if (_retry < 2) { await _sleep(900 * (_retry + 1)); return API.request(method, path, body, _retry + 1); }
+      throw new Error('Resposta inválida do servidor.');
+    }
     if (res.status === 403 && data && data.banned) return data;
     if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
     return data;
@@ -69,14 +82,12 @@ const API = {
   clearAudit: () => API.request('DELETE', '/audit'),
 };
 
-// ══ WEBSOCKET ROBUSTO — CONEXÃO ÚNICA (corrige registros duplicados) ══
+// ══ WEBSOCKET ROBUSTO — CONEXÃO ÚNICA ══
 let _ws = null, _wsConnected = false, _wsAttempts = 0, _wsTimer = null, _pingIv = null, _pollIv = null;
 
 function initWebSocket() {
   clearTimeout(_wsTimer);
-  // 🔒 Se já existe socket ABERTO ou CONECTANDO, NÃO cria outro (evita duplicidade)
   if (_ws && (_ws.readyState === WebSocket.OPEN || _ws.readyState === WebSocket.CONNECTING)) return;
-  // Mata socket zumbi anterior
   if (_ws) { try { _ws.onopen = null; _ws.onmessage = null; _ws.onclose = null; _ws.onerror = null; _ws.close(); } catch (_) {} _ws = null; }
 
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -158,14 +169,12 @@ function _handleServerMsg(msg) {
     STATE.ocs = STATE.ocs.filter(o => o.id !== payload.id); LSCache.merge('ocs', STATE.ocs);
   }
   if (type === 'NEW_PUN' && typeof STATE !== 'undefined') {
-    // 🔒 anti-duplicidade por ID
     if (!STATE.puns.find(x => x.id === payload.id)) { STATE.puns.push(payload); LSCache.merge('puns', STATE.puns); }
   }
   if (type === 'PUNS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.puns = payload; LSCache.merge('puns', STATE.puns);
   }
   if (type === 'NEW_PONTO' && typeof STATE !== 'undefined') {
-    // 🔒 anti-duplicidade por ID
     if (!STATE.pontos.find(x => x.id === payload.id)) { STATE.pontos.push(payload); LSCache.merge('pontos', STATE.pontos); }
   }
   if (type === 'USERS_UPDATED' && typeof STATE !== 'undefined') {
@@ -180,7 +189,6 @@ function _handleServerMsg(msg) {
     STATE.audit = []; LSCache.merge('audit', []);
   }
 
-  // app.js cuida apenas da UI (não duplica estado)
   if (typeof handleSocketMessage === 'function') {
     try { handleSocketMessage(msg); } catch (_) {}
   }
