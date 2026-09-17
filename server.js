@@ -1,6 +1,7 @@
 /**
- * GMPOL Sistema Central v5.0
- * Horários de Brasília (America/Sao_Paulo) | Anti-duplicidade | Sistema de folga 6+1
+ * GMPOL Sistema Central v5.1
+ * MASTER (master / masterx512) = acesso total absoluto
+ * Horários de Brasília | Anti-duplicidade | Folga 6+1
  */
 
 const http   = require('http');
@@ -23,6 +24,9 @@ const CARGO_LABEL_SRV = {
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
+// ══ MASTER: acesso total ══
+function isMaster(u){ return !!u && u.user === 'master'; }
+
 // ══ BANCO DE DADOS ══
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
@@ -31,19 +35,30 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'admin', pass: 'admin123', cargo: 'admin', nome: 'Admin Master', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
-      { user: 'chefe', pass: 'chefe123', cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
-      { user: 'gm',    pass: 'gm123',    cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'chefe',   criadoEm: now, cicloDias: [], folgaDia: null }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
     ],
     ocs: [], puns: [], pontos: [], audit: []
   };
+}
+
+// Migração automática: garante que o master exista mesmo em dados antigos
+function migrate(d) {
+  let m = d.users.find(u => u.user === 'master');
+  if (!m) {
+    const old = d.users.find(u => u.user === 'admin');
+    if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
+    else d.users.push({ user:'master', pass:'masterx512', cargo:'admin', nome:'Master', ativo:true, criadoPor:'sistema', criadoEm:Date.now(), cicloDias:[], folgaDia:null });
+  } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
+  return d;
 }
 
 function loadData() {
   try {
     if (fs.existsSync(TMP_FILE)) {
       const p = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-      if (p && Array.isArray(p.users) && p.users.length > 0) { console.log('[DB] Carregado de /tmp'); return sanitize(p); }
+      if (p && Array.isArray(p.users) && p.users.length > 0) { console.log('[DB] Carregado de /tmp'); return migrate(sanitize(p)); }
     }
   } catch (e) { console.warn('[DB] /tmp ilegível:', e.message); }
   try {
@@ -51,14 +66,14 @@ function loadData() {
       const p = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
       if (p && Array.isArray(p.users)) {
         console.log('[DB] Carregado de seed');
-        const data = sanitize(p);
+        const data = migrate(sanitize(p));
         try { fs.writeFileSync(TMP_FILE, JSON.stringify(data, null, 2)); } catch (_) {}
         return data;
       }
     }
   } catch (e) { console.warn('[DB] Seed ilegível:', e.message); }
   console.log('[DB] Usando dados padrão.');
-  const def = getDefaultData();
+  const def = migrate(getDefaultData());
   try { fs.writeFileSync(TMP_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
   return def;
 }
@@ -233,8 +248,10 @@ async function handleAPI(req, res) {
     if (DB.users.find(u => u.user === login)) return jsonRes(res, 400, { error: 'Login já existe.' });
     if (pass.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
     const criador = DB.users.find(u => u.user === criadoPor);
-    if (!criador || (CARGO_PERM_SRV[criador.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
-    if ((CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
+    if (!criador) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    const master = isMaster(criador);
+    if (!master && (CARGO_PERM_SRV[criador.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
+    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
     DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criadoPor || 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null });
     saveData();
     audit(`<b>${criadoPor}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
@@ -250,12 +267,19 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { banned: false });
   }
 
+  // ── SENHA ──
   const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { novaSenha, feitorPor } = body;
     if (!novaSenha || novaSenha.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
+    const executor = DB.users.find(u => u.user === feitorPor);
+    const master = isMaster(executor);
+    if (!master && feitorPor !== DB.users[i].user) {
+      if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
+        return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
+    }
     DB.users[i].pass = novaSenha;
     saveData();
     audit(`<b>${feitorPor}</b> redefiniu a senha de <b>${DB.users[i].nome}</b>`, '🔑');
@@ -263,11 +287,17 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ── STATUS ──
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { ativo, feitorPor } = body;
+    if (mStatus[1] === feitorPor) return jsonRes(res, 403, { error: 'Você não pode ativar/desativar a si mesmo.' });
+    const executor = DB.users.find(u => u.user === feitorPor);
+    const master = isMaster(executor);
+    if (!master && (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0)))
+      return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     DB.users[i].ativo = Boolean(ativo);
     saveData();
     audit(`<b>${feitorPor}</b> ${ativo ? 'ativou' : 'desativou'} <b>${DB.users[i].nome}</b>`, ativo ? '✅' : '🚫');
@@ -275,17 +305,21 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ── CARGO (MASTER pode tudo) ──
   const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { cargo, feitorPor, motivo } = body;
     const targetUser = DB.users[i];
-    if (targetUser.cargo === 'admin') return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
     const executor = DB.users.find(u => u.user === feitorPor);
-    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
-    const execPerm = CARGO_PERM_SRV[executor.cargo]||0;
-    if ((CARGO_PERM_SRV[cargo]||0) >= execPerm) return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    const master = isMaster(executor);
+    if (targetUser.user === executor.user) return jsonRes(res, 403, { error: 'Você não pode alterar o próprio cargo.' });
+    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
+    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[executor.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
+    if (!master && targetUser.cargo === 'admin') return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
+
     const oldPerm = CARGO_PERM_SRV[targetUser.cargo] || 0, newPerm = CARGO_PERM_SRV[cargo] || 0;
     const isRebaixamento = newPerm < oldPerm;
     if (isRebaixamento && !motivo) return jsonRes(res, 400, { error: 'Motivo obrigatório para rebaixamento.' });
@@ -301,6 +335,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ── BAN (MASTER pode tudo) ──
   const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
   if (mBan) {
     if (method === 'POST') {
@@ -311,9 +346,12 @@ async function handleAPI(req, res) {
       if (mins <= 0) return jsonRes(res, 400, { error: 'Duração inválida.' });
       if (!motivo)   return jsonRes(res, 400, { error: 'Motivo obrigatório.' });
       const executor = DB.users.find(u => u.user === feitorPor);
-      const execPerm = executor ? (CARGO_PERM_SRV[executor.cargo]||0) : 0;
+      if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+      if (DB.users[i].user === executor.user) return jsonRes(res, 403, { error: 'Você não pode suspender a si mesmo.' });
+      const master = isMaster(executor);
+      const execPerm = CARGO_PERM_SRV[executor.cargo]||0;
       const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
-      if (execPerm <= tgtPerm || execPerm < 3) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
+      if (!master && (execPerm <= tgtPerm || execPerm < 3)) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
       const expiresAt = Date.now() + mins * 60 * 1000;
       DB.users[i].banExpires = expiresAt; DB.users[i].banReason = motivo; DB.users[i].banBy = feitorPorNome || feitorPor;
       saveData();
@@ -336,11 +374,17 @@ async function handleAPI(req, res) {
     }
   }
 
+  // ── DELETE USUÁRIO (MASTER pode tudo) ──
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { feitorPor } = body;
+    if (mDelUser[1] === feitorPor) return jsonRes(res, 403, { error: 'Você não pode excluir a si mesmo.' });
+    const executor = DB.users.find(u => u.user === feitorPor);
+    const master = isMaster(executor);
+    if (!master && (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0)))
+      return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     const nome = DB.users[i].nome;
     DB.users.splice(i, 1);
     saveData();
@@ -386,12 +430,11 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ── PUNIÇÕES (com ID único p/ anti-duplicidade) ──
+  // ── PUNIÇÕES ──
   if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
     if (!pun || !pun.nome) return jsonRes(res, 400, { error: 'Dados inválidos.' });
-    // Anti-clique-duplo: mesma punição (nome+motivo+nível+autor) em <3s é ignorada
     const dup = DB.puns.find(p => p.nome === pun.nome && p.motivo === pun.motivo && p.nivel === pun.nivel && p.autor === pun.autor && (Date.now() - (p.ts||0)) < 3000);
     if (dup) return jsonRes(res, 200, { ok: true, pun: dup, dup: true });
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -427,7 +470,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── PONTOS (horário de Brasília + anti-duplicidade + folga 6+1) ──
+  // ── PONTOS (Brasília + anti-dup + folga 6+1) ──
   if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -440,20 +483,18 @@ async function handleAPI(req, res) {
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
 
-    // 🌴 Bloqueia bater ponto no dia de folga concedido
     if (ponto.type === 'entrada' && u.folgaDia === dBr) {
       return jsonRes(res, 403, { error: '🌴 Hoje (' + dBr + ') é seu dia de FOLGA concedido pelo sistema! Descanse, você mereceu.' });
     }
 
-    // Anti-clique-duplo: mesmo usuário + mesmo tipo em <3s é ignorado
     const last = [...DB.pontos].reverse().find(p => p.userLogin === ponto.userLogin);
     if (last && last.type === ponto.type && (ponto.ts - last.ts) < 3000) {
       return jsonRes(res, 200, { ok: true, ponto: last, dup: true });
     }
 
     ponto.id   = 'PON-' + ponto.ts + '-' + Math.random().toString(36).slice(2, 7);
-    ponto.hora = brTimeStrSec(ponto.ts);   // horário de Brasília garantido
-    ponto.data = dBr;                      // data de Brasília garantida
+    ponto.hora = brTimeStrSec(ponto.ts);
+    ponto.data = dBr;
     DB.pontos.push(ponto);
 
     if (ponto.type === 'saida') {
@@ -469,7 +510,6 @@ async function handleAPI(req, res) {
         ponto.extraReais = extraBlocks * 20;
         ponto.debtMins   = Math.max(0, baseMins - diffMins);
       }
-      // ══ CICLO DE FOLGA: 6 dias trabalhados → 1 dia de folga ══
       if (!u.cicloDias.includes(dBr)) u.cicloDias.push(dBr);
       if (u.cicloDias.length >= 6) {
         const fd = nextBrDateStr(dBr);
@@ -565,11 +605,11 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.0         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.1         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   admin     / admin123                   ║');
+  console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('║   chefe     / chefe123                   ║');
   console.log('║   gm        / gm123                      ║');
   console.log('╚═══════════════════════════════════════════╝\n');
@@ -589,4 +629,4 @@ if (RENDER_URL) {
     req.end();
   }, 14 * 60 * 1000);
   console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-    }
+  }
