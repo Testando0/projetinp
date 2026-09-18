@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.2 (retry automático + WS único + anti-duplicidade) ══
+// ══ API CLIENT — GMPOL v5.4 (provas + retry + WS único) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -28,7 +28,6 @@ const LSCache = {
 function _sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 const API = {
-  // Retry automático: servidor hospedado pode "dormir"; a 1ª chamada falha e a 2ª acorda ele
   async request(method, path, body = null, _retry = 0) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== null) opts.body = JSON.stringify(body);
@@ -43,7 +42,6 @@ const API = {
     const txt = await res.text();
     try { data = txt ? JSON.parse(txt) : {}; }
     catch (_) {
-      // Resposta não-JSON (página de "sleep" do hospedeiro) → tenta acordar e repete
       if (_retry < 2) { await _sleep(900 * (_retry + 1)); return API.request(method, path, body, _retry + 1); }
       throw new Error('Resposta inválida do servidor.');
     }
@@ -77,6 +75,12 @@ const API = {
 
   getPontos:   ()  => API.request('GET',  '/pontos'),
   createPonto: (p) => API.request('POST', '/pontos', p),
+
+  // ══ PROVAS ══
+  getProvas:      ()                  => API.request('GET',  '/provas'),
+  getQuestionario:()                  => API.request('GET',  '/prova/questionario'),
+  createProva:    (p)                 => API.request('POST', '/provas', p),
+  decidirProva:   (id, decisao, feitorPor) => API.request('PUT', `/provas/${id}/decisao`, { decisao, feitorPor }),
 
   getAudit:   () => API.request('GET',    '/audit'),
   clearAudit: () => API.request('DELETE', '/audit'),
@@ -141,12 +145,14 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.ocs))    STATE.ocs    = payload.ocs;
     if (Array.isArray(payload.puns))   STATE.puns   = payload.puns;
     if (Array.isArray(payload.pontos)) STATE.pontos = payload.pontos;
+    if (Array.isArray(payload.provas)) STATE.provas = payload.provas;
     if (Array.isArray(payload.users))  STATE.users  = payload.users;
     if (Array.isArray(payload.audit))  STATE.audit  = payload.audit;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
-    pontos: payload.pontos||[], users: payload.users||[], audit: payload.audit||[]
+    pontos: payload.pontos||[], provas: payload.provas||[],
+    users: payload.users||[], audit: payload.audit||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
   if (typeof me !== 'undefined' && me && typeof renderTab === 'function' && typeof activeTab !== 'undefined') {
@@ -176,6 +182,12 @@ function _handleServerMsg(msg) {
   }
   if (type === 'NEW_PONTO' && typeof STATE !== 'undefined') {
     if (!STATE.pontos.find(x => x.id === payload.id)) { STATE.pontos.push(payload); LSCache.merge('pontos', STATE.pontos); }
+  }
+  if (type === 'NEW_PROVA' && typeof STATE !== 'undefined') {
+    if (!STATE.provas.find(x => x.id === payload.id)) { STATE.provas.push(payload); LSCache.merge('provas', STATE.provas); }
+  }
+  if (type === 'PROVAS_UPDATED' && typeof STATE !== 'undefined') {
+    STATE.provas = payload; LSCache.merge('provas', STATE.provas);
   }
   if (type === 'USERS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.users = payload; LSCache.merge('users', STATE.users);
