@@ -1,12 +1,7 @@
 // ══ CONFIGURAÇÕES E CONSTANTES ══
 const CARGO_LABEL = {
-  admin:     'Admin master',
-  chefe:     'Chefe de polícia',
-  delegado:  'Delegado',
-  escrivao:  'Escrivão',
-  tatico:    'Tático',
-  agente:    'Agente oficial',
-  gm:        'Guarda municipal'
+  admin:'Admin master', chefe:'Chefe de polícia', delegado:'Delegado',
+  escrivao:'Escrivão', tatico:'Tático', agente:'Agente oficial', gm:'Guarda municipal'
 };
 const CARGO_BADGE_CLASS = {
   admin:'cb-master', chefe:'cb-chefe', delegado:'cb-delegado',
@@ -15,7 +10,6 @@ const CARGO_BADGE_CLASS = {
 const CARGO_PERM = { admin:7, chefe:6, delegado:5, escrivao:4, tatico:3, agente:2, gm:1 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ══ SESSÃO PERSISTENTE (fica logado até sair manualmente) ══
 const SESSION_KEY = 'gmpol_session';
 function isMaster(){ return !!me && me.user === 'master'; }
 
@@ -27,17 +21,27 @@ function brDateLong(){return new Date().toLocaleDateString('pt-BR',{timeZone:'Am
 
 // ══ ESTADO ══
 let me=null, activeTab=0;
-let STATE={ocs:[],puns:[],pontos:[],users:[],audit:[]};
+let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[]};
 let _pendingCargoChange=null, _pendingBan=null, _banTimer=null, _clockInterval;
 let _busyPonto=false, _busyPun=false;
 let _keepIv=null;
 
-// ══ KEEP-ALIVE: mantém o servidor hospedado acordado ══
+// ══ ESTADO DA PROVA ══
+let QUESTIONARIO=null;
+let _provaAtiva=null;   // { ordem:[], alts:{}, atual, respostas[], tempo, timer, cargoAlvo }
+const PROVA_TEMPO_QUESTAO = 180; // 3 minutos
+
 function startKeepAlive(){
   stopKeepAlive();
-  _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); }, 240000); // a cada 4 min
+  _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); }, 240000);
 }
 function stopKeepAlive(){ clearInterval(_keepIv); _keepIv=null; }
+
+async function ensureQuestionario(){
+  if(QUESTIONARIO) return QUESTIONARIO;
+  QUESTIONARIO = await API.getQuestionario();
+  return QUESTIONARIO;
+}
 
 // ══ WEBSOCKET HANDLERS (só UI) ══
 function handleSocketMessage(data){
@@ -57,6 +61,23 @@ function handleSocketMessage(data){
     case 'FOLGA_GRANTED':
       if(me&&payload.userLogin===me.user) toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);
       renderTab(activeTab); break;
+    case 'NEW_PROVA':
+      if(activeTab===getTabIdx('aprovas'))renderTab(activeTab);
+      if(me&&(CARGO_PERM[me.cargo]||0)>=5&&payload.userLogin!==me.user)
+        toast('📝 Nova prova de '+payload.nome+' aguardando avaliação (nota '+payload.nota+').','w');
+      break;
+    case 'PROVAS_UPDATED':
+      if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
+      break;
+    case 'PROVA_DECIDIDA':
+      if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
+      if(me&&payload.userLogin===me.user){
+        if(payload.decisao==='promovido')
+          toast('🎉 PARABÉNS! Você passou na prova e foi promovido(a) a '+ (CARGO_LABEL[payload.cargoAlvo]||payload.cargoAlvo) +'!','s',10000);
+        else
+          toast('😞 Sinto muito, mas você não passou na prova e segue no cargo atual.','d',10000);
+      }
+      break;
     case 'USERS_UPDATED':
       if(me){
         const mu=(payload||[]).find(u=>u.user===me.user);
@@ -85,7 +106,7 @@ function handleSocketMessage(data){
       if(me&&payload.userLogin===me.user){
         me.cargo=payload.newCargo; saveSession();
         const nl=CARGO_LABEL[payload.newCargo]||payload.newCargo;
-        const ic=payload.tipo==='promovido'?'📈':'📉';
+        const ic=payload.tipo==='promovido'?'📈':'';
         const msg=payload.tipo==='promovido'
           ?`${ic} Você foi promovido para <b>${nl}</b>!`
           :`${ic} Você foi rebaixado para <b>${nl}</b>. Motivo: ${payload.motivo||'não informado'}`;
@@ -100,13 +121,13 @@ function handleSocketMessage(data){
 
 function getTabIdx(name){if(!me)return -1;return tabDefs(me.cargo).findIndex(t=>t.key===name);}
 
-// ══ HELPERS DE SESSÃO ══
+// ══ SESSÃO ══
 function saveSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(me)); }catch(_){} }
 function clearSession(){ try{ localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); }catch(_){} }
 function readSession(){
   try{
     let saved=localStorage.getItem(SESSION_KEY);
-    if(!saved){ // migra sessão antiga de sessionStorage
+    if(!saved){
       const ss=sessionStorage.getItem(SESSION_KEY);
       if(ss){ localStorage.setItem(SESSION_KEY,ss); sessionStorage.removeItem(SESSION_KEY); saved=ss; }
     }
@@ -114,19 +135,16 @@ function readSession(){
   }catch(_){ return null; }
 }
 
-// ══ SESSION ══
 async function checkSession(){
   const saved=readSession();
   if(!saved){ showLogin(); return; }
   let parsed;
   try{ parsed=JSON.parse(saved); }catch(_){ clearSession(); showLogin(); return; }
   if(!parsed||!parsed.user||!parsed.cargo){ clearSession(); showLogin(); return; }
-  if(parsed.user==='admin'){ clearSession(); showLogin(); return; } // migração admin→master
+  if(parsed.user==='admin'){ clearSession(); showLogin(); return; }
   const{pass:_p,...meSafe}=parsed;
   me=meSafe;
   _loadStateFromCache();
-
-  // Valida a sessão contra o servidor (se responder). Se o usuário não existir mais → volta pro login.
   try{
     const st=await API.getState();
     if(st&&Array.isArray(st.users)){
@@ -135,15 +153,14 @@ async function checkSession(){
       me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};
       saveSession();
       if(su.banExpires&&su.banExpires>Date.now()){ showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy}); return; }
-      // estado fresco do servidor
       STATE.users=st.users;
       if(Array.isArray(st.ocs))STATE.ocs=st.ocs;
       if(Array.isArray(st.puns))STATE.puns=st.puns;
       if(Array.isArray(st.pontos))STATE.pontos=st.pontos;
+      if(Array.isArray(st.provas))STATE.provas=st.provas;
       if(Array.isArray(st.audit))STATE.audit=st.audit;
     }
-  }catch(_){ /* servidor dormindo/offline: entra com cache e reconecta via WS */ }
-
+  }catch(_){}
   showPanel();
 }
 
@@ -153,11 +170,12 @@ function _loadStateFromCache(){
   if(Array.isArray(c.ocs))STATE.ocs=c.ocs;
   if(Array.isArray(c.puns))STATE.puns=c.puns;
   if(Array.isArray(c.pontos))STATE.pontos=c.pontos;
+  if(Array.isArray(c.provas))STATE.provas=c.provas;
   if(Array.isArray(c.users))STATE.users=c.users;
   if(Array.isArray(c.audit))STATE.audit=c.audit;
 }
 
-// ══ LOGIN COM RETENTATIVAS (servidor pode estar acordando) ══
+// ══ LOGIN ══
 async function apiLoginRetry(u,p,btn){
   let lastErr=null;
   for(let i=0;i<3;i++){
@@ -166,7 +184,7 @@ async function apiLoginRetry(u,p,btn){
       lastErr=e;
       const msg=e.message||'';
       const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);
-      if(!retryable) throw e; // senha errada de verdade → não repete
+      if(!retryable) throw e;
       if(btn)btn.textContent='▸ SERVIDOR ACORDANDO… ('+(i+2)+'/3)';
       await new Promise(r=>setTimeout(r,1200*(i+1)));
     }
@@ -187,7 +205,7 @@ async function login(){
     if(!res.user){throw new Error('Dados de usuário inválidos.');}
     const{pass:_p,...meSafe}=res.user;
     me=meSafe;
-    saveSession(); // ← localStorage: permanece até sair manualmente
+    saveSession();
     activeTab=0; showPanel(); toast('Bem-vindo, '+me.nome+'!','s');
   }catch(e){toast(e.message||'Erro ao autenticar.','d');}
   finally{if(btn){btn.disabled=false;btn.textContent='▸ AUTENTICAR';}}
@@ -204,14 +222,15 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.get
 
 function logout(){
   me=null;activeTab=0;
-  clearSession();          // ← só aqui a sessão é apagada
+  clearSession();
   stopKeepAlive();
   clearInterval(_clockInterval);clearInterval(_banTimer);
+  if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}
   if(typeof LSCache!=='undefined')LSCache.clear();
   location.reload();
 }
 
-// ══ TELA DE SUSPENSÃO ══
+// ══ SUSPENSÃO ══
 function showBanScreen(info){
   document.getElementById('s-login').classList.remove('active');
   document.getElementById('s-panel').classList.remove('active');
@@ -267,7 +286,7 @@ function showPanel(){
   badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');
   badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;
   document.getElementById('tb-user').textContent=me.nome;
-  startKeepAlive(); // mantém o servidor acordado enquanto logado
+  startKeepAlive();
   activeTab=0; buildTabs(); renderTab(0); updateNotif();
 }
 
@@ -278,10 +297,12 @@ function tabDefs(c){
     {label:'▸ REGISTRAR',key:'registrar',notif:false},
     {label:'▸ MINHAS OCs',key:'myocs',notif:false},
     {label:'▸ PUNIÇÕES',key:'puns',notif:false},
-    {label:'▸ PONTO',key:'pontos',notif:false}
+    {label:'▸ PONTO',key:'pontos',notif:false},
+    {label:'▸ PROVAS',key:'provas',notif:false}
   ];
-  if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ AUDITORIA',key:'audit',notif:false}];
-  if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false}];
+  if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ AUDITORIA',key:'audit',notif:false}];
+  if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
+  if(p>=5)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
   if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true}];
   return[...base,...common];
 }
@@ -301,6 +322,7 @@ function buildMobileDrawer(){
 }
 
 function switchTab(idx){
+  if(_provaAtiva){ toast('⚠ Termine ou cancele a prova antes de trocar de aba.','w'); return; }
   activeTab=idx;
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
   document.querySelectorAll('.nav-drawer-item').forEach((t,i)=>t.classList.toggle('active',i===idx));
@@ -315,7 +337,7 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 function renderTab(idx){
   const defs=tabDefs(me.cargo);
   const def=defs[idx]||defs[0];
-  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,audit:vAuditoria};
+  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria};
   document.getElementById('content').innerHTML=(views[def.key]||vInicio)();
   if(def.key==='pontos')setTimeout(startClock,50); else clearInterval(_clockInterval);
 }
@@ -329,9 +351,252 @@ function updateNotif(){
   const canSee=(CARGO_PERM[me.cargo]||0)>=4;
   if(canSee&&pend>0){if(pill)pill.classList.add('show');if(txt)txt.textContent=pend+' PENDENTE'+(pend>1?'S':'');if(tn){tn.textContent=pend;tn.style.display='flex';}}
   else{if(pill)pill.classList.remove('show');if(tn)tn.style.display='none';}
+  // badge de provas aguardando avaliação
+  const apIdx=tabDefs(me.cargo).findIndex(t=>t.key==='aprovas');
+  const tnA=document.getElementById('tn-'+apIdx);
+  if(tnA){
+    const pendProvas=STATE.provas.filter(p=>!p.decisao).length;
+    if((CARGO_PERM[me.cargo]||0)>=5&&pendProvas>0){tnA.textContent=pendProvas;tnA.style.display='flex';}
+    else tnA.style.display='none';
+  }
 }
 
-// ══ VIEWS ══
+// ══════════════════════════════════════════════════════════
+// ══ SISTEMA DE PROVAS ══
+// ══════════════════════════════════════════════════════════
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function vProvas(){
+  const myP=CARGO_PERM[me.cargo]||0;
+  const minhas=STATE.provas.filter(p=>p.userLogin===me.user).reverse();
+  const opcoes=Object.entries(CARGO_LABEL)
+    .filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<7)
+    .map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');
+
+  const hist=minhas.length
+    ?'<table class="tbl"><thead><tr><th>DATA</th><th>CARGO ALVO</th><th>NOTA</th><th>STATUS</th><th>DECISÃO</th></tr></thead><tbody>'
+      +minhas.map(p=>{
+        const dec=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO</span>'
+          :p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO</span>'
+          :'<span class="status-chip sc-p">⏳ AGUARDANDO</span>';
+        const st=p.status==='tempo_esgotado'?'<span style="color:var(--danger);">⏰ Tempo esgotado</span>':'<span style="color:var(--accent3);">Concluída</span>';
+        return '<tr><td style="font-family:\'Share Tech Mono\',monospace;">'+brDateOf(p.ts)+'</td>'
+          +'<td>'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</td>'
+          +'<td style="font-weight:700;color:'+(p.nota>=70?'#4ade80':'#f87171')+';">'+p.nota+'</td>'
+          +'<td>'+st+'</td><td>'+dec+'</td></tr>';
+      }).join('')+'</tbody></table>'
+    :'<p style="color:var(--text-dim);font-family:\'Share Tech Mono\',monospace;font-size:.68rem;">Você ainda não fez nenhuma prova.</p>';
+
+  return '<div class="stitle">▸ PROVAS DE PROMOÇÃO</div>'
+    +'<div class="card" style="margin-bottom:20px;">'
+      +'<div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:6px;">PROVA DE PATENTE GUARDA — POLÍCIA FEDERAL RIO RISE</div>'
+      +'<p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">10 questões • 3 minutos por questão • cada questão vale 10 pontos • nota mínima 70.<br>⚠ Se o temporizador zerar e você não tiver respondido, <b style="color:var(--danger);">você perde a prova</b>. As questões aparecem em ordem aleatória.</p>'
+      +'<div class="g2">'
+        +'<div class="fg"><label>Seu usuário</label><input id="pv-user" value="'+me.user+'"></div>'
+        +'<div class="fg"><label>Cargo que deseja ser promovido</label><select id="pv-alvo">'+(opcoes||'<option value="">Nenhum cargo disponível</option>')+'</select></div>'
+      +'</div>'
+      +'<button class="btn btn-primary" style="max-width:260px;" onclick="iniciarProva()">▸ INICIAR PROVA</button>'
+    +'</div>'
+    +'<div class="card"><div style="font-family:\'Orbitron\',sans-serif;font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MINHAS PROVAS</div>'+hist+'</div>';
+}
+
+async function iniciarProva(){
+  const userInput=(document.getElementById('pv-user')?.value||'').trim().toLowerCase();
+  if(userInput!==me.user){toast('Use o SEU próprio usuário: '+me.user,'d');return;}
+  const alvo=document.getElementById('pv-alvo')?.value;
+  if(!alvo){toast('Selecione o cargo alvo.','d');return;}
+  if((CARGO_PERM[alvo]||0)<=(CARGO_PERM[me.cargo]||0)){toast('Escolha um cargo ACIMA do seu.','d');return;}
+  let q;
+  try{ q=await ensureQuestionario(); }catch(e){ toast(e.message||'Erro ao carregar questões.','d'); return; }
+
+  const ordem=shuffle(q.map(x=>x.q));
+  const alts={};
+  ordem.forEach(i=>{ alts[i]=shuffle([0,1,2,3]); });
+  _provaAtiva={ ordem, alts, atual:0, respostas:[], tempo:PROVA_TEMPO_QUESTAO, timer:null, cargoAlvo:alvo };
+  renderQuestaoProva();
+  iniciarTimerProva();
+}
+
+function iniciarTimerProva(){
+  clearInterval(_provaAtiva.timer);
+  _provaAtiva.tempo=PROVA_TEMPO_QUESTAO;
+  atualizarTimerProva();
+  _provaAtiva.timer=setInterval(()=>{
+    if(!_provaAtiva)return;
+    _provaAtiva.tempo--;
+    atualizarTimerProva();
+    if(_provaAtiva.tempo<=0){
+      clearInterval(_provaAtiva.timer);
+      perderProvaTempo();
+    }
+  },1000);
+}
+
+function atualizarTimerProva(){
+  const el=document.getElementById('prova-timer');
+  if(!el||!_provaAtiva)return;
+  const m=Math.floor(_provaAtiva.tempo/60), s=_provaAtiva.tempo%60;
+  el.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el.style.color=_provaAtiva.tempo<=30?'var(--danger)':(_provaAtiva.tempo<=60?'var(--warn)':'var(--accent)');
+}
+
+function renderQuestaoProva(){
+  const P=_provaAtiva; if(!P)return;
+  const qi=P.ordem[P.atual];
+  const quest=QUESTIONARIO.find(x=>x.q===qi);
+  const letras=['a','b','c','d'];
+  const altHtml=P.alts[qi].map((origIdx,pos)=>
+    '<label style="display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);">'
+    +'<input type="radio" name="pv-alt" value="'+origIdx+'" style="margin-right:10px;">'
+    +'<b style="color:var(--accent);">'+letras[pos]+')</b> '+quest.alt[origIdx]
+    +'</label>'
+  ).join('');
+
+  document.getElementById('content').innerHTML=
+    '<div class="stitle">▸ PROVA — QUESTÃO '+(P.atual+1)+' DE 10</div>'
+    +'<div class="card">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+        +'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.68rem;color:var(--text-dim);">Alvo: <b style="color:var(--accent);">'+(CARGO_LABEL[P.cargoAlvo]||P.cargoAlvo)+'</b></div>'
+        +'<div style="font-family:\'Orbitron\',sans-serif;font-size:1.4rem;letter-spacing:.1em;" id="prova-timer">03:00</div>'
+      +'</div>'
+      +'<div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px;line-height:1.5;">'+quest.enunciado+'</div>'
+      +altHtml
+      +'<div class="fg" style="margin-top:14px;"><label>Justifique sua resposta <span style="color:var(--danger);">*</span></label><textarea id="pv-just" placeholder="Explique o porquê da sua escolha…" style="min-height:90px;"></textarea></div>'
+      +'<div style="display:flex;gap:10px;">'
+        +'<button class="btn btn-primary" onclick="confirmarRespostaProva()">▸ CONFIRMAR RESPOSTA</button>'
+        +'<button class="btn btn-ghost" onclick="cancelarProva()">CANCELAR PROVA</button>'
+      +'</div>'
+    +'</div>';
+  atualizarTimerProva();
+}
+
+function confirmarRespostaProva(){
+  const P=_provaAtiva; if(!P)return;
+  const sel=document.querySelector('input[name="pv-alt"]:checked');
+  if(!sel){toast('Selecione uma alternativa.','d');return;}
+  const just=(document.getElementById('pv-just')?.value||'').trim();
+  if(just.length<3){toast('Justifique sua resposta (mínimo 3 caracteres).','d');return;}
+  P.respostas.push({ q:P.ordem[P.atual], escolha:parseInt(sel.value), justificativa:just });
+  proximaQuestaoProva();
+}
+
+function proximaQuestaoProva(){
+  const P=_provaAtiva; if(!P)return;
+  P.atual++;
+  if(P.atual>=10){ finalizarProva(false); return; }
+  renderQuestaoProva();
+  iniciarTimerProva();
+}
+
+function perderProvaTempo(){
+  toast('⏰ TEMPO ESGOTADO! Você perdeu a prova.','d',8000);
+  finalizarProva(true);
+}
+
+function cancelarProva(){
+  if(!confirm('Cancelar a prova? Ela será enviada como incompleta.'))return;
+  finalizarProva(true);
+}
+
+async function finalizarProva(perdida){
+  const P=_provaAtiva; if(!P)return;
+  clearInterval(P.timer);
+  _provaAtiva=null;
+  try{
+    const res=await API.createProva({ userLogin:me.user, cargoAlvo:P.cargoAlvo, respostas:P.respostas, perdidaPorTempo:perdida });
+    const prova=res&&res.prova?res.prova:null;
+    if(prova){
+      let msg;
+      if(prova.nota<70){
+        msg='😞 <b>Mais sorte na próxima!</b> Você fez <b>'+prova.nota+'</b> pontos (mínimo 70).';
+      }else{
+        msg='🎉 <b>Parabéns!</b> Você fez <b>'+prova.nota+'</b> pontos!<br>Seus justificativos serão avaliados pelos superiores (Master, Chefe de Polícia e Delegado), que decidirão sua promoção.';
+      }
+      if(perdida) msg='⏰ Prova perdida por tempo.<br>'+msg;
+      document.getElementById('content').innerHTML=
+        '<div class="stitle">▸ RESULTADO DA PROVA</div>'
+        +'<div class="card" style="text-align:center;">'
+          +'<div style="font-family:\'Orbitron\',sans-serif;font-size:3rem;color:'+(prova.nota>=70?'#4ade80':'#f87171')+';">'+prova.nota+'</div>'
+          +'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--text-dim);margin-bottom:18px;">NOTA FINAL (0–100)</div>'
+          +'<div style="font-size:.95rem;line-height:1.7;color:var(--text-mid);">'+msg+'</div>'
+        +'</div>';
+    } else { renderTab(activeTab); }
+  }catch(e){ toast(e.message||'Erro ao enviar prova.','d'); renderTab(activeTab); }
+}
+
+// ══ ANÁLISE DE PROVAS (master, chefe, delegado) ══
+function vAnaliseProvas(){
+  if((CARGO_PERM[me.cargo]||0)<5) return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
+  const provas=[...STATE.provas].reverse();
+  if(!provas.length) return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'+empty('📝','Nenhuma prova realizada ainda.');
+  if(!QUESTIONARIO){ ensureQuestionario().then(()=>renderTab(activeTab)).catch(()=>{}); return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'+empty('⏳','Carregando questionário…'); }
+
+  const cards=provas.map(p=>{
+    const decBadge=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO por '+p.decididoPor+'</span>'
+      :p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO por '+p.decididoPor+'</span>'
+      :'<span class="status-chip sc-p">⏳ AGUARDANDO AVALIAÇÃO</span>';
+    const qHtml=p.respostas.map((r,ni)=>{
+      const quest=QUESTIONARIO.find(x=>x.q===r.q);
+      if(!quest)return '';
+      const letras=['a','b','c','d'];
+      const altsHtml=quest.alt.map((txt,idx)=>{
+        let style='padding:8px 12px;margin:4px 0;border:1px solid var(--border);border-radius:4px;font-size:.82rem;';
+        let tag='';
+        if(idx===r.escolha&&r.correta){ style+='border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80;'; tag=' ✔ RESPOSTA DO CANDIDATO (CORRETA)'; }
+        else if(idx===r.escolha&&!r.correta){ style+='border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;'; tag=' ✘ RESPOSTA DO CANDIDATO (ERRADA)'; }
+        return '<div style="'+style+'"><b>'+letras[idx]+')</b> '+txt+tag+'</div>';
+      }).join('');
+      const corretaHtml=!r.correta
+        ?'<div style="margin-top:6px;padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.1);border-radius:4px;color:#4ade80;font-size:.82rem;">✅ RESPOSTA CORRETA: <b>'+letras[r.corretaIdx]+')</b> '+quest.alt[r.corretaIdx]+'</div>'
+        :'';
+      return '<div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);">'
+        +'<div style="font-weight:700;font-size:.88rem;margin-bottom:8px;">Questão '+(ni+1)+': '+quest.enunciado+'</div>'
+        +altsHtml+corretaHtml
+        +'<div style="margin-top:8px;font-size:.78rem;color:var(--text-mid);"><b>Justificativa do candidato:</b> '+(r.justificativa||'<i style="color:var(--text-dim);">não respondida</i>')+'</div>'
+        +'</div>';
+    }).join('');
+
+    return '<div class="card" style="margin-bottom:16px;">'
+      +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;">'
+        +'<div><b style="font-size:1rem;">'+p.nome+'</b> <span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">@'+p.userLogin+'</span><br>'
+        +'<span style="font-size:.75rem;color:var(--text-mid);">'+(CARGO_LABEL[p.cargoAtual]||p.cargoAtual)+' → <b style="color:var(--accent);">'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</b> • '+brDateOf(p.ts)+' '+new Date(p.ts).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})+(p.status==='tempo_esgotado'?' • <span style="color:var(--danger);">⏰ tempo esgotado</span>':'')+'</span></div>'
+        +'<div style="font-family:\'Orbitron\',sans-serif;font-size:1.6rem;color:'+(p.nota>=70?'#4ade80':'#f87171')+';">'+p.nota+'</div>'
+      +'</div>'
+      +'<div style="margin-bottom:10px;">'+decBadge+'</div>'
+      +'<div id="pq-'+p.id+'" style="display:none;">'+qHtml+'</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        +'<button class="btn btn-ghost btn-sm" onclick="togglePQ(\'pq-'+p.id+'\')">👁 VER / OCULTAR RESPOSTAS</button>'
+        +(p.decisao?'':'<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>')
+      +'</div>'
+      +'</div>';
+  }).join('');
+
+  return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'
+    +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo.</p>'
+    +cards;
+}
+
+function togglePQ(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
+
+async function decidirProva(id,decisao){
+  const p=STATE.provas.find(x=>x.id===id); if(!p)return;
+  const txt=decisao==='promovido'
+    ?'PROMOVER '+p.nome+' para '+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'?'
+    :'REPROVAR a prova de '+p.nome+'?';
+  if(!confirm(txt))return;
+  try{
+    await API.decidirProva(id,decisao,me.user);
+    toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':'❌ '+p.nome+' reprovado(a).', decisao==='promovido'?'s':'w');
+  }catch(e){ toast(e.message||'Erro.','d'); }
+}
+
+// ══════════════════════════════════════════════════════════
+// ══ VIEWS RESTANTES ══
+// ══════════════════════════════════════════════════════════
 function vInicio(){
   const p=CARGO_PERM[me.cargo]||0;
   const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
@@ -339,13 +604,13 @@ function vInicio(){
   const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
   const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
   const msgs={
-    admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo: rebaixar qualquer cargo (inclusive Admin Master e Chefe), criar usuários de qualquer patente, suspender, excluir e controlar o sistema inteiro.' : 'Acesso total ao sistema.',
-    chefe:'Você pode alterar cargos, gerenciar usuários e supervisionar a corporação.',
-    delegado:'Você pode aceitar ou recusar ocorrências e logs, além de supervisionar os Escrivãos.',
+    admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo: rebaixar qualquer cargo, criar usuários de qualquer patente, suspender, excluir, avaliar provas e controlar o sistema inteiro.' : 'Acesso total ao sistema.',
+    chefe:'Você pode alterar cargos, gerenciar usuários, avaliar provas e supervisionar a corporação.',
+    delegado:'Você pode aceitar ou recusar ocorrências, avaliar provas e supervisionar os Escrivãos.',
     escrivao:'Você pode aceitar ou recusar as ocorrências enviadas e auxiliar na administração.',
     tatico:'Você pode solicitar rebaixamento ou punição para membros inferiores e registrar ocorrências.',
-    agente:'Você pode registrar ocorrências, bater ponto e auxiliar os Táticos.',
-    gm:'Você pode registrar ocorrências e bater seu ponto para cumprir as 1h30 de turno.'
+    agente:'Você pode registrar ocorrências, bater ponto e fazer provas de promoção.',
+    gm:'Você pode registrar ocorrências, bater seu ponto e fazer provas de promoção.'
   };
   const today=brDateLong();
   return `<div class="stitle">▸ PAINEL INICIAL</div>
@@ -469,7 +734,7 @@ async function cancelarOc(id){
   try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ VIEW: USUÁRIOS ══
+// ══ USUÁRIOS ══
 function vUsuarios(){
   const myP=CARGO_PERM[me.cargo]||0;
   const master=isMaster();
@@ -603,7 +868,7 @@ async function removerBan(username,nome){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PUNIÇÕES ══
+// ══ PUNIÇÕES ══
 function vPunicoes(){
   const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=3;
   const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
@@ -636,7 +901,7 @@ async function delPun(idx){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ VIEW: PONTO ══
+// ══ PONTO ══
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
@@ -645,10 +910,8 @@ function vPontos(){
   const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});
   const hojeBr=brDate();
   const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);
-
   const FM="font-family:'Share Tech Mono',monospace;";
   const FO="font-family:'Orbitron',sans-serif;";
-
   const uMe=STATE.users.find(u=>u.user===me.user);
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
@@ -660,28 +923,18 @@ function vPontos(){
   const minhaTab=mine.length
     ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
       +[...mine].reverse().slice(0,20).map(function(p){
-        let det = '';
-        let tipoLbl, tipoCor;
-        if(p.type==='entrada'){ tipoLbl='\u25b6 ENTRADA'; tipoCor='color:#4ade80;'; }
-        else if(p.type==='folga'){ tipoLbl='\ud83c\udf34 FOLGA'; tipoCor='color:var(--warn);'; det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>'; }
-        else { tipoLbl='\u23f9 SAÍDA'; tipoCor='color:#f87171;'; }
-        if(p.type === 'saida' && p.trabalhado !== undefined){
-           const h = Math.floor(p.trabalhado / 60);
-           const m = p.trabalhado % 60;
-           det = '<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
-           if(p.extraReais > 0) det += '<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';
-           if(p.debtMins > 0) {
-               const dh = Math.floor(p.debtMins / 60);
-               const dm = p.debtMins % 60;
-               det += '<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';
-           }
+        let det='';let tipoLbl,tipoCor;
+        if(p.type==='entrada'){tipoLbl='\u25b6 ENTRADA';tipoCor='color:#4ade80;';}
+        else if(p.type==='folga'){tipoLbl='\ud83c\udf34 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>';}
+        else{tipoLbl='\u23f9 SAÍDA';tipoCor='color:#f87171;';}
+        if(p.type==='saida'&&p.trabalhado!==undefined){
+          const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;
+          det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
+          if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';
+          if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}
         }
-        return(
-        '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td>'
-        +'<td style="'+FM+tipoCor+'">'+tipoLbl+'</td>'
-        +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
-        +'<td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>'
-      );}).join('')+'</tbody></table>'
+        return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');
+      }).join('')+'</tbody></table>'
     :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
 
   const botaoPonto = isClockedIn
@@ -692,48 +945,18 @@ function vPontos(){
   if(isSuperv){
     const tabelaHoje=hoje2.length
       ?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'
-        +hoje2.map(function(p){
-          const lbl = p.type==='folga' ? '\ud83c\udf34' : p.hora;
-          return(
-          '<tr><td><b>'+p.nome+'</b></td>'
-          +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td>'
-          +'<td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>'
-        );}).join('')+'</tbody></table>'
+        +hoje2.map(function(p){const lbl=p.type==='folga'?'\ud83c\udf34':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>'
       :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
-
     const tabelaAgentes=Object.entries(porUser).map(function(kv){
       const login=kv[0],pts=kv[1];
       const u=STATE.users.find(function(u){return u.user===login;});
-      const nm=u?u.nome:login;
-      const cg=u?u.cargo:'';
+      const nm=u?u.nome:login;const cg=u?u.cargo:'';
       const rows=[...pts].reverse().map(function(p){
-        return '<tr>'
-          +'<td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td>'
-          +'<td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td>'
-          +'<td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td>'
-          +'</tr>';
+        return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';
       }).join('');
-      return '<div class="ponto-agente-block">'
-        +'<div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')">'
-          +'<div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div>'
-          +'<b style="margin-left:8px;">'+nm+'</b>'
-          +'<span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div>'
-          +'<span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span>'
-        +'</div>'
-        +'<div id="pa-'+login+'" style="display:none;">'
-          +'<table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table>'
-        +'</div></div>';
+      return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
     }).join('');
-
-    supervHtml=
-      '<div class="card" style="margin-bottom:20px;">'
-        +'<div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'
-        +tabelaHoje
-      +'</div>'
-      +'<div class="card">'
-        +'<div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'
-        +tabelaAgentes
-      +'</div>';
+    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
 
   return '<div class="stitle">\u25b8 BATER PONTO</div>'
@@ -741,14 +964,9 @@ function vPontos(){
       +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">\u25b8 REGISTRO DE PONTO</div>'
       +'<div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div>'
       +'<div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'
-      +botaoPonto
-      +folgaHtml
-      +cicloHtml
+      +botaoPonto+folgaHtml+cicloHtml
     +'</div>'
-    +'<div class="card" style="margin-bottom:20px;">'
-      +'<div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'
-      +minhaTab
-    +'</div>'
+    +'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'+minhaTab+'</div>'
     +supervHtml;
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
@@ -769,32 +987,24 @@ async function baterPonto(type){
     const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};
     const res=await API.createPonto(p);
     if(res&&res.error){toast(res.error,'d');return;}
-    if(type==='entrada'){
-      toast('✅ Entrada registrada às '+p.hora+' (horário de Brasília)!','s');
-    } else {
+    if(type==='entrada'){ toast('✅ Entrada registrada às '+p.hora+' (horário de Brasília)!','s'); }
+    else{
       const rp=(res&&res.ponto)?res.ponto:{};
-      if(rp.trabalhado !== undefined){
-        const h = Math.floor(rp.trabalhado / 60);
-        const m = rp.trabalhado % 60;
-        let msg = '✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
-        if(rp.extraReais > 0) msg += '<br><b style="color:#4ade80;">Horas extras: R$ '+rp.extraReais+',00</b>';
-        if(rp.debtMins > 0){
-            const dh = Math.floor(rp.debtMins / 60);
-            const dm = rp.debtMins % 60;
-            msg += '<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';
-        }
-        if(rp.folgaDia) msg += '<br><b style="color:var(--warn);">🌴 Folga concedida para '+rp.folgaDia+'!</b>';
-        toast(msg, 's', 9000);
-      } else {
-        toast('✅ Saída registrada às '+p.hora+'!','s');
-      }
+      if(rp.trabalhado!==undefined){
+        const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;
+        let msg='✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
+        if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Horas extras: R$ '+rp.extraReais+',00</b>';
+        if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';}
+        if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga concedida para '+rp.folgaDia+'!</b>';
+        toast(msg,'s',9000);
+      } else toast('✅ Saída registrada às '+p.hora+'!','s');
     }
     renderTab(activeTab);
   }catch(e){toast(e.message||'Erro.','d');}
   finally{ setTimeout(()=>{_busyPonto=false;},1500); }
 }
 
-// ══ VIEW: AUDITORIA ══
+// ══ AUDITORIA ══
 function vAuditoria(){
   const logs=STATE.audit;
   if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');
@@ -805,7 +1015,7 @@ async function limparAuditoria(){
   try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ ALTERAR SENHA PRÓPRIA ══
+// ══ SENHA PRÓPRIA ══
 async function alterarSenhaPropria(){
   const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;
   if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}
