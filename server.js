@@ -1,5 +1,6 @@
 /**
- * GMPOL Sistema Central v5.1
+ * GMPOL Sistema Central v5.3
+ * FIX: executor resolvido por login OU nome (corrige "Executor não encontrado")
  * MASTER (master / masterx512) = acesso total absoluto
  * Horários de Brasília | Anti-duplicidade | Folga 6+1
  */
@@ -27,6 +28,12 @@ const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, de
 // ══ MASTER: acesso total ══
 function isMaster(u){ return !!u && u.user === 'master'; }
 
+// ══ FIX v5.3: encontra usuário por login OU por nome de exibição ══
+function findUserByRef(ref){
+  if (!ref) return null;
+  return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
+}
+
 // ══ BANCO DE DADOS ══
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
@@ -43,7 +50,6 @@ function getDefaultData() {
   };
 }
 
-// Migração automática: garante que o master exista mesmo em dados antigos
 function migrate(d) {
   let m = d.users.find(u => u.user === 'master');
   if (!m) {
@@ -247,14 +253,14 @@ async function handleAPI(req, res) {
     const login = String(user).trim().toLowerCase().replace(/\s/g, '');
     if (DB.users.find(u => u.user === login)) return jsonRes(res, 400, { error: 'Login já existe.' });
     if (pass.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
-    const criador = DB.users.find(u => u.user === criadoPor);
+    const criador = findUserByRef(criadoPor);
     if (!criador) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const master = isMaster(criador);
     if (!master && (CARGO_PERM_SRV[criador.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
     if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
-    DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criadoPor || 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null });
+    DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null });
     saveData();
-    audit(`<b>${criadoPor}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
+    audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
@@ -274,15 +280,16 @@ async function handleAPI(req, res) {
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { novaSenha, feitorPor } = body;
     if (!novaSenha || novaSenha.length < 6) return jsonRes(res, 400, { error: 'Senha mínima: 6 caracteres.' });
-    const executor = DB.users.find(u => u.user === feitorPor);
+    const executor = findUserByRef(feitorPor);
     const master = isMaster(executor);
-    if (!master && feitorPor !== DB.users[i].user) {
+    const self = executor && executor.user === DB.users[i].user;
+    if (!master && !self) {
       if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
         return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     }
     DB.users[i].pass = novaSenha;
     saveData();
-    audit(`<b>${feitorPor}</b> redefiniu a senha de <b>${DB.users[i].nome}</b>`, '🔑');
+    audit(`<b>${executor ? executor.nome : feitorPor}</b> redefiniu a senha de <b>${DB.users[i].nome}</b>`, '🔑');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
@@ -293,14 +300,15 @@ async function handleAPI(req, res) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { ativo, feitorPor } = body;
-    if (mStatus[1] === feitorPor) return jsonRes(res, 403, { error: 'Você não pode ativar/desativar a si mesmo.' });
-    const executor = DB.users.find(u => u.user === feitorPor);
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (executor.user === mStatus[1]) return jsonRes(res, 403, { error: 'Você não pode ativar/desativar a si mesmo.' });
     const master = isMaster(executor);
-    if (!master && (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0)))
+    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
       return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     DB.users[i].ativo = Boolean(ativo);
     saveData();
-    audit(`<b>${feitorPor}</b> ${ativo ? 'ativou' : 'desativou'} <b>${DB.users[i].nome}</b>`, ativo ? '✅' : '🚫');
+    audit(`<b>${executor.nome}</b> ${ativo ? 'ativou' : 'desativou'} <b>${DB.users[i].nome}</b>`, ativo ? '✅' : '🚫');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
@@ -312,7 +320,7 @@ async function handleAPI(req, res) {
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { cargo, feitorPor, motivo } = body;
     const targetUser = DB.users[i];
-    const executor = DB.users.find(u => u.user === feitorPor);
+    const executor = findUserByRef(feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const master = isMaster(executor);
     if (targetUser.user === executor.user) return jsonRes(res, 403, { error: 'Você não pode alterar o próprio cargo.' });
@@ -327,11 +335,11 @@ async function handleAPI(req, res) {
     DB.users[i].cargo = cargo;
     saveData();
     const logMsg = isRebaixamento
-      ? `<b>${feitorPor}</b> rebaixou <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo} — motivo: ${motivo}`
-      : `<b>${feitorPor}</b> promoveu <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo}`;
+      ? `<b>${executor.nome}</b> rebaixou <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo} — motivo: ${motivo}`
+      : `<b>${executor.nome}</b> promoveu <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo}`;
     audit(logMsg, isRebaixamento ? '📉' : '📈');
     broadcast('USERS_UPDATED', DB.users.map(pub));
-    broadcast('CARGO_CHANGED', { userLogin: DB.users[i].user, oldCargo, newCargo: cargo, tipo: isRebaixamento ? 'rebaixado' : 'promovido', motivo: motivo || null, feitorPorNome: feitorPor });
+    broadcast('CARGO_CHANGED', { userLogin: DB.users[i].user, oldCargo, newCargo: cargo, tipo: isRebaixamento ? 'rebaixado' : 'promovido', motivo: motivo || null, feitorPorNome: executor.nome });
     return jsonRes(res, 200, { ok: true });
   }
 
@@ -345,7 +353,7 @@ async function handleAPI(req, res) {
       const mins = parseInt(duracao) || 0;
       if (mins <= 0) return jsonRes(res, 400, { error: 'Duração inválida.' });
       if (!motivo)   return jsonRes(res, 400, { error: 'Motivo obrigatório.' });
-      const executor = DB.users.find(u => u.user === feitorPor);
+      const executor = findUserByRef(feitorPor) || findUserByRef(feitorPorNome);
       if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
       if (DB.users[i].user === executor.user) return jsonRes(res, 403, { error: 'Você não pode suspender a si mesmo.' });
       const master = isMaster(executor);
@@ -353,21 +361,22 @@ async function handleAPI(req, res) {
       const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
       if (!master && (execPerm <= tgtPerm || execPerm < 3)) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
       const expiresAt = Date.now() + mins * 60 * 1000;
-      DB.users[i].banExpires = expiresAt; DB.users[i].banReason = motivo; DB.users[i].banBy = feitorPorNome || feitorPor;
+      DB.users[i].banExpires = expiresAt; DB.users[i].banReason = motivo; DB.users[i].banBy = executor.nome;
       saveData();
-      audit(`<b>${feitorPorNome||feitorPor}</b> suspendeu <b>${DB.users[i].nome}</b> por ${mins} min(s) — motivo: ${motivo}`, '⛔');
+      audit(`<b>${executor.nome}</b> suspendeu <b>${DB.users[i].nome}</b> por ${mins} min(s) — motivo: ${motivo}`, '⛔');
       broadcast('USERS_UPDATED', DB.users.map(pub));
-      broadcast('USER_BANNED', { userLogin: DB.users[i].user, expiresAt, reason: motivo, banBy: feitorPorNome || feitorPor, duracao: mins });
+      broadcast('USER_BANNED', { userLogin: DB.users[i].user, expiresAt, reason: motivo, banBy: executor.nome, duracao: mins });
       return jsonRes(res, 200, { ok: true });
     }
     if (method === 'DELETE') {
       const i = DB.users.findIndex(u => u.user === mBan[1]);
       if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
       const { feitorPor } = body;
+      const executor = findUserByRef(feitorPor);
       const nome = DB.users[i].nome;
       DB.users[i].banExpires = null; DB.users[i].banReason = null; DB.users[i].banBy = null;
       saveData();
-      audit(`<b>${feitorPor}</b> removeu a suspensão de <b>${nome}</b>`, '✅');
+      audit(`<b>${executor ? executor.nome : feitorPor}</b> removeu a suspensão de <b>${nome}</b>`, '✅');
       broadcast('USERS_UPDATED', DB.users.map(pub));
       broadcast('USER_UNBANNED', { userLogin: DB.users[i].user });
       return jsonRes(res, 200, { ok: true });
@@ -380,15 +389,16 @@ async function handleAPI(req, res) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const { feitorPor } = body;
-    if (mDelUser[1] === feitorPor) return jsonRes(res, 403, { error: 'Você não pode excluir a si mesmo.' });
-    const executor = DB.users.find(u => u.user === feitorPor);
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (mDelUser[1] === executor.user) return jsonRes(res, 403, { error: 'Você não pode excluir a si mesmo.' });
     const master = isMaster(executor);
-    if (!master && (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0)))
+    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
       return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     const nome = DB.users[i].nome;
     DB.users.splice(i, 1);
     saveData();
-    audit(`<b>${feitorPor}</b> excluiu o usuário <b>${nome}</b>`, '🗑');
+    audit(`<b>${executor.nome}</b> excluiu o usuário <b>${nome}</b>`, '🗑');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
@@ -605,7 +615,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.1         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.3         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
@@ -629,4 +639,4 @@ if (RENDER_URL) {
     req.end();
   }, 14 * 60 * 1000);
   console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-  }
+              }
