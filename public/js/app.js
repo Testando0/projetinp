@@ -27,55 +27,51 @@ let _busyPonto=false, _busyPun=false;
 let _keepIv=null;
 
 // ══ ESTADO DA PROVA ══
-let QUESTIONARIO=null;
-let _provaAtiva=null;   // { ordem:[], alts:{}, atual, respostas[], tempo, timer, cargoAlvo }
-const PROVA_TEMPO_QUESTAO = 180; // 3 minutos
+let QUESTIONARIO=null;          // { cargo: [questões] } cache
+let QUESTIONARIO_PRISOES=null;
+let _provaAtiva=null;
+const PROVA_TEMPO_QUESTAO = 180;
+const NOMES_PROVA = { gm:'PROVA DE PATENTE GUARDA', agente:'PROVA DE PATENTE AGENTE', tatico:'PROVA DE PATENTE TÁTICO', escrivao:'PROVA DE PATENTE DELEGADO' };
+const CSS_PROVA = '<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
 
-function startKeepAlive(){
-  stopKeepAlive();
-  _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); }, 240000);
-}
+function startKeepAlive(){ stopKeepAlive(); _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); },240000); }
 function stopKeepAlive(){ clearInterval(_keepIv); _keepIv=null; }
 
-async function ensureQuestionario(){
-  if(QUESTIONARIO) return QUESTIONARIO;
-  QUESTIONARIO = await API.getQuestionario();
-  return QUESTIONARIO;
+async function ensureQuestionario(cargo){
+  QUESTIONARIO = QUESTIONARIO || {};
+  if(QUESTIONARIO[cargo]) return QUESTIONARIO[cargo];
+  QUESTIONARIO[cargo] = await API.request('GET', '/prova/questionario?cargo=' + cargo);
+  return QUESTIONARIO[cargo];
+}
+async function ensureQuestionarioPrisoes(){
+  if(QUESTIONARIO_PRISOES) return QUESTIONARIO_PRISOES;
+  QUESTIONARIO_PRISOES = await API.request('GET', '/prova/questionario?tipo=prisoes');
+  return QUESTIONARIO_PRISOES;
 }
 
 // ══ WEBSOCKET HANDLERS (só UI) ══
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
-    case 'INIT':
-      updateNotif(); if(me)renderTab(activeTab); break;
-    case 'NEW_OC':
-      updateNotif(); renderTab(activeTab);
-      if(me&&payload.delegadoUser!==me.user) toast('Nova ocorrência: '+payload.id,'w');
-      break;
+    case 'INIT': updateNotif(); if(me)renderTab(activeTab); break;
+    case 'NEW_OC': updateNotif(); renderTab(activeTab); if(me&&payload.delegadoUser!==me.user) toast('Nova ocorrência: '+payload.id,'w'); break;
     case 'OC_UPDATED': updateNotif(); renderTab(activeTab); break;
     case 'OC_DELETED': updateNotif(); renderTab(activeTab); break;
     case 'NEW_PUN': renderTab(activeTab); toast('Nova punição para '+payload.nome,'w'); break;
     case 'PUNS_UPDATED': renderTab(activeTab); break;
     case 'NEW_PONTO': renderTab(activeTab); if(me&&payload.userLogin!==me.user&&payload.type!=='folga') toast(payload.nome+' registrou ponto.','i'); break;
-    case 'FOLGA_GRANTED':
-      if(me&&payload.userLogin===me.user) toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);
-      renderTab(activeTab); break;
+    case 'FOLGA_GRANTED': if(me&&payload.userLogin===me.user) toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000); renderTab(activeTab); break;
     case 'NEW_PROVA':
       if(activeTab===getTabIdx('aprovas'))renderTab(activeTab);
       if(me&&(CARGO_PERM[me.cargo]||0)>=5&&payload.userLogin!==me.user)
-        toast('📝 Nova prova de '+payload.nome+' aguardando avaliação (nota '+payload.nota+').','w');
+        toast('📝 Nova '+(payload.tipo==='prisoes'?'avaliação pessoal (prisões)':'prova')+' de '+payload.nome+' aguardando avaliação'+(payload.nota!==null?' (nota '+payload.nota+')':'')+'.','w');
       break;
-    case 'PROVAS_UPDATED':
-      if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
-      break;
+    case 'PROVAS_UPDATED': if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab); break;
     case 'PROVA_DECIDIDA':
       if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
       if(me&&payload.userLogin===me.user){
-        if(payload.decisao==='promovido')
-          toast('🎉 PARABÉNS! Você passou na prova e foi promovido(a) a '+ (CARGO_LABEL[payload.cargoAlvo]||payload.cargoAlvo) +'!','s',10000);
-        else
-          toast('😞 Sinto muito, mas você não passou na prova e segue no cargo atual.','d',10000);
+        if(payload.decisao==='promovido') toast('🎉 PARABÉNS! Você passou na prova e foi promovido(a) a '+(CARGO_LABEL[payload.cargoAlvo]||payload.cargoAlvo)+'!','s',10000);
+        else toast('😞 Sinto muito, mas você não passou na prova e segue no cargo atual.','d',10000);
       }
       break;
     case 'USERS_UPDATED':
@@ -106,10 +102,7 @@ function handleSocketMessage(data){
       if(me&&payload.userLogin===me.user){
         me.cargo=payload.newCargo; saveSession();
         const nl=CARGO_LABEL[payload.newCargo]||payload.newCargo;
-        const ic=payload.tipo==='promovido'?'📈':'';
-        const msg=payload.tipo==='promovido'
-          ?`${ic} Você foi promovido para <b>${nl}</b>!`
-          :`${ic} Você foi rebaixado para <b>${nl}</b>. Motivo: ${payload.motivo||'não informado'}`;
+        const msg=payload.tipo==='promovido' ? `📈 Você foi promovido para <b>${nl}</b>!` : `📉 Você foi rebaixado para <b>${nl}</b>. Motivo: ${payload.motivo||'não informado'}`;
         showCargoNotif(msg,payload.tipo==='promovido'?'s':'d');
         const badge=document.getElementById('tb-badge');
         if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}
@@ -222,8 +215,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.get
 
 function logout(){
   me=null;activeTab=0;
-  clearSession();
-  stopKeepAlive();
+  clearSession(); stopKeepAlive();
   clearInterval(_clockInterval);clearInterval(_banTimer);
   if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}
   if(typeof LSCache!=='undefined')LSCache.clear();
@@ -241,7 +233,6 @@ function showBanScreen(info){
   document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
   startBanCountdown(info.expiresAt);
 }
-
 function startBanCountdown(expiresAt){
   clearInterval(_banTimer);
   function update(){
@@ -277,7 +268,6 @@ function showLogin(){
   document.getElementById('s-login').classList.add('active');
   setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);
 }
-
 function showPanel(){
   document.getElementById('s-login').classList.remove('active');
   document.getElementById('s-ban').classList.remove('active');
@@ -312,7 +302,6 @@ function buildTabs(){
   document.getElementById('tabs').innerHTML=defs.map((t,i)=>'<div class="tab '+(i===0?'active':'')+'" id="tab-'+i+'" onclick="switchTab('+i+')">'+t.label+(t.notif?'<span class="tab-n" id="tn-'+i+'" style="display:none"></span>':'')+' </div>').join('');
   buildMobileDrawer();
 }
-
 function buildMobileDrawer(){
   if(!me)return;
   const defs=tabDefs(me.cargo);
@@ -320,7 +309,6 @@ function buildMobileDrawer(){
   if(!drawer)return;
   drawer.innerHTML=defs.map((t,i)=>'<div class="nav-drawer-item'+(i===activeTab?' active':'')+'" onclick="switchTab('+i+');closeNavDrawer();">'+t.label+(t.notif?'<span class="tab-n-badge" id="tnd-'+i+'" style="display:none">0</span>':'')+' </div>').join('');
 }
-
 function switchTab(idx){
   if(_provaAtiva){ toast('⚠ Termine ou cancele a prova antes de trocar de aba.','w'); return; }
   activeTab=idx;
@@ -329,7 +317,6 @@ function switchTab(idx){
   renderTab(idx); closeSettings();
   if(typeof closeNavDrawer==='function')closeNavDrawer();
 }
-
 function toggleNavDrawer(){const d=document.getElementById('nav-drawer');if(!d)return;if(d.classList.contains('open'))closeNavDrawer();else openNavDrawer();}
 function openNavDrawer(){buildMobileDrawer();document.getElementById('nav-drawer')?.classList.add('open');document.getElementById('nav-overlay')?.classList.add('open');}
 function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remove('open');document.getElementById('nav-overlay')?.classList.remove('open');}
@@ -351,7 +338,6 @@ function updateNotif(){
   const canSee=(CARGO_PERM[me.cargo]||0)>=4;
   if(canSee&&pend>0){if(pill)pill.classList.add('show');if(txt)txt.textContent=pend+' PENDENTE'+(pend>1?'S':'');if(tn){tn.textContent=pend;tn.style.display='flex';}}
   else{if(pill)pill.classList.remove('show');if(tn)tn.style.display='none';}
-  // badge de provas aguardando avaliação
   const apIdx=tabDefs(me.cargo).findIndex(t=>t.key==='aprovas');
   const tnA=document.getElementById('tn-'+apIdx);
   if(tnA){
@@ -361,9 +347,9 @@ function updateNotif(){
   }
 }
 
-// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // ══ SISTEMA DE PROVAS ══
-// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 function shuffle(arr){
   const a=[...arr];
   for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
@@ -372,38 +358,53 @@ function shuffle(arr){
 
 function vProvas(){
   const myP=CARGO_PERM[me.cargo]||0;
+  const temProva=!!NOMES_PROVA[me.cargo];
   const minhas=STATE.provas.filter(p=>p.userLogin===me.user).reverse();
+
+  // cargos alvo: acima do meu, SEM chefe(6) e admin(7)
   const opcoes=Object.entries(CARGO_LABEL)
-    .filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<7)
+    .filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<6)
     .map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');
 
+  const cardProva=temProva
+    ? '<div class="card" style="margin-bottom:20px;">'
+        +'<div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:6px;">'+NOMES_PROVA[me.cargo]+' — POLÍCIA FEDERAL RIO RISE</div>'
+        +'<p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">Questões em ordem aleatória • 3 minutos por questão • nota 0–100 • mínimo 70.<br>⚠ Se o temporizador zerar e você não tiver respondido, <b style="color:var(--danger);">você perde a prova</b>.</p>'
+        +'<div class="g2">'
+          +'<div class="fg"><label>Seu usuário</label><input id="pv-user" value="'+me.user+'"></div>'
+          +'<div class="fg"><label>Cargo que deseja ser promovido</label><select id="pv-alvo">'+(opcoes||'<option value="">Nenhum cargo disponível</option>')+'</select></div>'
+        +'</div>'
+        +'<button class="btn btn-primary" style="max-width:260px;" onclick="iniciarProva()">▸ INICIAR PROVA</button>'
+      +'</div>'
+    : '<div class="card c-none" style="margin-bottom:20px;padding:14px 16px;border:1px solid var(--border);font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--text-dim);">Seu cargo (<b>'+(CARGO_LABEL[me.cargo]||me.cargo)+'</b>) não possui prova de promoção — promoção manual/por mérito. Você ainda pode fazer a avaliação pessoal abaixo.</div>';
+
+  const cardPrisoes=
+    '<div class="card" style="margin-bottom:20px;">'
+      +'<div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;margin-bottom:6px;">🧠 PROVA CONHECIMENTO PRISÕES — AVALIAÇÃO PESSOAL</div>'
+      +'<p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">10 questões dissertativas • <b>sem tempo por questão</b> • não é vinculada a cargo • os superiores avaliarão suas respostas.</p>'
+      +'<button class="btn btn-warn" style="max-width:300px;" onclick="iniciarProvaPrisoes()">▸ INICIAR AVALIAÇÃO PESSOAL</button>'
+    +'</div>';
+
   const hist=minhas.length
-    ?'<table class="tbl"><thead><tr><th>DATA</th><th>CARGO ALVO</th><th>NOTA</th><th>STATUS</th><th>DECISÃO</th></tr></thead><tbody>'
+    ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>ALVO</th><th>NOTA</th><th>STATUS</th><th>DECISÃO</th></tr></thead><tbody>'
       +minhas.map(p=>{
         const dec=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO</span>'
           :p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO</span>'
           :'<span class="status-chip sc-p">⏳ AGUARDANDO</span>';
         const st=p.status==='tempo_esgotado'?'<span style="color:var(--danger);">⏰ Tempo esgotado</span>':'<span style="color:var(--accent3);">Concluída</span>';
-        return '<tr><td style="font-family:\'Share Tech Mono\',monospace;">'+brDateOf(p.ts)+'</td>'
-          +'<td>'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</td>'
-          +'<td style="font-weight:700;color:'+(p.nota>=70?'#4ade80':'#f87171')+';">'+p.nota+'</td>'
+        const tipo=p.tipo==='prisoes'?'<span style="color:var(--warn);">🧠 Prisões</span>':'<span style="color:var(--accent);">📝 Patente</span>';
+        return '<tr><td style="font-family:\'Share Tech Mono\',monospace;">'+brDateOf(p.ts)+'</td><td>'+tipo+'</td>'
+          +'<td>'+(p.cargoAlvo?(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo):'—')+'</td>'
+          +'<td style="font-weight:700;color:'+(p.nota===null?'var(--warn)':(p.nota>=70?'#4ade80':'#f87171'))+';">'+(p.nota===null?'—':p.nota)+'</td>'
           +'<td>'+st+'</td><td>'+dec+'</td></tr>';
       }).join('')+'</tbody></table>'
     :'<p style="color:var(--text-dim);font-family:\'Share Tech Mono\',monospace;font-size:.68rem;">Você ainda não fez nenhuma prova.</p>';
 
-  return '<div class="stitle">▸ PROVAS DE PROMOÇÃO</div>'
-    +'<div class="card" style="margin-bottom:20px;">'
-      +'<div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:6px;">PROVA DE PATENTE GUARDA — POLÍCIA FEDERAL RIO RISE</div>'
-      +'<p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">10 questões • 3 minutos por questão • cada questão vale 10 pontos • nota mínima 70.<br>⚠ Se o temporizador zerar e você não tiver respondido, <b style="color:var(--danger);">você perde a prova</b>. As questões aparecem em ordem aleatória.</p>'
-      +'<div class="g2">'
-        +'<div class="fg"><label>Seu usuário</label><input id="pv-user" value="'+me.user+'"></div>'
-        +'<div class="fg"><label>Cargo que deseja ser promovido</label><select id="pv-alvo">'+(opcoes||'<option value="">Nenhum cargo disponível</option>')+'</select></div>'
-      +'</div>'
-      +'<button class="btn btn-primary" style="max-width:260px;" onclick="iniciarProva()">▸ INICIAR PROVA</button>'
-    +'</div>'
+  return '<div class="stitle">▸ PROVAS</div>'+cardProva+cardPrisoes
     +'<div class="card"><div style="font-family:\'Orbitron\',sans-serif;font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MINHAS PROVAS</div>'+hist+'</div>';
 }
 
+// ── PROVA DE PATENTE (com tempo) ──
 async function iniciarProva(){
   const userInput=(document.getElementById('pv-user')?.value||'').trim().toLowerCase();
   if(userInput!==me.user){toast('Use o SEU próprio usuário: '+me.user,'d');return;}
@@ -411,12 +412,10 @@ async function iniciarProva(){
   if(!alvo){toast('Selecione o cargo alvo.','d');return;}
   if((CARGO_PERM[alvo]||0)<=(CARGO_PERM[me.cargo]||0)){toast('Escolha um cargo ACIMA do seu.','d');return;}
   let q;
-  try{ q=await ensureQuestionario(); }catch(e){ toast(e.message||'Erro ao carregar questões.','d'); return; }
-
+  try{ q=await ensureQuestionario(me.cargo); }catch(e){ toast(e.message||'Erro ao carregar questões.','d'); return; }
   const ordem=shuffle(q.map(x=>x.q));
-  const alts={};
-  ordem.forEach(i=>{ alts[i]=shuffle([0,1,2,3]); });
-  _provaAtiva={ ordem, alts, atual:0, respostas:[], tempo:PROVA_TEMPO_QUESTAO, timer:null, cargoAlvo:alvo };
+  const alts={}; ordem.forEach(i=>{ alts[i]=shuffle([0,1,2,3]); });
+  _provaAtiva={ modo:'cargo', ordem, alts, atual:0, respostas:[], tempo:PROVA_TEMPO_QUESTAO, timer:null, cargoAlvo:alvo };
   renderQuestaoProva();
   iniciarTimerProva();
 }
@@ -429,13 +428,9 @@ function iniciarTimerProva(){
     if(!_provaAtiva)return;
     _provaAtiva.tempo--;
     atualizarTimerProva();
-    if(_provaAtiva.tempo<=0){
-      clearInterval(_provaAtiva.timer);
-      perderProvaTempo();
-    }
+    if(_provaAtiva.tempo<=0){ clearInterval(_provaAtiva.timer); perderProvaTempo(); }
   },1000);
 }
-
 function atualizarTimerProva(){
   const el=document.getElementById('prova-timer');
   if(!el||!_provaAtiva)return;
@@ -444,20 +439,26 @@ function atualizarTimerProva(){
   el.style.color=_provaAtiva.tempo<=30?'var(--danger)':(_provaAtiva.tempo<=60?'var(--warn)':'var(--accent)');
 }
 
+function selAlt(el){
+  document.querySelectorAll('.pv-alt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+  const r=el.querySelector('input[type=radio]'); if(r)r.checked=true;
+}
+
 function renderQuestaoProva(){
   const P=_provaAtiva; if(!P)return;
   const qi=P.ordem[P.atual];
-  const quest=QUESTIONARIO.find(x=>x.q===qi);
+  const quest=QUESTIONARIO[me.cargo].find(x=>x.q===qi);
   const letras=['a','b','c','d'];
   const altHtml=P.alts[qi].map((origIdx,pos)=>
-    '<label style="display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);">'
+    '<label class="pv-alt" onclick="selAlt(this)">'
     +'<input type="radio" name="pv-alt" value="'+origIdx+'" style="margin-right:10px;">'
     +'<b style="color:var(--accent);">'+letras[pos]+')</b> '+quest.alt[origIdx]
     +'</label>'
   ).join('');
 
-  document.getElementById('content').innerHTML=
-    '<div class="stitle">▸ PROVA — QUESTÃO '+(P.atual+1)+' DE 10</div>'
+  document.getElementById('content').innerHTML= CSS_PROVA
+    +'<div class="stitle">▸ '+NOMES_PROVA[me.cargo]+' — QUESTÃO '+(P.atual+1)+' DE '+P.ordem.length+'</div>'
     +'<div class="card">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
         +'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.68rem;color:var(--text-dim);">Alvo: <b style="color:var(--accent);">'+(CARGO_LABEL[P.cargoAlvo]||P.cargoAlvo)+'</b></div>'
@@ -477,26 +478,23 @@ function renderQuestaoProva(){
 function confirmarRespostaProva(){
   const P=_provaAtiva; if(!P)return;
   const sel=document.querySelector('input[name="pv-alt"]:checked');
-  if(!sel){toast('Selecione uma alternativa.','d');return;}
+  if(!sel){toast('Selecione uma alternativa (a escolhida fica com borda verde).','d');return;}
   const just=(document.getElementById('pv-just')?.value||'').trim();
   if(just.length<3){toast('Justifique sua resposta (mínimo 3 caracteres).','d');return;}
   P.respostas.push({ q:P.ordem[P.atual], escolha:parseInt(sel.value), justificativa:just });
   proximaQuestaoProva();
 }
-
 function proximaQuestaoProva(){
   const P=_provaAtiva; if(!P)return;
   P.atual++;
-  if(P.atual>=10){ finalizarProva(false); return; }
+  if(P.atual>=P.ordem.length){ finalizarProva(false); return; }
   renderQuestaoProva();
   iniciarTimerProva();
 }
-
 function perderProvaTempo(){
   toast('⏰ TEMPO ESGOTADO! Você perdeu a prova.','d',8000);
   finalizarProva(true);
 }
-
 function cancelarProva(){
   if(!confirm('Cancelar a prova? Ela será enviada como incompleta.'))return;
   finalizarProva(true);
@@ -511,11 +509,8 @@ async function finalizarProva(perdida){
     const prova=res&&res.prova?res.prova:null;
     if(prova){
       let msg;
-      if(prova.nota<70){
-        msg='😞 <b>Mais sorte na próxima!</b> Você fez <b>'+prova.nota+'</b> pontos (mínimo 70).';
-      }else{
-        msg='🎉 <b>Parabéns!</b> Você fez <b>'+prova.nota+'</b> pontos!<br>Seus justificativos serão avaliados pelos superiores (Master, Chefe de Polícia e Delegado), que decidirão sua promoção.';
-      }
+      if(prova.nota<70) msg='😞 <b>Mais sorte na próxima!</b> Você fez <b>'+prova.nota+'</b> pontos (mínimo 70).';
+      else msg='🎉 <b>Parabéns!</b> Você fez <b>'+prova.nota+'</b> pontos!<br>Seus justificativos serão avaliados pelos superiores (Master, Chefe de Polícia e Delegado), que decidirão sua promoção.';
       if(perdida) msg='⏰ Prova perdida por tempo.<br>'+msg;
       document.getElementById('content').innerHTML=
         '<div class="stitle">▸ RESULTADO DA PROVA</div>'
@@ -524,53 +519,98 @@ async function finalizarProva(perdida){
           +'<div style="font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--text-dim);margin-bottom:18px;">NOTA FINAL (0–100)</div>'
           +'<div style="font-size:.95rem;line-height:1.7;color:var(--text-mid);">'+msg+'</div>'
         +'</div>';
-    } else { renderTab(activeTab); }
+    } else renderTab(activeTab);
   }catch(e){ toast(e.message||'Erro ao enviar prova.','d'); renderTab(activeTab); }
 }
 
-// ══ ANÁLISE DE PROVAS (master, chefe, delegado) ══
+// ── PROVA PRISÕES (sem tempo, dissertativa) ──
+async function iniciarProvaPrisoes(){
+  let q;
+  try{ q=await ensureQuestionarioPrisoes(); }catch(e){ toast(e.message||'Erro ao carregar questões.','d'); return; }
+  _provaAtiva={ modo:'prisoes', quest:q, timer:null };
+  document.getElementById('content').innerHTML= CSS_PROVA
+    +'<div class="stitle">▸ PROVA CONHECIMENTO PRISÕES — AVALIAÇÃO PESSOAL</div>'
+    +'<div class="card">'
+      +'<p style="color:var(--text-mid);font-size:.85rem;margin-bottom:16px;">Responda todas as questões abaixo. <b>Sem tempo limite por questão.</b> Os superiores (Master, Chefe e Delegado) avaliarão suas respostas.</p>'
+      +q.map((qq,i)=>'<div class="fg"><label>'+(i+1)+'. '+qq.enunciado+'</label><textarea id="prj-'+i+'" style="min-height:70px;" placeholder="Sua resposta…"></textarea></div>').join('')
+      +'<div style="display:flex;gap:10px;margin-top:10px;">'
+        +'<button class="btn btn-warn" onclick="enviarProvaPrisoes()">▸ ENVIAR AVALIAÇÃO</button>'
+        +'<button class="btn btn-ghost" onclick="cancelarProvaPrisoes()">CANCELAR</button>'
+      +'</div>'
+    +'</div>';
+}
+async function enviarProvaPrisoes(){
+  const P=_provaAtiva; if(!P||P.modo!=='prisoes')return;
+  const rs=P.quest.map((qq,i)=>({ q:i, texto:(document.getElementById('prj-'+i)?.value||'').trim() }));
+  if(rs.some(r=>r.texto.length<3)){toast('Responda TODAS as questões (mínimo 3 caracteres cada).','d');return;}
+  _provaAtiva=null;
+  try{
+    await API.createProva({ tipo:'prisoes', userLogin:me.user, respostas:rs });
+    toast('✅ Avaliação pessoal enviada! Os superiores vão analisar suas respostas.','s',9000);
+    renderTab(activeTab);
+  }catch(e){ toast(e.message||'Erro ao enviar.','d'); }
+}
+function cancelarProvaPrisoes(){ _provaAtiva=null; renderTab(activeTab); }
+
+// ── ANÁLISE DE PROVAS (master, chefe, delegado) ──
 function vAnaliseProvas(){
   if((CARGO_PERM[me.cargo]||0)<5) return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
   const provas=[...STATE.provas].reverse();
   if(!provas.length) return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'+empty('📝','Nenhuma prova realizada ainda.');
-  if(!QUESTIONARIO){ ensureQuestionario().then(()=>renderTab(activeTab)).catch(()=>{}); return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'+empty('⏳','Carregando questionário…'); }
 
   const cards=provas.map(p=>{
     const decBadge=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO por '+p.decididoPor+'</span>'
       :p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO por '+p.decididoPor+'</span>'
       :'<span class="status-chip sc-p">⏳ AGUARDANDO AVALIAÇÃO</span>';
-    const qHtml=p.respostas.map((r,ni)=>{
-      const quest=QUESTIONARIO.find(x=>x.q===r.q);
-      if(!quest)return '';
-      const letras=['a','b','c','d'];
-      const altsHtml=quest.alt.map((txt,idx)=>{
-        let style='padding:8px 12px;margin:4px 0;border:1px solid var(--border);border-radius:4px;font-size:.82rem;';
-        let tag='';
-        if(idx===r.escolha&&r.correta){ style+='border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80;'; tag=' ✔ RESPOSTA DO CANDIDATO (CORRETA)'; }
-        else if(idx===r.escolha&&!r.correta){ style+='border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;'; tag=' ✘ RESPOSTA DO CANDIDATO (ERRADA)'; }
-        return '<div style="'+style+'"><b>'+letras[idx]+')</b> '+txt+tag+'</div>';
-      }).join('');
-      const corretaHtml=!r.correta
-        ?'<div style="margin-top:6px;padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.1);border-radius:4px;color:#4ade80;font-size:.82rem;">✅ RESPOSTA CORRETA: <b>'+letras[r.corretaIdx]+')</b> '+quest.alt[r.corretaIdx]+'</div>'
-        :'';
-      return '<div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);">'
-        +'<div style="font-weight:700;font-size:.88rem;margin-bottom:8px;">Questão '+(ni+1)+': '+quest.enunciado+'</div>'
-        +altsHtml+corretaHtml
-        +'<div style="margin-top:8px;font-size:.78rem;color:var(--text-mid);"><b>Justificativa do candidato:</b> '+(r.justificativa||'<i style="color:var(--text-dim);">não respondida</i>')+'</div>'
+
+    let corpo='';
+    if(p.tipo==='prisoes'){
+      corpo='<div id="pq-'+p.id+'" style="display:none;">'
+        +p.respostas.map((r,i)=>'<div style="margin-bottom:14px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);">'
+          +'<div style="font-weight:700;font-size:.88rem;margin-bottom:6px;">'+(i+1)+'. '+(PRISOES_QUESTOES_LOCAL[i]||'')+'</div>'
+          +'<div style="font-size:.82rem;color:var(--text-mid);white-space:pre-wrap;">'+(r.texto||'<i>sem resposta</i>')+'</div>'
+        +'</div>').join('')
         +'</div>';
-    }).join('');
+    } else {
+      corpo='<div id="pq-'+p.id+'" style="display:none;">'
+        +p.respostas.map((r,ni)=>{
+          const quest=(QUESTIONARIO&&QUESTIONARIO[p.cargoAtual])?QUESTIONARIO[p.cargoAtual].find(x=>x.q===r.q):null;
+          if(!quest)return '';
+          const letras=['a','b','c','d'];
+          const altsHtml=quest.alt.map((txt,idx)=>{
+            let style='padding:8px 12px;margin:4px 0;border:1px solid var(--border);border-radius:4px;font-size:.82rem;';
+            let tag='';
+            if(idx===r.escolha&&r.correta){ style+='border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80;'; tag=' ✔ RESPOSTA DO CANDIDATO (CORRETA)'; }
+            else if(idx===r.escolha&&!r.correta){ style+='border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;'; tag=' ✘ RESPOSTA DO CANDIDATO (ERRADA)'; }
+            return '<div style="'+style+'"><b>'+letras[idx]+')</b> '+txt+tag+'</div>';
+          }).join('');
+          const corretaHtml=!r.correta
+            ?'<div style="margin-top:6px;padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.1);border-radius:4px;color:#4ade80;font-size:.82rem;">✅ RESPOSTA CORRETA: <b>'+letras[r.corretaIdx]+')</b> '+quest.alt[r.corretaIdx]+'</div>'
+            :'';
+          return '<div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);">'
+            +'<div style="font-weight:700;font-size:.88rem;margin-bottom:8px;">Questão '+(ni+1)+': '+quest.enunciado+'</div>'
+            +altsHtml+corretaHtml
+            +'<div style="margin-top:8px;font-size:.78rem;color:var(--text-mid);"><b>Justificativa do candidato:</b> '+(r.justificativa||'<i style="color:var(--text-dim);">não respondida</i>')+'</div>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+    }
+
+    const botoes=p.tipo==='prisoes'
+      ? (p.decisao?'':'<button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ MARCAR COMO REPROVADO</button>')
+      : (p.decisao?'':'<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>');
 
     return '<div class="card" style="margin-bottom:16px;">'
       +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;">'
         +'<div><b style="font-size:1rem;">'+p.nome+'</b> <span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">@'+p.userLogin+'</span><br>'
-        +'<span style="font-size:.75rem;color:var(--text-mid);">'+(CARGO_LABEL[p.cargoAtual]||p.cargoAtual)+' → <b style="color:var(--accent);">'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</b> • '+brDateOf(p.ts)+' '+new Date(p.ts).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})+(p.status==='tempo_esgotado'?' • <span style="color:var(--danger);">⏰ tempo esgotado</span>':'')+'</span></div>'
-        +'<div style="font-family:\'Orbitron\',sans-serif;font-size:1.6rem;color:'+(p.nota>=70?'#4ade80':'#f87171')+';">'+p.nota+'</div>'
+        +'<span style="font-size:.75rem;color:var(--text-mid);">'+(p.tipo==='prisoes'?'🧠 Avaliação pessoal — Prisões':(CARGO_LABEL[p.cargoAtual]||p.cargoAtual)+' → <b style="color:var(--accent);">'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</b>')+' • '+brDateOf(p.ts)+(p.status==='tempo_esgotado'?' • <span style="color:var(--danger);">⏰ tempo esgotado</span>':'')+'</span></div>'
+        +'<div style="font-family:\'Orbitron\',sans-serif;font-size:1.6rem;color:'+(p.nota===null?'var(--warn)':(p.nota>=70?'#4ade80':'#f87171'))+';">'+(p.nota===null?'—':p.nota)+'</div>'
       +'</div>'
       +'<div style="margin-bottom:10px;">'+decBadge+'</div>'
-      +'<div id="pq-'+p.id+'" style="display:none;">'+qHtml+'</div>'
+      +corpo
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
         +'<button class="btn btn-ghost btn-sm" onclick="togglePQ(\'pq-'+p.id+'\')">👁 VER / OCULTAR RESPOSTAS</button>'
-        +(p.decisao?'':'<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>')
+        +botoes
       +'</div>'
       +'</div>';
   }).join('');
@@ -579,6 +619,19 @@ function vAnaliseProvas(){
     +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo.</p>'
     +cards;
 }
+// prompts locais p/ análise da prova de prisões
+const PRISOES_QUESTOES_LOCAL = [
+  'Cite todos os comandos em ordem para efetuar prisões.',
+  'Qual procedimento para levar o preso para comer?',
+  'Como funciona o QTH PS?',
+  'Como funciona o QTH HP?',
+  'Cite 4 regras da PF que não podem ser quebradas.',
+  'O que é abuso de poder? Cite 3 exemplos.',
+  'Quais regras de carregamento?',
+  'Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).',
+  'Cite a cadeia de comando e a hierarquia.',
+  'O que é insubordinação?'
+];
 
 function togglePQ(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
 
@@ -586,7 +639,7 @@ async function decidirProva(id,decisao){
   const p=STATE.provas.find(x=>x.id===id); if(!p)return;
   const txt=decisao==='promovido'
     ?'PROMOVER '+p.nome+' para '+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'?'
-    :'REPROVAR a prova de '+p.nome+'?';
+    :(p.tipo==='prisoes'?'MARCAR a avaliação pessoal de '+p.nome+' como REPROVADA?':'REPROVAR a prova de '+p.nome+'?');
   if(!confirm(txt))return;
   try{
     await API.decidirProva(id,decisao,me.user);
@@ -594,9 +647,9 @@ async function decidirProva(id,decisao){
   }catch(e){ toast(e.message||'Erro.','d'); }
 }
 
-// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // ══ VIEWS RESTANTES ══
-// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════
 function vInicio(){
   const p=CARGO_PERM[me.cargo]||0;
   const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
@@ -607,10 +660,10 @@ function vInicio(){
     admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo: rebaixar qualquer cargo, criar usuários de qualquer patente, suspender, excluir, avaliar provas e controlar o sistema inteiro.' : 'Acesso total ao sistema.',
     chefe:'Você pode alterar cargos, gerenciar usuários, avaliar provas e supervisionar a corporação.',
     delegado:'Você pode aceitar ou recusar ocorrências, avaliar provas e supervisionar os Escrivãos.',
-    escrivao:'Você pode aceitar ou recusar as ocorrências enviadas e auxiliar na administração.',
-    tatico:'Você pode solicitar rebaixamento ou punição para membros inferiores e registrar ocorrências.',
-    agente:'Você pode registrar ocorrências, bater ponto e fazer provas de promoção.',
-    gm:'Você pode registrar ocorrências, bater seu ponto e fazer provas de promoção.'
+    escrivao:'Você pode aceitar ou recusar ocorrências e fazer a Prova de Delegado.',
+    tatico:'Você pode solicitar rebaixamento ou punição e fazer a Prova de Tático.',
+    agente:'Você pode registrar ocorrências, bater ponto e fazer a Prova de Agente.',
+    gm:'Você pode registrar ocorrências, bater seu ponto e fazer a Prova de Guarda.'
   };
   const today=brDateLong();
   return `<div class="stitle">▸ PAINEL INICIAL</div>
@@ -653,13 +706,11 @@ async function registrarOc(){
 }
 
 function vOcDelegado(){const ocs=STATE.ocs.filter(o=>o.delegadoUser===me.user).reverse();return '<div class="stitle">▸ MEUS REGISTROS</div>'+(ocs.length?ocs.map(o=>ocCard(o,false,false)).join(''):empty('📋','Nenhum registro enviado.'));}
-
 function vOcAdmin(){
   const myP=CARGO_PERM[me.cargo]||0;
   const ocs=STATE.ocs.filter(o=>o.status==='pendente').reverse();
   return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=7||isMaster())).join(''):empty('✅','Nenhum registro pendente.'));
 }
-
 function vHistorico(){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente').reverse();
   const isRei=(CARGO_PERM[me.cargo]||0)>=7||isMaster();
@@ -667,13 +718,11 @@ function vHistorico(){
     <div class="filter-bar"><button class="btn btn-sm btn-ghost" onclick="filtrarHist('')">TODOS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('aceita')">✅ ACEITAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('recusada')">❌ RECUSADAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('cancelada')">🚫 CANCELADAS</button></div>
     <div id="hist-list">${ocs.length?ocs.map(o=>ocCard(o,false,isRei)).join(''):empty('📂','Nenhuma ocorrência processada.')}</div>`;
 }
-
 function filtrarHist(status){
   const ocs=STATE.ocs.filter(o=>o.status!=='pendente'&&(!status||o.status===status)).reverse();
   const el=document.getElementById('hist-list');
   if(el)el.innerHTML=ocs.length?ocs.map(o=>ocCard(o,false,(CARGO_PERM[me.cargo]||0)>=7||isMaster())).join(''):empty('📂','Nenhuma ocorrência nesta categoria.');
 }
-
 function ocCard(o,actions,masterMode){
   const scMap={pendente:'sc-p',aceita:'sc-a',recusada:'sc-r',cancelada:'sc-c'};
   const scLbl={pendente:'⏳ Pendente',aceita:'✅ Aceita',recusada:'❌ Recusada',cancelada:'🚫 Cancelada'};
@@ -683,7 +732,6 @@ function ocCard(o,actions,masterMode){
   const actHTML=actions?`<div class="oc-actions"><button class="btn btn-success btn-sm" onclick="abrirDecisao('${o.id}','aceita')">✔ ACEITAR</button><button class="btn btn-danger btn-sm" onclick="abrirDecisao('${o.id}','recusada')">✘ RECUSAR</button></div><div class="decide-zone" id="dz-${o.id}"><div class="fg" style="margin-top:10px;"><label>Motivo</label><textarea id="dm-${o.id}"></textarea><div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm" id="dc-${o.id}" onclick="decidir('${o.id}')">CONFIRMAR</button><button class="btn btn-ghost btn-sm" onclick="fecharDecisao('${o.id}')">CANCELAR</button></div></div></div>`:(o.resposta?'<div><span class="resp-lbl">Resposta</span><div class="dep-box" style="margin-bottom:0;">'+o.resposta+'</div></div>':'');
   return `<div class="oc-wrap"><div class="oc-top"><div class="oc-meta"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">${tipoBadge}<span style="font-size:.72rem;font-weight:700;color:var(--text);">${o.id}</span></div><div>${dt}</div><div>POR: <b>${o.autor||o.delegado}</b></div></div><span class="status-chip ${scMap[o.status]||'sc-p'}">${scLbl[o.status]||o.status}</span></div><div class="oc-fields"><div class="oc-f"><label>Envolvido</label><span>${o.nome}</span></div><div class="oc-f"><label>Cargo</label><span>${o.cargo}</span></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-bottom:5px;letter-spacing:.08em;">RELATO</div><div class="dep-box">${o.depoimento}</div>${actHTML}${masterBtns}</div>`;
 }
-
 let _decAcao={};
 function abrirDecisao(id,acao){
   document.querySelectorAll('.decide-zone').forEach(z=>{if(z.id!=='dz-'+id)z.classList.remove('open');});
@@ -703,7 +751,6 @@ async function decidir(id){
   try{await API.updateOc(id,{...oc,status:acao,resposta:me.nome+': '+motivo,decididoPor:me.user,decididoEm:Date.now()});toast('Ocorrência '+(acao==='aceita'?'aceita ✅':'recusada ❌')+'!',acao==='aceita'?'s':'d');updateNotif();}
   catch(e){toast(e.message||'Erro.','d');}
 }
-
 let _editOcId=null;
 function abrirEditarOc(id){
   const oc=STATE.ocs.find(o=>o.id===id);if(!oc)return;
@@ -770,7 +817,6 @@ function vUsuarios(){
     '<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '<div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).</div>';
 }
-
 async function criarUsuario(){
   const nome=document.getElementById('nu-nome').value.trim(),user=document.getElementById('nu-user').value.trim().toLowerCase().replace(/\s/g,''),cargo=document.getElementById('nu-cargo').value,pass=document.getElementById('nu-pass').value;
   if(!nome||!user||!cargo||!pass){toast('Preencha todos os campos.','d');return;}
@@ -780,7 +826,6 @@ async function criarUsuario(){
   try{await API.createUser({nome,user,cargo,pass,criadoPor:me.user});toast('Usuário '+nome+' criado!','s');closeModal('m-novo-user');['nu-nome','nu-user','nu-pass'].forEach(id=>document.getElementById(id).value='');}
   catch(e){toast(e.message||'Erro.','d');}
 }
-
 function abrirCriarUsuario(){
   const myP=CARGO_PERM[me.cargo]||0;
   const sel=document.getElementById('nu-cargo');
@@ -794,7 +839,6 @@ function abrirCriarUsuario(){
   ['nu-nome','nu-user','nu-pass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   openModal('m-novo-user');
 }
-
 function abrirResetSenha(username,nome){
   document.getElementById('rs-info').innerHTML='Redefinindo senha de: <b>'+nome+'</b>';
   document.getElementById('rs-target').value=username;
@@ -806,7 +850,6 @@ async function confirmarResetSenha(){
   if(!nova||!conf){toast('Preencha.','d');return;}if(nova.length<6){toast('Mínimo 6 caracteres.','w');return;}if(nova!==conf){toast('Senhas não coincidem.','d');return;}
   try{await API.resetSenha(un,nova,me.nome);toast('Senha redefinida!','s');closeModal('m-reset-senha');}catch(e){toast(e.message,'d');}
 }
-
 function confirmarDeleteUser(username,nome){
   document.getElementById('del-info').innerHTML='Excluir <b>'+nome+'</b>?';
   document.getElementById('del-confirm-btn').onclick=()=>{closeModal('m-confirm-del');deleteUser(username);};
@@ -814,7 +857,6 @@ function confirmarDeleteUser(username,nome){
 }
 async function deleteUser(un){try{await API.deleteUser(un,me.nome);toast('Excluído.','w');}catch(e){toast(e.message,'d');}}
 async function toggleStatus(un,ativo){try{await API.toggleUserStatus(un,ativo,me.nome);toast('Conta '+(ativo?'ativada':'desativada')+'.', ativo?'s':'w');}catch(e){toast(e.message,'d');}}
-
 function alterarCargo(username,novoCargo,selectEl){
   const tU=STATE.users.find(u=>u.user===username);if(!tU)return;
   const oP=CARGO_PERM[tU.cargo]||0, nP=CARGO_PERM[novoCargo]||0;
@@ -825,12 +867,10 @@ function alterarCargo(username,novoCargo,selectEl){
     openModal('m-rebaixar');
   } else _doCargoChange(username,novoCargo,null);
 }
-
 async function _doCargoChange(username,cargo,motivo){
   try{await API.updateUserCargo(username,cargo,me.nome,motivo);toast('Cargo alterado!','s');}
   catch(e){toast(e.message||'Erro.','d');if(_pendingCargoChange?.selectEl)_pendingCargoChange.selectEl.value=_pendingCargoChange.oldCargo;_pendingCargoChange=null;}
 }
-
 async function confirmarRebaixar(){
   const motivo=document.getElementById('rb-motivo')?.value.trim();
   if(!motivo){toast('Informe o motivo.','d');return;}
@@ -840,19 +880,16 @@ async function confirmarRebaixar(){
   await _doCargoChange(username,novoCargo,motivo);
   _pendingCargoChange=null;
 }
-
 function cancelarRebaixar(){
   if(_pendingCargoChange?.selectEl)_pendingCargoChange.selectEl.value=_pendingCargoChange.oldCargo;
   _pendingCargoChange=null; closeModal('m-rebaixar');
 }
-
 function abrirBanModal(username,nome,cargo){
   _pendingBan={username,nome};
   document.getElementById('bn-info').innerHTML='Suspender <b>'+nome+'</b> — <span class="cargo-badge '+(CARGO_BADGE_CLASS[cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[cargo]||cargo)+'</span>';
   document.getElementById('bn-duracao').value='';document.getElementById('bn-motivo').value='';
   openModal('m-ban');
 }
-
 async function confirmarBan(){
   if(!_pendingBan){closeModal('m-ban');return;}
   const dur=parseInt(document.getElementById('bn-duracao').value)||0;
@@ -862,7 +899,6 @@ async function confirmarBan(){
   try{await API.applyBan(_pendingBan.username,dur,motivo,me.user,me.nome);toast(_pendingBan.nome+' suspenso por '+dur+' min(s).','w');closeModal('m-ban');_pendingBan=null;}
   catch(e){toast(e.message||'Erro.','d');}
 }
-
 async function removerBan(username,nome){
   try{await API.removeBan(username,me.nome);toast('Suspensão de '+nome+' removida.','s');}
   catch(e){toast(e.message||'Erro.','d');}
@@ -919,7 +955,6 @@ function vPontos(){
   if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">\ud83c\udf34 HOJE \u00c9 SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
   else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">\ud83c\udf34 Pr\u00f3xima folga concedida: '+folgaDia+'</div>';
   const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados \u2014 a cada 6 dias, 1 dia de folga.</div>';
-
   const minhaTab=mine.length
     ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
       +[...mine].reverse().slice(0,20).map(function(p){
@@ -936,11 +971,9 @@ function vPontos(){
         return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');
       }).join('')+'</tbody></table>'
     :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
-
   const botaoPonto = isClockedIn
     ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
     : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
-
   var supervHtml='';
   if(isSuperv){
     const tabelaHoje=hoje2.length
@@ -958,7 +991,6 @@ function vPontos(){
     }).join('');
     supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
-
   return '<div class="stitle">\u25b8 BATER PONTO</div>'
     +'<div class="card" style="margin-bottom:20px;text-align:center;">'
       +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">\u25b8 REGISTRO DE PONTO</div>'
@@ -970,7 +1002,6 @@ function vPontos(){
     +supervHtml;
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
-
 function startClock(){
   clearInterval(_clockInterval);
   _clockInterval=setInterval(()=>{
@@ -980,7 +1011,6 @@ function startClock(){
     if(de)de.textContent=brDateLong();
   },1000);
 }
-
 async function baterPonto(type){
   if(_busyPonto)return; _busyPonto=true;
   try{
@@ -1039,13 +1069,11 @@ function openModal(id){document.getElementById(id)?.classList.add('open');}
 function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 function toggleSettings(){document.getElementById('settings-menu')?.classList.toggle('open');}
 function closeSettings(){document.getElementById('settings-menu')?.classList.remove('open');}
-
 document.addEventListener('click',e=>{
   const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');
   if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();
   if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');
 });
-
 function toast(txt,type='i',duration=3800){
   const c=document.getElementById('toast-container'),t=document.createElement('div');
   t.className='toast '+type; t.innerHTML='<span>'+txt+'</span>'; c.appendChild(t);
@@ -1053,5 +1081,5 @@ function toast(txt,type='i',duration=3800){
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-// ══ INIT ══
+// ══ INIT ═
 window.onload=()=>{initWebSocket();checkSession();};
