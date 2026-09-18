@@ -1,8 +1,7 @@
 /**
- * GMPOL Sistema Central v5.3
- * FIX: executor resolvido por login OU nome (corrige "Executor não encontrado")
- * MASTER (master / masterx512) = acesso total absoluto
- * Horários de Brasília | Anti-duplicidade | Folga 6+1
+ * GMPOL Sistema Central v5.4
+ * NOVO: Sistema de PROVAS (10 questões, 3 min/questão, nota 0-100, análise dos superiores)
+ * MASTER (master / masterx512) = acesso total | Horário de Brasília | Folga 6+1
  */
 
 const http   = require('http');
@@ -25,10 +24,32 @@ const CARGO_LABEL_SRV = {
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ══ MASTER: acesso total ══
-function isMaster(u){ return !!u && u.user === 'master'; }
+// ══ PROVA: QUESTÕES OFICIAIS (correta = índice 0-3) ══
+// Se quiser mudar o gabarito, altere o número de "correta" (0=a, 1=b, 2=c, 3=d)
+const QUESTOES_PROVA = [
+  { enunciado:'O Guarda inicia o serviço na qual patente?',
+    alt:['Agente','Guarda','Escrivão','Tático'], correta:1 },
+  { enunciado:'Quais equipamentos o Guarda pode utilizar no serviço?',
+    alt:['Pistola G18, colete e cassetete','Cassetete, taser, colete e Desert Eagle somente em caso de ameaça','Fuzil M4, pistola e colete','Apenas cassetete e colete'], correta:1 },
+  { enunciado:'Onde o Guarda deve permanecer durante o turno?',
+    alt:['Em todo o mapa livremente','Somente na Delegacia (DP)','Na rua e na DP','Onde o chefe mandar'], correta:2 },
+  { enunciado:'Qual das três regras básicas da PF NÃO faz parte?',
+    alt:['Respeito','Comprometimento','Velocidade','Não azaralhar'], correta:2 },
+  { enunciado:'A Desert Eagle do Guarda é liberada para uso em qual situação?',
+    alt:['Sempre que estiver de plantão','Apenas em caso de ameaça','Nunca, é proibida','Quando o chefe autorizar por rádio'], correta:1 },
+  { enunciado:'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert), diferente do Guarda?',
+    alt:['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta:1 },
+  { enunciado:'Para o Guarda ser promovido, ele precisa:',
+    alt:['Apenas de tempo jogado','Fazer paradinhas e passar pela prova','Pagar a administração','Pedir pra chefe diretamente'], correta:1 },
+  { enunciado:'Qual é a ÚNICA patente da PF em que a promoção é feita APENAS por mérito, sem prova?',
+    alt:['Agente','Tático','Escrivão','Delegado'], correta:2 },
+  { enunciado:'É correto afirmar que o Guarda pode conduzir presos?',
+    alt:['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só se for autorizado pelo Chefe na hora'], correta:1 },
+  { enunciado:'O que o Guarda DEVE fazer ao encontrar um superior no Barra Amiga ou no interior da DP?',
+    alt:['Ignorar','Prender','Prestar continência','Pedir hora'], correta:2 }
+];
 
-// ══ FIX v5.3: encontra usuário por login OU por nome de exibição ══
+function isMaster(u){ return !!u && u.user === 'master'; }
 function findUserByRef(ref){
   if (!ref) return null;
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
@@ -46,7 +67,7 @@ function getDefaultData() {
       { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
     ],
-    ocs: [], puns: [], pontos: [], audit: []
+    ocs: [], puns: [], pontos: [], provas: [], audit: []
   };
 }
 
@@ -94,6 +115,7 @@ function sanitize(p) {
     ocs:    Array.isArray(p.ocs)    ? p.ocs    : [],
     puns:   Array.isArray(p.puns)   ? p.puns   : [],
     pontos: Array.isArray(p.pontos) ? p.pontos : [],
+    provas: Array.isArray(p.provas) ? p.provas : [],
     audit:  Array.isArray(p.audit)  ? p.audit  : []
   };
 }
@@ -112,7 +134,7 @@ function saveDataSync() {
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas`);
 
 // ══ WEBSOCKET NATIVO ══
 const wsClients = new Set();
@@ -124,7 +146,6 @@ function wsHandshake(req, socket) {
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   return true;
 }
-
 function wsParseFrame(buf) {
   if (buf.length < 2) return null;
   const opcode = buf[0] & 0x0f;
@@ -141,7 +162,6 @@ function wsParseFrame(buf) {
   } else { payload = buf.slice(offset, offset + len); }
   return { opcode, payload, frameLen: offset + len };
 }
-
 function wsBuildFrame(data, opcode = 1) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
   const len = payload.length;
@@ -151,7 +171,6 @@ function wsBuildFrame(data, opcode = 1) {
   else                  { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
   return Buffer.concat([header, payload]);
 }
-
 function wsSend(socket, obj) { try { if (socket.writable) socket.write(wsBuildFrame(JSON.stringify(obj))); } catch (_) {} }
 function broadcast(type, payload) {
   const frame = wsBuildFrame(JSON.stringify({ type, payload }));
@@ -225,11 +244,11 @@ async function handleAPI(req, res) {
   }
 
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length });
+    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length, provas: DB.provas.length });
   }
 
   if (method === 'GET' && url === '/api/state') {
-    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, users: DB.users.map(pub), audit: DB.audit });
+    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit });
   }
 
   // ── LOGIN ──
@@ -273,7 +292,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { banned: false });
   }
 
-  // ── SENHA ──
   const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
@@ -294,7 +312,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── STATUS ──
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
@@ -313,7 +330,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── CARGO (MASTER pode tudo) ──
   const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
@@ -327,7 +343,6 @@ async function handleAPI(req, res) {
     if (!master && (CARGO_PERM_SRV[executor.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
     if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[executor.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
     if (!master && targetUser.cargo === 'admin') return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
-
     const oldPerm = CARGO_PERM_SRV[targetUser.cargo] || 0, newPerm = CARGO_PERM_SRV[cargo] || 0;
     const isRebaixamento = newPerm < oldPerm;
     if (isRebaixamento && !motivo) return jsonRes(res, 400, { error: 'Motivo obrigatório para rebaixamento.' });
@@ -343,7 +358,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── BAN (MASTER pode tudo) ──
   const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
   if (mBan) {
     if (method === 'POST') {
@@ -383,7 +397,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ── DELETE USUÁRIO (MASTER pode tudo) ──
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
@@ -409,22 +422,19 @@ async function handleAPI(req, res) {
     const oc = body;
     if (!oc || !oc.id) return jsonRes(res, 400, { error: 'Dados inválidos.' });
     if (!DB.ocs.find(o => o.id === oc.id)) {
-      DB.ocs.push(oc);
-      saveData();
+      DB.ocs.push(oc); saveData();
       audit(`<b>${oc.delegado}</b> registrou ${oc.tipo || 'ocorrência'} sobre <b>${oc.nome}</b>`, '📝');
       broadcast('NEW_OC', oc);
     }
     return jsonRes(res, 200, { ok: true });
   }
-
   const mOc = url.match(/^\/api\/ocs\/([^/]+)$/);
   if (mOc) {
     const id = mOc[1];
     if (method === 'PUT') {
       const i = DB.ocs.findIndex(o => o.id === id);
       if (i === -1) return jsonRes(res, 404, { error: 'Ocorrência não encontrada.' });
-      Object.assign(DB.ocs[i], body);
-      saveData();
+      Object.assign(DB.ocs[i], body); saveData();
       audit(`Ocorrência <b>${id}</b> atualizada por <b>${body.editadoPor || body.decididoPor || 'sistema'}</b>`, '📋');
       broadcast('OC_UPDATED', DB.ocs[i]);
       return jsonRes(res, 200, { ok: true });
@@ -432,8 +442,7 @@ async function handleAPI(req, res) {
     if (method === 'DELETE') {
       const i = DB.ocs.findIndex(o => o.id === id);
       if (i === -1) return jsonRes(res, 404, { error: 'Ocorrência não encontrada.' });
-      DB.ocs.splice(i, 1);
-      saveData();
+      DB.ocs.splice(i, 1); saveData();
       audit(`<b>${body.feitorPor}</b> excluiu a ocorrência <b>${id}</b>`, '🗑');
       broadcast('OC_DELETED', { id });
       return jsonRes(res, 200, { ok: true });
@@ -449,38 +458,33 @@ async function handleAPI(req, res) {
     if (dup) return jsonRes(res, 200, { ok: true, pun: dup, dup: true });
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
-    DB.puns.push(pun);
-    saveData();
+    DB.puns.push(pun); saveData();
     audit(`<b>${pun.autor}</b> registrou punição <b>${pun.nivel}</b> para <b>${pun.nome}</b>`, '⚠️');
     broadcast('NEW_PUN', pun);
     return jsonRes(res, 200, { ok: true, pun });
   }
-
   const mPunId = url.match(/^\/api\/puns\/id\/([^/]+)$/);
   if (method === 'DELETE' && mPunId) {
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
     const nome = DB.puns[i].nome;
-    DB.puns.splice(i, 1);
-    saveData();
+    DB.puns.splice(i, 1); saveData();
     audit(`<b>${body.feitorPor}</b> removeu punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
-
   const mPunIdx = url.match(/^\/api\/puns\/(\d+)$/);
   if (method === 'DELETE' && mPunIdx) {
     const i = parseInt(mPunIdx[1]);
     if (isNaN(i) || i < 0 || i >= DB.puns.length) return jsonRes(res, 404, { error: 'Índice inválido.' });
     const nome = DB.puns[i].nome;
-    DB.puns.splice(i, 1);
-    saveData();
+    DB.puns.splice(i, 1); saveData();
     audit(`<b>${body.feitorPor}</b> removeu punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── PONTOS (Brasília + anti-dup + folga 6+1) ──
+  // ── PONTOS ──
   if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -489,24 +493,19 @@ async function handleAPI(req, res) {
     if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     if (!Array.isArray(u.cicloDias)) u.cicloDias = [];
     if (!u.folgaDia) u.folgaDia = null;
-
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
-
     if (ponto.type === 'entrada' && u.folgaDia === dBr) {
       return jsonRes(res, 403, { error: '🌴 Hoje (' + dBr + ') é seu dia de FOLGA concedido pelo sistema! Descanse, você mereceu.' });
     }
-
     const last = [...DB.pontos].reverse().find(p => p.userLogin === ponto.userLogin);
     if (last && last.type === ponto.type && (ponto.ts - last.ts) < 3000) {
       return jsonRes(res, 200, { ok: true, ponto: last, dup: true });
     }
-
     ponto.id   = 'PON-' + ponto.ts + '-' + Math.random().toString(36).slice(2, 7);
     ponto.hora = brTimeStrSec(ponto.ts);
     ponto.data = dBr;
     DB.pontos.push(ponto);
-
     if (ponto.type === 'saida') {
       const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a,b) => b.ts - a.ts);
       if (entradas.length > 0) {
@@ -514,27 +513,23 @@ async function handleAPI(req, res) {
         const diffMins = Math.round((ponto.ts - entrada.ts) / 60000);
         const baseMins = CARGO_BASE_MINUTES[ponto.cargo] || 0;
         const extraMins  = Math.max(0, diffMins - baseMins);
-        const extraBlocks = Math.floor(extraMins / 30);
         ponto.trabalhado = diffMins;
         ponto.extraMins  = extraMins;
-        ponto.extraReais = extraBlocks * 20;
+        ponto.extraReais = Math.floor(extraMins / 30) * 20;
         ponto.debtMins   = Math.max(0, baseMins - diffMins);
       }
       if (!u.cicloDias.includes(dBr)) u.cicloDias.push(dBr);
       if (u.cicloDias.length >= 6) {
         const fd = nextBrDateStr(dBr);
-        u.folgaDia  = fd;
-        u.cicloDias = [];
-        const folgaRec = { id: 'FOL-' + Date.now() + '-' + Math.random().toString(36).slice(2,6), userLogin: u.user, nome: u.nome, cargo: u.cargo, type: 'folga', hora: 'FOLGA', data: fd, ts: ponto.ts + 86400000 };
+        u.folgaDia = fd; u.cicloDias = [];
+        const folgaRec = { id:'FOL-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), userLogin:u.user, nome:u.nome, cargo:u.cargo, type:'folga', hora:'FOLGA', data:fd, ts:ponto.ts + 86400000 };
         DB.pontos.push(folgaRec);
         audit(`<b>${u.nome}</b> completou 6 dias trabalhados — 🌴 FOLGA concedida para ${fd}`, '🌴');
         broadcast('NEW_PONTO', folgaRec);
         broadcast('FOLGA_GRANTED', { userLogin: u.user, folgaDia: fd });
       }
-      ponto.ciclo    = u.cicloDias.length;
-      ponto.folgaDia = u.folgaDia;
+      ponto.ciclo = u.cicloDias.length; ponto.folgaDia = u.folgaDia;
     }
-
     saveData();
     const hora = brTimeStr(ponto.ts);
     let auditMsg = `<b>${ponto.nome}</b> ${ponto.type === 'entrada' ? 'bateu ponto às ' + hora : 'encerrou o turno às ' + hora}`;
@@ -550,11 +545,98 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, ponto });
   }
 
+  // ══════════ PROVAS ══════════
+  if (method === 'GET' && url === '/api/provas') return jsonRes(res, 200, DB.provas);
+
+  // Questionário SEM gabarito (para o painel renderizar)
+  if (method === 'GET' && url === '/api/prova/questionario') {
+    return jsonRes(res, 200, QUESTOES_PROVA.map((q, i) => ({ q: i, enunciado: q.enunciado, alt: q.alt })));
+  }
+
+  // Entregar prova concluída (servidor corrige — gabarito fica só no servidor)
+  if (method === 'POST' && url === '/api/provas') {
+    const { userLogin, cargoAlvo, respostas, perdidaPorTempo } = body;
+    const u = DB.users.find(x => x.user === userLogin);
+    if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const myPerm = CARGO_PERM_SRV[u.cargo] || 0;
+    const alvoPerm = CARGO_PERM_SRV[cargoAlvo] || 0;
+    if (alvoPerm <= myPerm) return jsonRes(res, 400, { error: 'Escolha um cargo ACIMA do seu.' });
+    if (alvoPerm >= 7) return jsonRes(res, 400, { error: 'O cargo Admin master não é obtido por prova.' });
+
+    const respMap = {};
+    (respostas || []).forEach(r => { respMap[r.q] = r; });
+    const corrigidas = QUESTOES_PROVA.map((q, i) => {
+      const r = respMap[i];
+      const escolha = (r && r.escolha !== undefined && r.escolha !== null) ? r.escolha : null;
+      return {
+        q: i,
+        escolha,
+        justificativa: (r && r.justificativa) ? String(r.justificativa) : '',
+        correta: escolha === q.correta,
+        corretaIdx: q.correta,
+        semResposta: escolha === null
+      };
+    });
+    const nota = corrigidas.filter(r => r.correta).length * 10;
+
+    const prova = {
+      id: 'PRV-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      userLogin: u.user,
+      nome: u.nome,
+      cargoAtual: u.cargo,
+      cargoAlvo,
+      respostas: corrigidas,
+      nota,
+      status: perdidaPorTempo ? 'tempo_esgotado' : 'concluida',
+      ts: Date.now(),
+      decisao: null, decididoPor: null, decididoEm: null
+    };
+    DB.provas.push(prova);
+    saveData();
+    audit(`<b>${u.nome}</b> concluiu a prova para <b>${CARGO_LABEL_SRV[cargoAlvo]||cargoAlvo}</b> — nota ${nota}${perdidaPorTempo ? ' (tempo esgotado)' : ''}`, '📝');
+    broadcast('NEW_PROVA', prova);
+    return jsonRes(res, 200, { ok: true, prova });
+  }
+
+  // Decisão dos superiores (master, chefe, delegado = perm >= 5)
+  const mProvaDec = url.match(/^\/api\/provas\/([^/]+)\/decisao$/);
+  if (method === 'PUT' && mProvaDec) {
+    const i = DB.provas.findIndex(p => p.id === mProvaDec[1]);
+    if (i === -1) return jsonRes(res, 404, { error: 'Prova não encontrada.' });
+    const { decisao, feitorPor } = body;
+    if (decisao !== 'promovido' && decisao !== 'reprovado') return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if ((CARGO_PERM_SRV[executor.cargo]||0) < 5) return jsonRes(res, 403, { error: 'Apenas Master, Chefe de Polícia e Delegado podem avaliar provas.' });
+    if (executor.user === DB.provas[i].userLogin) return jsonRes(res, 403, { error: 'Você não pode avaliar a própria prova.' });
+
+    const prova = DB.provas[i];
+    prova.decisao = decisao;
+    prova.decididoPor = executor.nome;
+    prova.decididoEm = Date.now();
+
+    if (decisao === 'promovido') {
+      const alvo = DB.users.find(x => x.user === prova.userLogin);
+      if (!alvo) return jsonRes(res, 404, { error: 'Usuário da prova não encontrado.' });
+      const oldCargo = alvo.cargo;
+      alvo.cargo = prova.cargoAlvo;
+      saveData();
+      audit(`<b>${executor.nome}</b> APROVOU a prova de <b>${prova.nome}</b> e promoveu para <b>${CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo}</b>`, '🎓');
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      broadcast('CARGO_CHANGED', { userLogin: alvo.user, oldCargo, newCargo: alvo.cargo, tipo: 'promovido', motivo: 'Aprovado na prova por ' + executor.nome, feitorPorNome: executor.nome });
+    } else {
+      saveData();
+      audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b> para <b>${CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo}</b>`, '❌');
+    }
+    broadcast('PROVA_DECIDIDA', { id: prova.id, userLogin: prova.userLogin, decisao, cargoAlvo: prova.cargoAlvo, feitorNome: executor.nome, nota: prova.nota });
+    broadcast('PROVAS_UPDATED', DB.provas);
+    return jsonRes(res, 200, { ok: true, prova });
+  }
+
   // ── AUDITORIA ──
   if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
-    DB.audit = [];
-    saveData();
+    DB.audit = []; saveData();
     broadcast('AUDIT_CLEARED', {});
     return jsonRes(res, 200, { ok: true });
   }
@@ -577,7 +659,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   wsClients.add(socket);
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, users: DB.users.map(pub), audit: DB.audit } });
+  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit } });
   socket.on('data', (chunk) => {
     socket._buffer = Buffer.concat([socket._buffer, chunk]);
     while (socket._buffer.length >= 2) {
@@ -615,7 +697,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.3         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.4         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('╠═══════════════════════════════════════════╣');
@@ -639,4 +721,4 @@ if (RENDER_URL) {
     req.end();
   }, 14 * 60 * 1000);
   console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-              }
+  }
