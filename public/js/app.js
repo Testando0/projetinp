@@ -48,14 +48,15 @@ function handleSocketMessage(data){
     case 'FOLGA_GRANTED':if(me&&payload.userLogin===me.user)toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);renderTab(activeTab);break;
     case 'NEW_PROVA':
       if(activeTab===getTabIdx('aprovas'))renderTab(activeTab);
-      if(me&&(CARGO_PERM[me.cargo]||0)>=5&&payload.userLogin!==me.user)toast('📝 Nova '+(payload.tipo==='prisoes'?'avaliação pessoal (prisões)':'prova')+' de '+payload.nome+' aguardando avaliação'+(payload.nota!==null?' (nota '+payload.nota+')':'')+'.','w');
+      if(me&&(CARGO_PERM[me.cargo]||0)>=5&&payload.userLogin!==me.user)toast('📝 Nova '+(payload.tipo==='prisoes'?'avaliação pessoal':'prova')+' de '+payload.nome+' aguardando avaliação.','w');
       break;
     case 'PROVAS_UPDATED':if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);break;
     case 'PROVA_DECIDIDA':
       if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
       if(me&&payload.userLogin===me.user){
         if(payload.decisao==='promovido')toast('🎉 PARABÉNS! Você foi promovido(a) a '+(CARGO_LABEL[payload.cargoAlvo]||payload.cargoAlvo)+'!','s',10000);
-        else toast('😞 Você não passou na prova e segue no cargo atual.','d',10000);
+        else if(payload.decisao==='aprovado')toast('✅ Sua avaliação pessoal foi APROVADA por '+payload.feitorNome+'! Continue firme.','s',10000);
+        else toast('😞 Você não passou na avaliação.','d',10000);
       }
       break;
     case 'USERS_UPDATED':
@@ -132,7 +133,7 @@ function toggleNavDrawer(){const d=document.getElementById('nav-drawer');if(!d)r
 function openNavDrawer(){buildMobileDrawer();document.getElementById('nav-drawer')?.classList.add('open');document.getElementById('nav-overlay')?.classList.add('open');}
 function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remove('open');document.getElementById('nav-overlay')?.classList.remove('open');}
 
-// ══ RENDER TAB ACEITA SÍNCRONO E ASSÍNCRONO (FIM DO [object Promise]) ══
+// ══ RENDER TAB ACEITA SÍNCRONO E ASSÍNCRONO ══
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
   const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria};
@@ -154,9 +155,9 @@ function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Mat
 function vProvas(){
   const myP=CARGO_PERM[me.cargo]||0;const temProva=!!NOMES_PROVA[me.cargo];const minhas=STATE.provas.filter(p=>p.userLogin===me.user).reverse();
   const opcoes=Object.entries(CARGO_LABEL).filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<6).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');
-  const cardProva=temProva?'<div class="card" style="margin-bottom:20px;"><div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:6px;">'+NOMES_PROVA[me.cargo]+' — PF RIO RISE</div><p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">Questões em ordem aleatória • 3 minutos por questão • nota 0–100 • mínimo 70.<br>⚠ Se o temporizador zerar e você não tiver respondido, <b style="color:var(--danger);">você perde a prova</b>.</p><div class="g2"><div class="fg"><label>Seu usuário</label><input id="pv-user" value="'+me.user+'"></div><div class="fg"><label>Cargo que deseja ser promovido</label><select id="pv-alvo">'+(opcoes||'<option value="">Nenhum</option>')+'</select></div></div><button class="btn btn-primary" style="max-width:260px;" onclick="iniciarProva()">▸ INICIAR PROVA</button></div>':'<div class="card c-none" style="margin-bottom:20px;padding:14px 16px;border:1px solid var(--border);font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--text-dim);">Seu cargo (<b>'+(CARGO_LABEL[me.cargo]||me.cargo)+'</b>) não possui prova de promoção.</div>';
-  const cardPrisoes='<div class="card" style="margin-bottom:20px;"><div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;margin-bottom:6px;">🧠 PROVA CONHECIMENTO PRISÕES — AVALIAÇÃO PESSOAL</div><p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">10 questões dissertativas • <b>sem tempo por questão</b> • não é vinculada a cargo • os superiores avaliarão suas respostas.</p><button class="btn btn-warn" style="max-width:300px;" onclick="iniciarProvaPrisoes()">▸ INICIAR AVALIAÇÃO PESSOAL</button></div>';
-  const hist=minhas.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>ALVO</th><th>NOTA</th><th>STATUS</th><th>DECISÃO</th></tr></thead><tbody>'+minhas.map(p=>{const dec=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO</span>':p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO</span>':'<span class="status-chip sc-p">⏳ AGUARDANDO</span>';const st=p.status==='tempo_esgotado'?'<span style="color:var(--danger);">⏰ Tempo esgotado</span>':'<span style="color:var(--accent3);">Concluída</span>';const tipo=p.tipo==='prisoes'?'<span style="color:var(--warn);">🧠 Prisões</span>':'<span style="color:var(--accent);">📝 Patente</span>';return '<tr><td style="font-family:\'Share Tech Mono\',monospace;">'+brDateOf(p.ts)+'</td><td>'+tipo+'</td><td>'+(p.cargoAlvo?(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo):'—')+'</td><td style="font-weight:700;color:'+(p.nota===null?'var(--warn)':(p.nota>=70?'#4ade80':'#f87171'))+';">'+(p.nota===null?'—':p.nota)+'</td><td>'+st+'</td><td>'+dec+'</td></tr>';}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);font-family:\'Share Tech Mono\',monospace;font-size:.68rem;">Você ainda não fez nenhuma prova.</p>';
+  const cardProva=temProva?'<div class="card" style="margin-bottom:20px;"><div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:6px;">'+NOMES_PROVA[me.cargo]+' — PF RIO RISE</div><p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">Questões em ordem aleatória • 3 minutos por questão • nota 0–100 • mínimo 70.<br>⚠ Se o temporizador zerar, <b style="color:var(--danger);">você perde a prova</b>.</p><div class="g2"><div class="fg"><label>Seu usuário</label><input id="pv-user" value="'+me.user+'"></div><div class="fg"><label>Cargo que deseja ser promovido</label><select id="pv-alvo">'+(opcoes||'<option value="">Nenhum</option>')+'</select></div></div><button class="btn btn-primary" style="max-width:260px;" onclick="iniciarProva()">▸ INICIAR PROVA</button></div>':'<div class="card c-none" style="margin-bottom:20px;padding:14px 16px;border:1px solid var(--border);font-family:\'Share Tech Mono\',monospace;font-size:.7rem;color:var(--text-dim);">Seu cargo (<b>'+(CARGO_LABEL[me.cargo]||me.cargo)+'</b>) não possui prova de promoção.</div>';
+  const cardPrisoes='<div class="card" style="margin-bottom:20px;"><div style="font-family:\'Orbitron\',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;margin-bottom:6px;">🧠 PROVA CONHECIMENTO PRISÕES — AVALIAÇÃO PESSOAL</div><p style="color:var(--text-mid);font-size:.85rem;line-height:1.6;margin-bottom:16px;">10 questões dissertativas • <b>sem tempo</b> • não é vinculada a cargo • os superiores avaliarão.</p><button class="btn btn-warn" style="max-width:300px;" onclick="iniciarProvaPrisoes()">▸ INICIAR AVALIAÇÃO PESSOAL</button></div>';
+  const hist=minhas.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>ALVO</th><th>NOTA</th><th>STATUS</th><th>DECISÃO</th></tr></thead><tbody>'+minhas.map(p=>{const dec=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO</span>':p.decisao==='aprovado'?'<span class="status-chip sc-a">✅ APROVADO</span>':p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO</span>':'<span class="status-chip sc-p">⏳ AGUARDANDO</span>';const st=p.status==='tempo_esgotado'?'<span style="color:var(--danger);">⏰ Tempo esgotado</span>':'<span style="color:var(--accent3);">Concluída</span>';const tipo=p.tipo==='prisoes'?'<span style="color:var(--warn);">🧠 Prisões</span>':'<span style="color:var(--accent);">📝 Patente</span>';return '<tr><td style="font-family:\'Share Tech Mono\',monospace;">'+brDateOf(p.ts)+'</td><td>'+tipo+'</td><td>'+(p.cargoAlvo?(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo):'—')+'</td><td style="font-weight:700;color:'+(p.nota===null?'var(--warn)':(p.nota>=70?'#4ade80':'#f87171'))+';">'+(p.nota===null?'—':p.nota)+'</td><td>'+st+'</td><td>'+dec+'</td></tr>';}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);font-family:\'Share Tech Mono\',monospace;font-size:.68rem;">Você ainda não fez nenhuma prova.</p>';
   return '<div class="stitle">▸ PROVAS</div>'+cardProva+cardPrisoes+'<div class="card"><div style="font-family:\'Orbitron\',sans-serif;font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MINHAS PROVAS</div>'+hist+'</div>';
 }
 
@@ -181,7 +182,7 @@ function renderQuestaoProva(){
 }
 function confirmarRespostaProva(){const P=_provaAtiva;if(!P)return;const sel=document.querySelector('input[name="pv-alt"]:checked');if(!sel){toast('Selecione uma alternativa.','d');return;}const just=(document.getElementById('pv-just')?.value||'').trim();if(just.length<3){toast('Justifique sua resposta.','d');return;}P.respostas.push({q:P.ordem[P.atual],escolha:parseInt(sel.value),justificativa:just});proximaQuestaoProva();}
 function proximaQuestaoProva(){const P=_provaAtiva;if(!P)return;P.atual++;if(P.atual>=P.ordem.length){finalizarProva(false);return;}renderQuestaoProva();iniciarTimerProva();}
-function perderProvaTempo(){toast('⏰ TEMPO ESGOTADO! Você perdeu a prova.','d',8000);finalizarProva(true);}
+function perderProvaTempo(){toast('⏰ TEMPO ESGOTADO!','d',8000);finalizarProva(true);}
 function cancelarProva(){if(!confirm('Cancelar a prova?'))return;finalizarProva(true);}
 
 async function finalizarProva(perdida){
@@ -214,7 +215,7 @@ async function enviarProvaPrisoes(){
 }
 function cancelarProvaPrisoes(){_provaAtiva=null;renderTab(activeTab);}
 
-// ══ ANÁLISE DE PROVAS (CORRIGIDA — ASYNC + CARREGA QUESTIONARIOS) ══
+// ══ ANÁLISE DE PROVAS — COM APROVAR PARA AVALIAÇÃO PESSOAL ══
 async function vAnaliseProvas(){
   if((CARGO_PERM[me.cargo]||0)<5)return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
   const provas=[...STATE.provas].reverse();
@@ -223,7 +224,7 @@ async function vAnaliseProvas(){
   for(const cargo of cargosUnicos){await ensureQuestionario(cargo);}
 
   const cards=provas.map(p=>{
-    const decBadge=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO por '+p.decididoPor+'</span>':p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO por '+p.decididoPor+'</span>':'<span class="status-chip sc-p">⏳ AGUARDANDO AVALIAÇÃO</span>';
+    const decBadge=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO por '+p.decididoPor+'</span>':p.decisao==='aprovado'?'<span class="status-chip sc-a">✅ APROVADO por '+p.decididoPor+'</span>':p.decisao==='reprovado'?'<span class="status-chip sc-r">❌ REPROVADO por '+p.decididoPor+'</span>':'<span class="status-chip sc-p">⏳ AGUARDANDO AVALIAÇÃO</span>';
     let corpo='';
     if(p.tipo==='prisoes'){
       corpo='<div id="pq-'+p.id+'" style="display:none;">'+p.respostas.map((r,i)=>'<div style="margin-bottom:14px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);"><div style="font-weight:700;font-size:.88rem;margin-bottom:6px;">'+(i+1)+'. '+(PRISOES_QUESTOES_LOCAL[i]||'')+'</div><div style="font-size:.82rem;color:var(--text-mid);white-space:pre-wrap;">'+(r.texto||'<i>sem resposta</i>')+'</div></div>').join('')+'</div>';
@@ -232,28 +233,35 @@ async function vAnaliseProvas(){
         const quest=(QUESTIONARIO&&QUESTIONARIO[p.cargoAtual])?QUESTIONARIO[p.cargoAtual].find(x=>x.q===r.q):null;
         if(!quest)return '<div style="padding:10px;border:1px solid var(--border);border-radius:4px;font-size:.8rem;color:var(--text-dim);">Questão '+(ni+1)+': gabarito indisponível.</div>';
         const letras=['a','b','c','d'];
-        const altsHtml=quest.alt.map((txt,idx)=>{let style='padding:8px 12px;margin:4px 0;border:1px solid var(--border);border-radius:4px;font-size:.82rem;';let tag='';if(idx===r.escolha&&r.correta){style+='border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80;';tag=' ✔ RESPOSTA DO CANDIDATO (CORRETA)';}else if(idx===r.escolha&&!r.correta){style+='border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;';tag=' ✘ RESPOSTA DO CANDIDATO (ERRADA)';}return '<div style="'+style+'"><b>'+letras[idx]+')</b> '+txt+tag+'</div>';}).join('');
+        const altsHtml=quest.alt.map((txt,idx)=>{let style='padding:8px 12px;margin:4px 0;border:1px solid var(--border);border-radius:4px;font-size:.82rem;';let tag='';if(idx===r.escolha&&r.correta){style+='border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80;';tag=' ✔ CANDIDATO (CORRETA)';}else if(idx===r.escolha&&!r.correta){style+='border-color:#f87171;background:rgba(248,113,113,.08);color:#f87171;';tag=' ✘ CANDIDATO (ERRADA)';}return '<div style="'+style+'"><b>'+letras[idx]+')</b> '+txt+tag+'</div>';}).join('');
         const corretaHtml=!r.correta?'<div style="margin-top:6px;padding:8px 12px;border:1px solid #4ade80;background:rgba(74,222,128,.1);border-radius:4px;color:#4ade80;font-size:.82rem;">✅ RESPOSTA CORRETA: <b>'+letras[r.corretaIdx]+')</b> '+quest.alt[r.corretaIdx]+'</div>':'';
         return '<div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface);"><div style="font-weight:700;font-size:.88rem;margin-bottom:8px;">Questão '+(ni+1)+': '+quest.enunciado+'</div>'+altsHtml+corretaHtml+'<div style="margin-top:8px;font-size:.78rem;color:var(--text-mid);"><b>Justificativa:</b> '+(r.justificativa||'<i>não respondida</i>')+'</div></div>';
       }).join('')+'</div>';
     }
     let botoes='';
     if(!p.decisao){
-      if(p.tipo==='prisoes')botoes='<button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR AVALIAÇÃO</button>';
-      else botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>';
+      if(p.tipo==='prisoes'){
+        // AVALIAÇÃO PESSOAL: APROVAR (sem promoção) + REPROVAR
+        botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'aprovado\')">✅ APROVAR AVALIAÇÃO</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR AVALIAÇÃO</button>';
+      }else{
+        botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>';
+      }
     }
     return '<div class="card" style="margin-bottom:16px;"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;"><div><b style="font-size:1rem;">'+p.nome+'</b> <span style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">@'+p.userLogin+'</span><br><span style="font-size:.75rem;color:var(--text-mid);">'+(p.tipo==='prisoes'?'🧠 Avaliação pessoal — Prisões':(CARGO_LABEL[p.cargoAtual]||p.cargoAtual)+' → <b style="color:var(--accent);">'+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'</b>')+' • '+brDateOf(p.ts)+(p.status==='tempo_esgotado'?' • <span style="color:var(--danger);">⏰ tempo esgotado</span>':'')+'</span></div><div style="font-family:\'Orbitron\',sans-serif;font-size:1.6rem;color:'+(p.nota===null?'var(--warn)':(p.nota>=70?'#4ade80':'#f87171'))+';">'+(p.nota===null?'—':p.nota)+'</div></div><div style="margin-bottom:10px;">'+decBadge+'</div>'+corpo+'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"><button class="btn btn-ghost btn-sm" onclick="togglePQ(\'pq-'+p.id+'\')">👁 VER / OCULTAR RESPOSTAS</button>'+botoes+'</div></div>';
   }).join('');
-  return '<div class="stitle">▸ ANÁLISE DE PROVAS</div><p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo. Provas de cargo mostram os botões <b>PROMOVER</b> e <b>REPROVAR</b>.</p>'+cards;
+  return '<div class="stitle">▸ ANÁLISE DE PROVAS</div><p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada em <span style="color:#f87171;">vermelho</span> • correta em <span style="color:#4ade80;">verde</span>. Avaliações pessoais mostram <b>APROVAR</b> (sem promoção) e <b>REPROVAR</b>. Provas de cargo mostram <b>PROMOVER</b> e <b>REPROVAR</b>.</p>'+cards;
 }
 
 function togglePQ(id){const el=document.getElementById(id);if(!el)return;if(el.style.display==='none'||el.style.display===''){el.style.display='block';}else{el.style.display='none';}}
 
 async function decidirProva(id,decisao){
   const p=STATE.provas.find(x=>x.id===id);if(!p)return;
-  const txt=decisao==='promovido'?'PROMOVER '+p.nome+' para '+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'?':(p.tipo==='prisoes'?'MARCAR a avaliação pessoal de '+p.nome+' como REPROVADA?':'REPROVAR a prova de '+p.nome+'?');
+  let txt;
+  if(decisao==='promovido')txt='PROMOVER '+p.nome+' para '+(CARGO_LABEL[p.cargoAlvo]||p.cargoAlvo)+'?';
+  else if(decisao==='aprovado')txt='APROVAR a avaliação pessoal de '+p.nome+'? (Não haverá promoção de cargo, apenas registro da aprovação.)';
+  else txt='REPROVAR a '+(p.tipo==='prisoes'?'avaliação pessoal de ':'prova de ')+p.nome+'?';
   if(!confirm(txt))return;
-  try{await API.decidirProva(id,decisao,me.user);toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':'❌ '+p.nome+' reprovado(a).',decisao==='promovido'?'s':'w');}catch(e){toast(e.message||'Erro.','d');}
+  try{await API.decidirProva(id,decisao,me.user);toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':decisao==='aprovado'?'✅ Avaliação de '+p.nome+' aprovada!':'❌ '+p.nome+' reprovado(a).',decisao==='reprovado'?'w':'s');}catch(e){toast(e.message||'Erro.','d');}
 }
 
 function vInicio(){
