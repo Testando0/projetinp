@@ -34,7 +34,6 @@ const PROVA_TEMPO_QUESTAO = 180;
 const NOMES_PROVA = { gm:'PROVA DE PATENTE GUARDA', agente:'PROVA DE PATENTE AGENTE', tatico:'PROVA DE PATENTE TÁTICO', escrivao:'PROVA DE PATENTE DELEGADO' };
 const CSS_PROVA = '<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
 
-// ══ PERGUNTAS PRISÕES (para análise dos superiores) ══
 const PRISOES_QUESTOES_LOCAL = [
   'Cite todos os comandos em ordem para efetuar prisões.',
   'Qual procedimento para levar o preso para comer?',
@@ -128,7 +127,6 @@ function handleSocketMessage(data){
 
 function getTabIdx(name){if(!me)return -1;return tabDefs(me.cargo).findIndex(t=>t.key===name);}
 
-// ══ SESSÃO ══
 function saveSession(){ try{ localStorage.setItem(SESSION_KEY, JSON.stringify(me)); }catch(_){} }
 function clearSession(){ try{ localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); }catch(_){} }
 function readSession(){
@@ -182,7 +180,6 @@ function _loadStateFromCache(){
   if(Array.isArray(c.audit))STATE.audit=c.audit;
 }
 
-// ══ LOGIN ══
 async function apiLoginRetry(u,p,btn){
   let lastErr=null;
   for(let i=0;i<3;i++){
@@ -236,7 +233,6 @@ function logout(){
   location.reload();
 }
 
-// ══ SUSPENSÃO ══
 function showBanScreen(info){
   document.getElementById('s-login').classList.remove('active');
   document.getElementById('s-panel').classList.remove('active');
@@ -275,7 +271,6 @@ function showCargoNotif(html,type){
   setTimeout(()=>{n.classList.remove('cargo-notif-show');setTimeout(()=>n.remove(),600);},7000);
 }
 
-// ══ UI CORE ══
 function showLogin(){
   document.getElementById('s-panel').classList.remove('active');
   document.getElementById('s-ban').classList.remove('active');
@@ -361,9 +356,6 @@ function updateNotif(){
   }
 }
 
-// ══════════════════════════════════════════
-// ══ SISTEMA DE PROVAS ══
-// ══════════════════════════════════════════
 function shuffle(arr){
   const a=[...arr];
   for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
@@ -565,10 +557,16 @@ function cancelarProvaPrisoes(){ _provaAtiva=null; renderTab(activeTab); }
 // ══════════════════════════════════════════
 // ══ ANÁLISE DE PROVAS (CORRIGIDA!) ══════════════════════════════════════════
 // ══════════════════════════════════════════
-function vAnaliseProvas(){
+async function vAnaliseProvas(){
   if((CARGO_PERM[me.cargo]||0)<5) return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
   const provas=[...STATE.provas].reverse();
   if(!provas.length) return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'+empty('📝','Nenhuma prova realizada ainda.');
+
+  // CARREGA TODOS OS QUESTIONÁRIOS NECESSÁRIOS ANTES DE RENDERIZAR
+  const cargosUnicos=[...new Set(provas.filter(p=>p.tipo==='cargo'&&p.cargoAtual).map(p=>p.cargoAtual))];
+  for(const cargo of cargosUnicos){
+    await ensureQuestionario(cargo);
+  }
 
   const cards=provas.map(p=>{
     const decBadge=p.decisao==='promovido'?'<span class="status-chip sc-a">🎓 PROMOVIDO por '+p.decididoPor+'</span>'
@@ -608,10 +606,6 @@ function vAnaliseProvas(){
         +'</div>';
     }
 
-    // LÓGICA DOS BOTÕES (corrigida):
-    // - Prova de prisões: só REPROVAR (não promove)
-    // - Prova de cargo AINDA sem decisão: PROMOVER + REPROVAR
-    // - Prova já decidida: sem botões
     let botoes='';
     if(!p.decisao){
       if(p.tipo==='prisoes'){
@@ -638,11 +632,10 @@ function vAnaliseProvas(){
   }).join('');
 
   return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'
-    +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo. Provas de cargo com nota ≥ 70 mostram os botões <b>PROMOVER</b> e <b>REPROVAR</b>.</p>'
+    +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo. Provas de cargo mostram os botões <b>PROMOVER</b> e <b>REPROVAR</b>.</p>'
     +cards;
 }
 
-// FUNÇÃO CRÍTICA — esta estava faltando no seu arquivo!
 function togglePQ(id){
   const el=document.getElementById(id);
   if(!el) return;
@@ -666,8 +659,7 @@ async function decidirProva(id,decisao){
 }
 
 // ══════════════════════════════════════════
-// ══ VIEWS RESTANTES ══
-// ══════════════════════════════════════════
+// ══ VIEWS RESTANTES ══════════════════════════════════════════
 function vInicio(){
   const p=CARGO_PERM[me.cargo]||0;
   const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
@@ -799,7 +791,6 @@ async function cancelarOc(id){
   try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ USUÁRIOS ══
 function vUsuarios(){
   const myP=CARGO_PERM[me.cargo]||0;
   const master=isMaster();
@@ -922,7 +913,6 @@ async function removerBan(username,nome){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ PUNIÇÕES ══
 function vPunicoes(){
   const myP=CARGO_PERM[me.cargo]||0, canEdit=myP>=3;
   const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';
@@ -955,7 +945,6 @@ async function delPun(idx){
   catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ PONTO ══
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
@@ -1052,7 +1041,6 @@ async function baterPonto(type){
   finally{ setTimeout(()=>{_busyPonto=false;},1500); }
 }
 
-// ══ AUDITORIA ══
 function vAuditoria(){
   const logs=STATE.audit;
   if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');
@@ -1063,7 +1051,6 @@ async function limparAuditoria(){
   try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}
 }
 
-// ══ SENHA PRÓPRIA ══
 async function alterarSenhaPropria(){
   const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;
   if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}
@@ -1082,7 +1069,6 @@ async function alterarSenhaPropria(){
   }catch(e){toast(e.message||'Erro ao alterar senha.','d');}
 }
 
-// ══ HELPERS ══
 function openModal(id){document.getElementById(id)?.classList.add('open');}
 function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 function toggleSettings(){document.getElementById('settings-menu')?.classList.toggle('open');}
@@ -1099,5 +1085,4 @@ function toast(txt,type='i',duration=3800){
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-// ══ INIT ══
 window.onload=()=>{initWebSocket();checkSession();};
