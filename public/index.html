@@ -16,14 +16,14 @@
 
     /* ══ 1. FONTE PROFISSIONAL (sobrescreve Orbitron/Share Tech/Rajdhani, inclusive inline) ══ */
     *,*::before,*::after{font-family:'Inter','Roboto',system-ui,-apple-system,'Segoe UI',sans-serif !important;}
-    body::after{display:none !important;} /* remove scanlines "hacker" */
+    body::after{display:none !important;}
     .login-mark{animation:none !important;font-weight:800 !important;letter-spacing:.06em !important;}
     .login-mark,.topbar-logo,.stat-num,#rel-clock,#ban-timer{font-variant-numeric:tabular-nums;}
     .login-sub,.fg label,.tbl th,.stat-lbl,.oc-meta,.hint,.oc-f label,.resp-lbl,.log-time,
     .ban-subtitle,.ban-timer-label,.ban-info-label,.ws-status-bar,.topbar-user,.notif-pill,.empty p{letter-spacing:.06em !important;}
     .stitle,.tab,.btn,.nav-drawer-item,.modal-h h3,.cargo-badge,.status-chip,.tipo-badge,.ban-badge,.ban-title{letter-spacing:.04em !important;}
 
-    /* ══ 2. FUNDO E SUPERFÍCIES (dark suave como na imagem) ══ */
+    /* ══ 2. FUNDO E SUPERFÍCIES ══ */
     body{background:#0a0a0b !important;}
     #s-login{background:radial-gradient(1100px 560px at 50% -10%,rgba(99,102,241,.09),transparent 60%),#0a0a0b !important;}
     #s-ban{background:radial-gradient(900px 500px at 50% 18%,rgba(239,68,68,.12),transparent 60%),#0a0a0b !important;}
@@ -32,12 +32,12 @@
     .ban-container,.cargo-notif,.ponto-agente-block,.toast{
       background:#141416 !important;border:1px solid rgba(255,255,255,.08) !important;
     }
-    .card::before{display:none !important;} /* remove a barrinha lateral quadrada */
+    .card::before{display:none !important;}
     .card,.oc-wrap,.modal,.login-card,.settings-menu,.empty,.hint-box,.dep-box,
     .ban-container,.cargo-notif,.ponto-agente-block,.toast,.tbl-wrap{box-shadow:0 10px 30px rgba(0,0,0,.35) !important;}
     .ban-container{background:#171315 !important;border:1px solid rgba(239,68,68,.35) !important;}
 
-    /* ══ 3. ARREDONDAMENTO GERAL (estilo da imagem) ══ */
+    /* ══ 3. ARREDONDAMENTO GERAL ══ */
     .card,.oc-wrap,.modal,.login-card,.empty,.hint-box,.dep-box,.ban-container,
     .cargo-notif,.ponto-agente-block,.tbl-wrap,.settings-menu{border-radius:22px !important;}
     .stat-box{border-radius:18px !important;}
@@ -55,7 +55,6 @@
     .ban-status-msg{border-radius:14px !important;}
     .pv-alt,label.pv-alt{border-radius:14px !important;}
     .pass-strength,.ps-bar,::-webkit-scrollbar-thumb{border-radius:999px !important;}
-    /* arredonda blocos gerados pelo app.js com border-radius inline */
     div[style*="border-radius:4px"],div[style*="border-radius: 4px"]{border-radius:16px !important;}
     div[style*="border-radius:3px"],div[style*="border-radius: 3px"]{border-radius:12px !important;}
 
@@ -80,6 +79,59 @@
     .empty{border-style:dashed !important;border-color:rgba(255,255,255,.14) !important;}
     .ws-status-bar{background:rgba(13,13,15,.92) !important;border-top:1px solid rgba(255,255,255,.06) !important;}
     .modal-overlay{backdrop-filter:blur(8px) !important;-webkit-backdrop-filter:blur(8px) !important;}
+
+    /* ══ 5. BORDA FINA "RESPIRANDO" (clareia ↔ escurece) ══ */
+    @keyframes gmpol-borda-pulso{
+      0%,100%{ border-color:rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 0 0 rgba(255,255,255,0); }
+      50%    { border-color:rgba(255,255,255,.30); box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 14px rgba(255,255,255,.08); }
+    }
+    @keyframes gmpol-borda-pulso-suave{
+      0%,100%{ border-color:rgba(255,255,255,.10); }
+      50%    { border-color:rgba(255,255,255,.28); }
+    }
+    @keyframes gmpol-glow-pulso{
+      0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,0); }
+      50%    { box-shadow:0 0 12px 0 rgba(255,255,255,.12); }
+    }
+
+    /* borda que clareia/escurece — bolhas grandes */
+    .card,.oc-wrap,.login-card,.empty,.hint-box,.dep-box,.ponto-agente-block,
+    .stat-box,.ban-status-msg,.tbl-wrap{
+      border:1px solid rgba(255,255,255,.08) !important;
+      animation:gmpol-borda-pulso 4.5s ease-in-out infinite !important;
+    }
+    .modal{
+      border:1px solid rgba(255,255,255,.10) !important;
+      animation:modalIn .22s cubic-bezier(0,.6,.4,1), gmpol-borda-pulso 4.5s ease-in-out infinite !important;
+    }
+    /* borda que clareia/escurece — bolhas pequenas / controles */
+    .tab:not(.active),.pv-alt,label.pv-alt,.btn-ghost,.settings-btn,.hamburger-btn{
+      border:1px solid rgba(255,255,255,.10) !important;
+      animation:gmpol-borda-pulso-suave 3.6s ease-in-out infinite !important;
+    }
+    input,select,textarea{
+      border:1px solid rgba(255,255,255,.10) !important;
+      animation:gmpol-borda-pulso-suave 5.5s ease-in-out infinite !important;
+    }
+    div[style*="border-radius:4px"],div[style*="border-radius: 4px"]{
+      animation:gmpol-borda-pulso-suave 4.2s ease-in-out infinite !important;
+    }
+    /* bolhas coloridas: mantêm a cor da borda, mas o brilho respira */
+    .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill,.u-avatar,
+    .ban-container,.ban-timer-wrap,.cargo-notif{
+      animation:gmpol-glow-pulso 3.6s ease-in-out infinite !important;
+    }
+    /* exceções: estados que não podem piscar */
+    .tab.active{ animation:none !important; border-color:#fff !important; }
+    input:focus,select:focus,textarea:focus{ animation:none !important; border-color:rgba(99,102,241,.65) !important; }
+    .btn-primary,.btn-success,.btn-danger,.btn-warn{ animation:none !important; }
+    @media (prefers-reduced-motion: reduce){
+      .card,.oc-wrap,.login-card,.empty,.hint-box,.dep-box,.ponto-agente-block,.stat-box,
+      .ban-status-msg,.tbl-wrap,.modal,.tab:not(.active),.pv-alt,label.pv-alt,.btn-ghost,
+      .settings-btn,.hamburger-btn,input,select,textarea,div[style*="border-radius:4px"],
+      .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill,.u-avatar,
+      .ban-container,.ban-timer-wrap,.cargo-notif{ animation:none !important; }
+    }
   </style>
 </head>
 <body>
@@ -334,4 +386,4 @@
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
 </body>
-              </html>
+  </html>
