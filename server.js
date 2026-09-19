@@ -1,7 +1,6 @@
 /**
- * GMPOL Sistema Central v5.5
- * PROVAS por patente: Guarda(10q) Agente(20q) Tático(20q) Escrivão→Prova de Delegado(10q)
- * Chefe/Admin: promoção manual (sem prova) | PROVA PRISÕES: avaliação pessoal sem tempo
+ * GMPOL Sistema Central v5.6
+ * PROVAS por patente + AVALIAÇÃO PESSOAL com APROVAR/REPROVAR (sem promoção)
  * MASTER (master / masterx512) = acesso total | Horário de Brasília | Folga 6+1
  */
 
@@ -10,14 +9,12 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
-// ══ FUSO HORÁRIO BRASIL ══
 const TZ = 'America/Sao_Paulo';
 function brTimeStr(ts){return new Date(ts).toLocaleTimeString('pt-BR',{timeZone:TZ,hour:'2-digit',minute:'2-digit'});}
 function brTimeStrSec(ts){return new Date(ts).toLocaleTimeString('pt-BR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit'});}
 function brDateStr(ts){return new Date(ts).toLocaleDateString('pt-BR',{timeZone:TZ});}
 function nextBrDateStr(dstr){const p=dstr.split('/');const dd=+p[0],mm=+p[1],yy=+p[2];const t=new Date(Date.UTC(yy,mm-1,dd+1,12));return String(t.getUTCDate()).padStart(2,'0')+'/'+String(t.getUTCMonth()+1).padStart(2,'0')+'/'+t.getUTCFullYear();}
 
-// ══ CARGOS ══
 const CARGO_PERM_SRV = { admin: 7, chefe: 6, delegado: 5, escrivao: 4, tatico: 3, agente: 2, gm: 1 };
 const CARGO_LABEL_SRV = {
   admin:'Admin master', chefe:'Chefe de polícia', delegado:'Delegado',
@@ -25,33 +22,28 @@ const CARGO_LABEL_SRV = {
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ════════════════════════════════════════════════════════════
-// ══ PROVAS POR PATENTE (correta = índice 0=A, 1=B, 2=C, 3=D) ══
-// ════════════════════════════════════════════════════════════
 const PROVAS_CARGO = {
-  // ── GUARDA (10 questões) ──
   gm: [
     { enunciado:'O Guarda inicia o serviço na qual patente?', alt:['Agente','Guarda','Escrivão','Tático'], correta:1 },
     { enunciado:'Quais equipamentos o Guarda pode utilizar no serviço?', alt:['Pistola G18, colete e cassetete','Cassetete, taser, colete e Desert Eagle somente em caso de ameaça','Fuzil M4, pistola e colete','Apenas cassetete e colete'], correta:1 },
     { enunciado:'Onde o Guarda deve permanecer durante o turno?', alt:['Em todo o mapa livremente','Somente na Delegacia (DP)','Na rua e na DP','Onde o chefe mandar'], correta:2 },
     { enunciado:'Qual das três regras básicas da PF NÃO faz parte?', alt:['Respeito','Comprometimento','Velocidade','Não azaralhar'], correta:2 },
     { enunciado:'A Desert Eagle do Guarda é liberada para uso em qual situação?', alt:['Sempre que estiver de plantão','Apenas em caso de ameaça','Nunca, é proibida','Quando o chefe autorizar por rádio'], correta:1 },
-    { enunciado:'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert), diferente do Guarda?', alt:['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta:1 },
+    { enunciado:'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert)?', alt:['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta:1 },
     { enunciado:'Para o Guarda ser promovido, ele precisa:', alt:['Apenas de tempo jogado','Fazer paradinhas e passar pela prova','Pagar a administração','Pedir pra chefe diretamente'], correta:1 },
     { enunciado:'Qual é a ÚNICA patente da PF em que a promoção é feita APENAS por mérito, sem prova?', alt:['Agente','Tático','Escrivão','Delegado'], correta:2 },
     { enunciado:'É correto afirmar que o Guarda pode conduzir presos?', alt:['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só se for autorizado pelo Chefe na hora'], correta:1 },
     { enunciado:'O que o Guarda DEVE fazer ao encontrar um superior no Barra Amiga ou no interior da DP?', alt:['Ignorar','Prender','Prestar continência','Pedir hora'], correta:2 }
   ],
-  // ── AGENTE (20 questões) ──
   agente: [
     { enunciado:'Qual é uma das principais funções de um Agente?', alt:['Patrulhar e atender ocorrências','Ignorar chamados','Aplicar punições sem motivo','Fazer apenas escoltas'], correta:0 },
-    { enunciado:'O que é abuso de poder?', alt:['Cumprir uma ordem legítima','Usar a autoridade de forma indevida para benefício próprio ou para prejudicar alguém','Fazer uma abordagem','Solicitar apoio'], correta:1 },
+    { enunciado:'O que é abuso de poder?', alt:['Cumprir uma ordem legítima','Usar a autoridade de forma indevida','Fazer uma abordagem','Solicitar apoio'], correta:1 },
     { enunciado:'Um policial pode prender alguém apenas porque não gosta da pessoa?', alt:['Sim','Não','Apenas se estiver fardado','Apenas durante patrulhamento'], correta:1 },
     { enunciado:'Durante uma abordagem, o Agente deve:', alt:['Agir com respeito e seguir os procedimentos','Ofender o cidadão','Usar força sem necessidade','Prender todos os envolvidos'], correta:0 },
     { enunciado:'O policial pode usar sua autoridade para conseguir dinheiro de um jogador?', alt:['Sim','Não','Apenas em ocorrências','Apenas se for pouco dinheiro'], correta:1 },
     { enunciado:'Se um policial ameaça prender alguém sem justificativa para conseguir vantagem, isso pode ser:', alt:['Abuso de poder','Patrulhamento','Procedimento normal','QRR'], correta:0 },
     { enunciado:'O que deve ser feito ao receber um QRR?', alt:['Ignorar','Prestar apoio conforme os procedimentos','Desligar o rádio','Sair da ocorrência'], correta:1 },
-    { enunciado:'O uso da força deve ser:', alt:['Sempre utilizado','Necessário e proporcional à situação, conforme as regras','Usado para intimidar','Usado contra qualquer pessoa'], correta:1 },
+    { enunciado:'O uso da força deve ser:', alt:['Sempre utilizado','Necessário e proporcional à situação','Usado para intimidar','Usado contra qualquer pessoa'], correta:1 },
     { enunciado:'O Agente pode utilizar o armamento apenas para intimidar um cidadão?', alt:['Sim','Não','Sempre que estiver armado','Durante qualquer discussão'], correta:1 },
     { enunciado:'Um policial presencia outro Agente cometendo abuso de poder. O correto é:', alt:['Ajudar a esconder','Seguir o procedimento correto para comunicar a infração','Ignorar sempre','Fazer o mesmo'], correta:1 },
     { enunciado:'O que é considerado uma conduta profissional?', alt:['Respeito, disciplina e cumprimento das regras','Abuso de autoridade','Provocar suspeitos','Ignorar superiores'], correta:0 },
@@ -60,12 +52,11 @@ const PROVAS_CARGO = {
     { enunciado:'Se um cidadão insultar o policial, o Agente deve:', alt:['Manter o controle e agir conforme as regras','Usar a arma','Prender automaticamente','Agredir o cidadão'], correta:0 },
     { enunciado:'O que caracteriza uma ordem legítima?', alt:['Uma ordem compatível com as regras e procedimentos','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta:0 },
     { enunciado:'O Agente pode usar informações obtidas no serviço para benefício pessoal?', alt:['Sim','Não','Apenas fora do expediente','Apenas com autorização de amigos'], correta:1 },
-    { enunciado:'Qual atitude pode ser considerada abuso de poder?', alt:['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir ou prejudicar alguém sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta:1 },
+    { enunciado:'Qual atitude pode ser considerada abuso de poder?', alt:['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta:1 },
     { enunciado:'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt:['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar','Abandonar o rádio'], correta:0 },
     { enunciado:'Qual é a importância do rádio durante o serviço?', alt:['Comunicação e coordenação entre os policiais','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta:0 },
     { enunciado:'Qual comportamento pode prejudicar a carreira de um Agente?', alt:['Disciplina e respeito','Abuso de poder, corrupção e descumprimento das regras','Trabalho em equipe','Comunicação pelo rádio'], correta:1 }
   ],
-  // ── TÁTICO (20 questões) ──
   tatico: [
     { enunciado:'Qual é a principal função do Tático?', alt:['Fazer apenas patrulhamento','Atuar em ocorrências de maior risco','Aplicar multas','Fazer apenas abordagens'], correta:1 },
     { enunciado:'O que significa QRR?', alt:['Questionário de Rotina de Rádio','Pedido de reforço','Qualificação de Recruta','Quadro de Ronda Rápida'], correta:1 },
@@ -88,22 +79,20 @@ const PROVAS_CARGO = {
     { enunciado:'Qual atitude pode prejudicar uma operação?', alt:['Comunicação','Trabalho em equipe','Agir sem coordenação','Solicitar apoio'], correta:2 },
     { enunciado:'O que um candidato a Tático deve demonstrar?', alt:['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta:0 }
   ],
-  // ── PROVA DE DELEGADO (feita pelo Escrivão que pleiteia Delegado — 10 questões) ──
   escrivao: [
-    { enunciado:'Durante uma operação, um superior determina pelo rádio que toda a equipe avance imediatamente, mas o Delegado percebe que a ordem pode colocar agentes e terceiros em risco desnecessário. Qual é a conduta mais adequada?', alt:['Cumprir imediatamente, pois toda ordem superior deve ser obedecida independentemente da situação.','Ignorar a ordem e agir sozinho para resolver a ocorrência.','Comunicar a preocupação pelo rádio, avaliar a situação e seguir o procedimento hierárquico e as regras aplicáveis.','Encerrar a operação sem comunicar ninguém.'], correta:2 },
-    { enunciado:'Um policial informa pelo rádio “QTH” durante uma ocorrência. Considerando os Códigos Q, qual é a finalidade dessa comunicação?', alt:['Informar a localização do policial ou da ocorrência.','Solicitar prioridade absoluta no rádio.','Informar que a ocorrência terminou.','Solicitar autorização para abandonar a ocorrência.'], correta:0 },
-    { enunciado:'Um agente comete uma infração disciplinar durante uma operação e pede ao Delegado que “deixe passar” porque o agente apresentou bons resultados anteriormente. Qual princípio deve prevalecer?', alt:['Histórico positivo pode justificar a dispensa automática da punição.','A amizade entre os policiais deve ser considerada antes da disciplina.','A conduta deve ser analisada conforme as regras, sem favorecimento pessoal.','O superior pode anular qualquer infração de subordinado.'], correta:2 },
-    { enunciado:'Durante uma abordagem, um cidadão começa a provocar verbalmente os policiais. O agente perde a paciência e utiliza sua autoridade para aplicar uma punição que não corresponde à infração cometida. Qual problema principal existe nessa situação?', alt:['Apenas falha de comunicação.','Possível abuso de autoridade e violação dos princípios de conduta.','Procedimento normal de contenção.','Apenas uma falha no uso do rádio.'], correta:1 },
-    { enunciado:'Em uma operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Uma equipe afirma “QSL”, enquanto a outra continua transmitindo informações sem confirmar o recebimento das ordens. Qual é a atitude mais adequada do comando?', alt:['Presumir que todos compreenderam a ordem.','Organizar a comunicação, confirmar o recebimento das instruções e estabelecer uma cadeia de comando clara.','Retirar todos os agentes da operação.','Ignorar a equipe que não confirmou.'], correta:1 },
-    { enunciado:'Um policial presencia um colega utilizando recursos e autoridade da corporação para obter vantagem pessoal. O colega pede segredo e afirma que “ninguém precisa saber”. Segundo os princípios de disciplina e conduta, o policial deve:', alt:['Manter segredo para proteger o colega.','Participar apenas se também receber vantagem.','Comunicar o fato pelos canais e procedimentos disciplinares apropriados.','Esperar até que outro policial descubra.'], correta:2 },
-    { enunciado:'Durante uma ocorrência, um superior transmite uma ordem pelo rádio que parece incompatível com uma regra operacional. O Delegado não possui certeza se a ordem é válida. Qual é a atitude mais prudente?', alt:['Executar imediatamente sem questionar.','Questionar de forma profissional, verificar a regra aplicável e evitar uma ação irregular.','Desobedecer publicamente e discutir no rádio.','Encerrar a comunicação.'], correta:1 },
-    { enunciado:'Um agente está sendo investigado disciplinarmente e, antes da conclusão, um superior determina que ele seja removido definitivamente da corporação sem seguir qualquer procedimento previsto. Qual princípio está sendo principalmente desrespeitado?', alt:['Hierarquia, porque o superior deveria consultar outro superior.','Disciplina, porque qualquer punição deve seguir as normas e procedimentos aplicáveis.','Código Q, porque a decisão deveria ser transmitida pelo rádio.','Patrulhamento, porque o agente deveria continuar trabalhando.'], correta:1 },
-    { enunciado:'Durante uma operação da PF, um Delegado percebe que um subordinado está seguindo corretamente as ordens, porém utilizando uma conduta desnecessariamente agressiva com civis que não apresentam ameaça. O Delegado deve:', alt:['Permitir, pois o subordinado está obedecendo às ordens.','Intervir, orientar/corrigir a conduta e adotar as medidas previstas caso exista infração.','Ignorar para não prejudicar a operação.','Autorizar o uso de força maior para acelerar a ocorrência.'], correta:1 },
-    { enunciado:'Um Delegado recebe uma denúncia de possível abuso de poder envolvendo um agente próximo a ele. As evidências iniciais são incompletas, mas existem indícios que precisam ser apurados. Qual decisão demonstra melhor postura de comando, disciplina e imparcialidade?', alt:['Arquivar imediatamente para proteger a reputação da equipe.','Punir o agente imediatamente sem investigação.','Preservar as evidências, encaminhar o caso para apuração conforme as regras e evitar favorecimento pessoal.','Divulgar publicamente a acusação antes da investigação.'], correta:2 }
+    { enunciado:'Durante uma operação, um superior determina pelo rádio que toda a equipe avance imediatamente, mas o Delegado percebe que a ordem pode colocar agentes e terceiros em risco. Qual é a conduta mais adequada?', alt:['Cumprir imediatamente','Ignorar a ordem e agir sozinho','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta:2 },
+    { enunciado:'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt:['Informar a localização do policial ou da ocorrência','Solicitar prioridade no rádio','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta:0 },
+    { enunciado:'Um agente comete infração disciplinar e pede ao Delegado que "deixe passar" por ter bons resultados. Qual princípio prevalece?', alt:['Histórico positivo pode justificar dispensa','A amizade deve ser considerada antes da disciplina','A conduta deve ser analisada conforme as regras','O superior pode anular qualquer infração'], correta:2 },
+    { enunciado:'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt:['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal de contenção','Apenas falha no uso do rádio'], correta:1 },
+    { enunciado:'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt:['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar a equipe que não confirmou'], correta:1 },
+    { enunciado:'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt:['Manter segredo para proteger o colega','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta:2 },
+    { enunciado:'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt:['Executar imediatamente sem questionar','Questionar de forma profissional e verificar a regra','Desobedecer publicamente e discutir no rádio','Encerrar a comunicação'], correta:1 },
+    { enunciado:'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt:['Hierarquia','Disciplina, porque punição deve seguir normas','Código Q','Patrulhamento'], correta:1 },
+    { enunciado:'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt:['Permitir, pois o subordinado está obedecendo','Intervir, orientar/corrigir a conduta e adotar medidas previstas','Ignorar para não prejudicar a operação','Autorizar uso de força maior'], correta:1 },
+    { enunciado:'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. As evidências são incompletas mas existem indícios. Qual decisão demonstra melhor postura de comando?', alt:['Arquivar imediatamente para proteger a equipe','Punir o agente imediatamente sem investigação','Preservar evidências, encaminhar para apuração conforme regras e evitar favorecimento','Divulgar publicamente antes da investigação'], correta:2 }
   ]
 };
 
-// ══ PROVA CONHECIMENTO PRISÕES (avaliação pessoal, dissertativa, sem tempo) ══
 const PRISOES_QUESTOES = [
   'Cite todos os comandos em ordem para efetuar prisões.',
   'Qual procedimento para levar o preso para comer?',
@@ -123,7 +112,6 @@ function findUserByRef(ref){
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
 }
 
-// ══ BANCO DE DADOS ══
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
 
@@ -204,7 +192,6 @@ function saveDataSync() {
 let DB = loadData();
 console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas`);
 
-// ══ WEBSOCKET NATIVO ══
 const wsClients = new Set();
 function wsHandshake(req, socket) {
   const key = req.headers['sec-websocket-key'];
@@ -251,7 +238,6 @@ function audit(msg, icon = '📋') {
   broadcast('AUDIT_NEW', DB.audit[0]);
 }
 
-// ══ STATIC ══
 const MIME = { '.html':'text/html; charset=utf-8', '.css':'text/css', '.js':'application/javascript', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.ico':'image/x-icon', '.svg':'image/svg+xml' };
 function serveStatic(req, res) {
   let urlPath = req.url.split('?')[0];
@@ -290,7 +276,6 @@ function jsonRes(res, status, data) {
   res.end(body);
 }
 
-// ══ ROTEADOR API ══
 async function handleAPI(req, res) {
   const method = req.method;
   const url    = req.url.split('?')[0];
@@ -312,7 +297,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit });
   }
 
-  // ── LOGIN ──
   if (method === 'POST' && url === '/api/login') {
     const { user, pass } = body;
     if (!user || !pass) return jsonRes(res, 400, { error: 'Preencha usuário e senha.' });
@@ -324,7 +308,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
-  // ── USUÁRIOS ──
   if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
@@ -337,7 +320,7 @@ async function handleAPI(req, res) {
     if (!criador) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const master = isMaster(criador);
     if (!master && (CARGO_PERM_SRV[criador.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
-    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode criar usuários com cargo igual ou superior ao seu.' });
+    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Não pode criar usuários com cargo igual ou superior ao seu.' });
     DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
@@ -402,7 +385,7 @@ async function handleAPI(req, res) {
     const master = isMaster(executor);
     if (targetUser.user === executor.user) return jsonRes(res, 403, { error: 'Você não pode alterar o próprio cargo.' });
     if (!master && (CARGO_PERM_SRV[executor.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
-    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[executor.cargo]||0)) return jsonRes(res, 403, { error: 'Você não pode atribuir cargo igual ou superior ao seu.' });
+    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[executor.cargo]||0)) return jsonRes(res, 403, { error: 'Não pode atribuir cargo igual ou superior ao seu.' });
     if (!master && targetUser.cargo === 'admin') return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
     const oldPerm = CARGO_PERM_SRV[targetUser.cargo] || 0, newPerm = CARGO_PERM_SRV[cargo] || 0;
     const isRebaixamento = newPerm < oldPerm;
@@ -434,7 +417,7 @@ async function handleAPI(req, res) {
       const master = isMaster(executor);
       const execPerm = CARGO_PERM_SRV[executor.cargo]||0;
       const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
-      if (!master && (execPerm <= tgtPerm || execPerm < 3)) return jsonRes(res, 403, { error: 'Permissão insuficiente para suspender este usuário.' });
+      if (!master && (execPerm <= tgtPerm || execPerm < 3)) return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
       const expiresAt = Date.now() + mins * 60 * 1000;
       DB.users[i].banExpires = expiresAt; DB.users[i].banReason = motivo; DB.users[i].banBy = executor.nome;
       saveData();
@@ -477,7 +460,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── OCORRÊNCIAS ──
   if (method === 'GET'  && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
@@ -510,7 +492,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ── PUNIÇÕES ──
   if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
@@ -545,7 +526,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ── PONTOS ──
   if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -557,7 +537,7 @@ async function handleAPI(req, res) {
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
     if (ponto.type === 'entrada' && u.folgaDia === dBr) {
-      return jsonRes(res, 403, { error: '🌴 Hoje (' + dBr + ') é seu dia de FOLGA concedido pelo sistema! Descanse, você mereceu.' });
+      return jsonRes(res, 403, { error: '🌴 Hoje (' + dBr + ') é seu dia de FOLGA! Descanse.' });
     }
     const last = [...DB.pontos].reverse().find(p => p.userLogin === ponto.userLogin);
     if (last && last.type === ponto.type && (ponto.ts - last.ts) < 3000) {
@@ -585,7 +565,7 @@ async function handleAPI(req, res) {
         u.folgaDia = fd; u.cicloDias = [];
         const folgaRec = { id:'FOL-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), userLogin:u.user, nome:u.nome, cargo:u.cargo, type:'folga', hora:'FOLGA', data:fd, ts:ponto.ts + 86400000 };
         DB.pontos.push(folgaRec);
-        audit(`<b>${u.nome}</b> completou 6 dias trabalhados — 🌴 FOLGA concedida para ${fd}`, '🌴');
+        audit(`<b>${u.nome}</b> completou 6 dias — 🌴 FOLGA concedida para ${fd}`, '🌴');
         broadcast('NEW_PONTO', folgaRec);
         broadcast('FOLGA_GRANTED', { userLogin: u.user, folgaDia: fd });
       }
@@ -596,9 +576,9 @@ async function handleAPI(req, res) {
     let auditMsg = `<b>${ponto.nome}</b> ${ponto.type === 'entrada' ? 'bateu ponto às ' + hora : 'encerrou o turno às ' + hora}`;
     if (ponto.type === 'saida' && ponto.trabalhado !== undefined) {
       const h = Math.floor(ponto.trabalhado / 60), m = ponto.trabalhado % 60;
-      auditMsg += ` — total de ${h} horas${m > 0 ? ' e ' + m + ' minutos' : ''} trabalhadas.`;
-      if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Total horas extras ${Math.floor(ponto.extraMins/30)} - R$ ${ponto.extraReais})</b>`;
-      if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve horas: ${Math.floor(ponto.debtMins/60)}h${(ponto.debtMins%60).toString().padStart(2,'0')})</b>`;
+      auditMsg += ` — ${h}h${m > 0 ? m + 'min' : ''} trabalhadas.`;
+      if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
+      if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins/60)}h${(ponto.debtMins%60).toString().padStart(2,'0')})</b>`;
     }
     audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
@@ -606,10 +586,8 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, ponto });
   }
 
-  // ══════════ PROVAS ══════════
   if (method === 'GET' && url === '/api/provas') return jsonRes(res, 200, DB.provas);
 
-  // Questionário SEM gabarito
   if (method === 'GET' && url === '/api/prova/questionario') {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
     if (params.get('tipo') === 'prisoes') {
@@ -617,17 +595,15 @@ async function handleAPI(req, res) {
     }
     const cargo = params.get('cargo');
     const set = PROVAS_CARGO[cargo];
-    if (!set) return jsonRes(res, 404, { error: 'Este cargo não possui prova (promoção manual).' });
+    if (!set) return jsonRes(res, 404, { error: 'Este cargo não possui prova.' });
     return jsonRes(res, 200, set.map((q, i) => ({ q: i, enunciado: q.enunciado, alt: q.alt })));
   }
 
-  // Entregar prova
   if (method === 'POST' && url === '/api/provas') {
     const { userLogin, cargoAlvo, respostas, perdidaPorTempo, tipo } = body;
     const u = DB.users.find(x => x.user === userLogin);
     if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
 
-    // ── PROVA PRISÕES (avaliação pessoal, sem tempo, sem cargo) ──
     if (tipo === 'prisoes') {
       const rs = PRISOES_QUESTOES.map((t, i) => ({
         q: i,
@@ -641,18 +617,17 @@ async function handleAPI(req, res) {
         ts: Date.now(), decisao: null, decididoPor: null, decididoEm: null
       };
       DB.provas.push(prova); saveData();
-      audit(`<b>${u.nome}</b> enviou a PROVA CONHECIMENTO PRISÕES (avaliação pessoal)`, '🧠');
+      audit(`<b>${u.nome}</b> enviou a AVALIAÇÃO PESSOAL (prisões)`, '🧠');
       broadcast('NEW_PROVA', prova);
       return jsonRes(res, 200, { ok: true, prova });
     }
 
-    // ── PROVA DE PATENTE (conjunto = cargo ATUAL do candidato) ──
     const set = PROVAS_CARGO[u.cargo];
-    if (!set) return jsonRes(res, 400, { error: 'Seu cargo atual não possui prova (promoção manual/por mérito).' });
+    if (!set) return jsonRes(res, 400, { error: 'Seu cargo atual não possui prova.' });
     const myPerm = CARGO_PERM_SRV[u.cargo] || 0;
     const alvoPerm = CARGO_PERM_SRV[cargoAlvo] || 0;
     if (alvoPerm <= myPerm) return jsonRes(res, 400, { error: 'Escolha um cargo ACIMA do seu.' });
-    if (alvoPerm >= 6) return jsonRes(res, 400, { error: 'Chefe de polícia e Admin master são escolhidos manualmente, sem prova.' });
+    if (alvoPerm >= 6) return jsonRes(res, 400, { error: 'Chefe de polícia e Admin master são escolhidos manualmente.' });
 
     const respMap = {};
     (respostas || []).forEach(r => { respMap[r.q] = r; });
@@ -678,24 +653,25 @@ async function handleAPI(req, res) {
       ts: Date.now(), decisao: null, decididoPor: null, decididoEm: null
     };
     DB.provas.push(prova); saveData();
-    audit(`<b>${u.nome}</b> (${CARGO_LABEL_SRV[u.cargo]||u.cargo}) concluiu a prova para <b>${CARGO_LABEL_SRV[cargoAlvo]||cargoAlvo}</b> — nota ${nota}${perdidaPorTempo ? ' (tempo esgotado)' : ''}`, '📝');
+    audit(`<b>${u.nome}</b> concluiu a prova para <b>${CARGO_LABEL_SRV[cargoAlvo]||cargoAlvo}</b> — nota ${nota}${perdidaPorTempo ? ' (tempo esgotado)' : ''}`, '📝');
     broadcast('NEW_PROVA', prova);
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // Decisão dos superiores
+  // ══════════ DECISÃO DE PROVAS — AGORA ACEITA 'aprovado' ══════════
   const mProvaDec = url.match(/^\/api\/provas\/([^/]+)\/decisao$/);
   if (method === 'PUT' && mProvaDec) {
     const i = DB.provas.findIndex(p => p.id === mProvaDec[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Prova não encontrada.' });
     const { decisao, feitorPor } = body;
-    if (decisao !== 'promovido' && decisao !== 'reprovado') return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    if (!['promovido','reprovado','aprovado'].includes(decisao)) return jsonRes(res, 400, { error: 'Decisão inválida.' });
     const executor = findUserByRef(feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
-    if ((CARGO_PERM_SRV[executor.cargo]||0) < 5) return jsonRes(res, 403, { error: 'Apenas Master, Chefe de Polícia e Delegado podem avaliar provas.' });
+    if ((CARGO_PERM_SRV[executor.cargo]||0) < 5) return jsonRes(res, 403, { error: 'Apenas Master, Chefe e Delegado podem avaliar provas.' });
     if (executor.user === DB.provas[i].userLogin) return jsonRes(res, 403, { error: 'Você não pode avaliar a própria prova.' });
     const prova = DB.provas[i];
-    if (decisao === 'promovido' && !prova.cargoAlvo) return jsonRes(res, 400, { error: 'Avaliação pessoal (prisões) não gera promoção automática.' });
+    if (decisao === 'promovido' && !prova.cargoAlvo) return jsonRes(res, 400, { error: 'Avaliação pessoal não gera promoção. Use APROVAR.' });
+    if (decisao === 'aprovado' && prova.cargoAlvo) return jsonRes(res, 400, { error: 'APROVAR só é válido para avaliação pessoal (prisões).' });
 
     prova.decisao = decisao;
     prova.decididoPor = executor.nome;
@@ -707,9 +683,12 @@ async function handleAPI(req, res) {
       const oldCargo = alvo.cargo;
       alvo.cargo = prova.cargoAlvo;
       saveData();
-      audit(`<b>${executor.nome}</b> APROVOU a prova de <b>${prova.nome}</b> e promoveu para <b>${CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo}</b>`, '🎓');
+      audit(`<b>${executor.nome}</b> APROVOU e PROMOVEU <b>${prova.nome}</b> para <b>${CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo}</b>`, '🎓');
       broadcast('USERS_UPDATED', DB.users.map(pub));
       broadcast('CARGO_CHANGED', { userLogin: alvo.user, oldCargo, newCargo: alvo.cargo, tipo: 'promovido', motivo: 'Aprovado na prova por ' + executor.nome, feitorPorNome: executor.nome });
+    } else if (decisao === 'aprovado') {
+      saveData();
+      audit(`<b>${executor.nome}</b> APROVOU a avaliação pessoal (prisões) de <b>${prova.nome}</b>`, '✅');
     } else {
       saveData();
       audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b>${prova.cargoAlvo ? ' para <b>' + (CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo) + '</b>' : ' (avaliação pessoal)'}`, '❌');
@@ -719,7 +698,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // ── AUDITORIA ──
   if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = []; saveData();
@@ -730,7 +708,6 @@ async function handleAPI(req, res) {
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
-// ══ HTTP SERVER ══
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/api') || req.url === '/health') return handleAPI(req, res);
@@ -779,14 +756,12 @@ setInterval(() => {
   });
 }, 25000);
 
-// ══ START ══
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.5         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.6         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
-  console.log('╠═══════════════════════════════════════════╣');
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('║   chefe     / chefe123                   ║');
   console.log('║   gm        / gm123                      ║');
