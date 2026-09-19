@@ -27,12 +27,26 @@ let _busyPonto=false, _busyPun=false;
 let _keepIv=null;
 
 // ══ ESTADO DA PROVA ══
-let QUESTIONARIO=null;          // { cargo: [questões] } cache
+let QUESTIONARIO=null;
 let QUESTIONARIO_PRISOES=null;
 let _provaAtiva=null;
 const PROVA_TEMPO_QUESTAO = 180;
 const NOMES_PROVA = { gm:'PROVA DE PATENTE GUARDA', agente:'PROVA DE PATENTE AGENTE', tatico:'PROVA DE PATENTE TÁTICO', escrivao:'PROVA DE PATENTE DELEGADO' };
 const CSS_PROVA = '<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
+
+// ══ PERGUNTAS PRISÕES (para análise dos superiores) ══
+const PRISOES_QUESTOES_LOCAL = [
+  'Cite todos os comandos em ordem para efetuar prisões.',
+  'Qual procedimento para levar o preso para comer?',
+  'Como funciona o QTH PS?',
+  'Como funciona o QTH HP?',
+  'Cite 4 regras da PF que não podem ser quebradas.',
+  'O que é abuso de poder? Cite 3 exemplos.',
+  'Quais regras de carregamento?',
+  'Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).',
+  'Cite a cadeia de comando e a hierarquia.',
+  'O que é insubordinação?'
+];
 
 function startKeepAlive(){ stopKeepAlive(); _keepIv=setInterval(()=>{ fetch('/health',{cache:'no-store'}).catch(()=>{}); },240000); }
 function stopKeepAlive(){ clearInterval(_keepIv); _keepIv=null; }
@@ -49,7 +63,7 @@ async function ensureQuestionarioPrisoes(){
   return QUESTIONARIO_PRISOES;
 }
 
-// ══ WEBSOCKET HANDLERS (só UI) ══
+// ══ WEBSOCKET HANDLERS ══
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
@@ -360,8 +374,6 @@ function vProvas(){
   const myP=CARGO_PERM[me.cargo]||0;
   const temProva=!!NOMES_PROVA[me.cargo];
   const minhas=STATE.provas.filter(p=>p.userLogin===me.user).reverse();
-
-  // cargos alvo: acima do meu, SEM chefe(6) e admin(7)
   const opcoes=Object.entries(CARGO_LABEL)
     .filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<6)
     .map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');
@@ -404,7 +416,6 @@ function vProvas(){
     +'<div class="card"><div style="font-family:\'Orbitron\',sans-serif;font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MINHAS PROVAS</div>'+hist+'</div>';
 }
 
-// ── PROVA DE PATENTE (com tempo) ──
 async function iniciarProva(){
   const userInput=(document.getElementById('pv-user')?.value||'').trim().toLowerCase();
   if(userInput!==me.user){toast('Use o SEU próprio usuário: '+me.user,'d');return;}
@@ -523,7 +534,6 @@ async function finalizarProva(perdida){
   }catch(e){ toast(e.message||'Erro ao enviar prova.','d'); renderTab(activeTab); }
 }
 
-// ── PROVA PRISÕES (sem tempo, dissertativa) ──
 async function iniciarProvaPrisoes(){
   let q;
   try{ q=await ensureQuestionarioPrisoes(); }catch(e){ toast(e.message||'Erro ao carregar questões.','d'); return; }
@@ -552,7 +562,9 @@ async function enviarProvaPrisoes(){
 }
 function cancelarProvaPrisoes(){ _provaAtiva=null; renderTab(activeTab); }
 
-// ── ANÁLISE DE PROVAS (master, chefe, delegado) ──
+// ══════════════════════════════════════════
+// ══ ANÁLISE DE PROVAS (CORRIGIDA!) ══════════════════════════════════════════
+// ══════════════════════════════════════════
 function vAnaliseProvas(){
   if((CARGO_PERM[me.cargo]||0)<5) return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
   const provas=[...STATE.provas].reverse();
@@ -596,9 +608,19 @@ function vAnaliseProvas(){
         +'</div>';
     }
 
-    const botoes=p.tipo==='prisoes'
-      ? (p.decisao?'':'<button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ MARCAR COMO REPROVADO</button>')
-      : (p.decisao?'':'<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>');
+    // LÓGICA DOS BOTÕES (corrigida):
+    // - Prova de prisões: só REPROVAR (não promove)
+    // - Prova de cargo AINDA sem decisão: PROMOVER + REPROVAR
+    // - Prova já decidida: sem botões
+    let botoes='';
+    if(!p.decisao){
+      if(p.tipo==='prisoes'){
+        botoes='<button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR AVALIAÇÃO</button>';
+      } else {
+        botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button>'
+              +'<button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>';
+      }
+    }
 
     return '<div class="card" style="margin-bottom:16px;">'
       +'<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;">'
@@ -608,7 +630,7 @@ function vAnaliseProvas(){
       +'</div>'
       +'<div style="margin-bottom:10px;">'+decBadge+'</div>'
       +corpo
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
         +'<button class="btn btn-ghost btn-sm" onclick="togglePQ(\'pq-'+p.id+'\')">👁 VER / OCULTAR RESPOSTAS</button>'
         +botoes
       +'</div>'
@@ -616,24 +638,20 @@ function vAnaliseProvas(){
   }).join('');
 
   return '<div class="stitle">▸ ANÁLISE DE PROVAS</div>'
-    +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo.</p>'
+    +'<p style="color:var(--text-mid);font-size:.8rem;margin-bottom:14px;">Resposta errada do candidato em <span style="color:#f87171;">vermelho</span> • resposta correta em <span style="color:#4ade80;">verde</span> logo abaixo. Provas de cargo com nota ≥ 70 mostram os botões <b>PROMOVER</b> e <b>REPROVAR</b>.</p>'
     +cards;
 }
-// prompts locais p/ análise da prova de prisões
-const PRISOES_QUESTOES_LOCAL = [
-  'Cite todos os comandos em ordem para efetuar prisões.',
-  'Qual procedimento para levar o preso para comer?',
-  'Como funciona o QTH PS?',
-  'Como funciona o QTH HP?',
-  'Cite 4 regras da PF que não podem ser quebradas.',
-  'O que é abuso de poder? Cite 3 exemplos.',
-  'Quais regras de carregamento?',
-  'Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).',
-  'Cite a cadeia de comando e a hierarquia.',
-  'O que é insubordinação?'
-];
 
-function togglePQ(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
+// FUNÇÃO CRÍTICA — esta estava faltando no seu arquivo!
+function togglePQ(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  if(el.style.display==='none' || el.style.display===''){
+    el.style.display='block';
+  } else {
+    el.style.display='none';
+  }
+}
 
 async function decidirProva(id,decisao){
   const p=STATE.provas.find(x=>x.id===id); if(!p)return;
@@ -657,7 +675,7 @@ function vInicio(){
   const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
   const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
   const msgs={
-    admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo: rebaixar qualquer cargo, criar usuários de qualquer patente, suspender, excluir, avaliar provas e controlar o sistema inteiro.' : 'Acesso total ao sistema.',
+    admin: isMaster() ? 'ACESSO TOTAL ABSOLUTO. Você pode tudo.' : 'Acesso total ao sistema.',
     chefe:'Você pode alterar cargos, gerenciar usuários, avaliar provas e supervisionar a corporação.',
     delegado:'Você pode aceitar ou recusar ocorrências, avaliar provas e supervisionar os Escrivãos.',
     escrivao:'Você pode aceitar ou recusar ocorrências e fazer a Prova de Delegado.',
@@ -952,16 +970,16 @@ function vPontos(){
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
   let folgaHtml='';
-  if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">\ud83c\udf34 HOJE \u00c9 SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
-  else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">\ud83c\udf34 Pr\u00f3xima folga concedida: '+folgaDia+'</div>';
-  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados \u2014 a cada 6 dias, 1 dia de folga.</div>';
+  if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">🌴 HOJE É SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
+  else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">🌴 Próxima folga concedida: '+folgaDia+'</div>';
+  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados — a cada 6 dias, 1 dia de folga.</div>';
   const minhaTab=mine.length
     ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
       +[...mine].reverse().slice(0,20).map(function(p){
         let det='';let tipoLbl,tipoCor;
-        if(p.type==='entrada'){tipoLbl='\u25b6 ENTRADA';tipoCor='color:#4ade80;';}
-        else if(p.type==='folga'){tipoLbl='\ud83c\udf34 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>';}
-        else{tipoLbl='\u23f9 SAÍDA';tipoCor='color:#f87171;';}
+        if(p.type==='entrada'){tipoLbl='▶ ENTRADA';tipoCor='color:#4ade80;';}
+        else if(p.type==='folga'){tipoLbl='🌴 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>';}
+        else{tipoLbl='⏹ SAÍDA';tipoCor='color:#f87171;';}
         if(p.type==='saida'&&p.trabalhado!==undefined){
           const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;
           det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
@@ -972,13 +990,13 @@ function vPontos(){
       }).join('')+'</tbody></table>'
     :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
   const botaoPonto = isClockedIn
-    ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
-    : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
+    ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">⏹ ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
+    : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">▶ BATER ENTRADA</button>';
   var supervHtml='';
   if(isSuperv){
     const tabelaHoje=hoje2.length
       ?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'
-        +hoje2.map(function(p){const lbl=p.type==='folga'?'\ud83c\udf34':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>'
+        +hoje2.map(function(p){const lbl=p.type==='folga'?'🌴':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>'
       :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
     const tabelaAgentes=Object.entries(porUser).map(function(kv){
       const login=kv[0],pts=kv[1];
@@ -987,18 +1005,18 @@ function vPontos(){
       const rows=[...pts].reverse().map(function(p){
         return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';
       }).join('');
-      return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+      return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
     }).join('');
-    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'+tabelaAgentes+'</div>';
+    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
-  return '<div class="stitle">\u25b8 BATER PONTO</div>'
+  return '<div class="stitle">▸ BATER PONTO</div>'
     +'<div class="card" style="margin-bottom:20px;text-align:center;">'
-      +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">\u25b8 REGISTRO DE PONTO</div>'
+      +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div>'
       +'<div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div>'
       +'<div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'
       +botaoPonto+folgaHtml+cicloHtml
     +'</div>'
-    +'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'+minhaTab+'</div>'
+    +'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'
     +supervHtml;
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
@@ -1081,5 +1099,5 @@ function toast(txt,type='i',duration=3800){
 }
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-// ══ INIT ═
+// ══ INIT ══
 window.onload=()=>{initWebSocket();checkSession();};
