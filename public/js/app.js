@@ -149,7 +149,6 @@ function showCargoNotif(html,type){const n=document.createElement('div');n.class
 function showLogin(){document.getElementById('s-panel').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-login').classList.add('active');setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);}
 function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);updateNotif();}
 
-// ══ TABS — ADICIONADO "▸ ROLETA" ══
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
   const base=[{label:'▸ INÍCIO',key:'home',notif:false}];
@@ -441,17 +440,20 @@ async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{awa
 async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
 
 // ════════════════════════════════════════════════════════════
-// ══ ROLETA — 1 GIRO A CADA 24H ═══════════════════════════
+// ══ ROLETA — DESIGN PROFISSIONAL + GIROS BÔNUS MASTER ═══
 // ════════════════════════════════════════════════════════════
 const ROLETA_LS_KEY='gmpol_roleta_ultimo_giro';
+const ROLETA_BONUS_KEY='gmpol_roleta_giros_bonus';
 const ROLETA_CARGOS_PERMITIDOS=['gm','agente','tatico','escrivao'];
 
 function vRoleta(){
-  const cargoPermitido=ROLETA_CARGOS_PERMITIDOS.includes(me.cargo);
-  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY);
+  const cargoPermitido=ROLETA_CARGOS_PERMITIDOS.includes(me.cargo)||isMaster();
+  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY+'_'+me.user);
+  const girosBonusStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+me.user);
+  const girosBonus=girosBonusStr?parseInt(girosBonusStr):0;
   const agora=Date.now();
   const cooldownMs=24*60*60*1000;
-  const podeGirar=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs;
+  const podeGirar=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs||girosBonus>0;
   const horasRestantes=ultimoGiro?Math.max(0,Math.ceil((cooldownMs-(agora-parseInt(ultimoGiro)))/3600000)):0;
 
   if(!cargoPermitido){
@@ -466,48 +468,62 @@ function vRoleta(){
       </div>`;
   }
 
+  // Botão de admin para master
+  const adminBtn=isMaster()?`<div style="position:absolute;top:16px;right:16px;z-index:10;">
+    <button class="btn btn-warn btn-sm" onclick="abrirModalBonus()" style="font-size:.72rem;padding:8px 14px;">
+      🎁 Liberar Giros
+    </button>
+  </div>`:'';
+
   const cardCooldown=podeGirar?'':`<div class="card" style="margin-bottom:20px;text-align:center;padding:30px 20px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);">
     <div style="font-size:2rem;margin-bottom:12px;">⏰</div>
     <div style="font-size:.95rem;font-weight:700;color:var(--warn);margin-bottom:6px;">Você já girou hoje!</div>
     <div style="color:var(--text-mid);font-size:.82rem;line-height:1.5;">
       Próximo giro disponível em <b style="color:var(--warn);">${horasRestantes}h</b>
     </div>
+    ${girosBonus>0?`<div style="margin-top:12px;padding:10px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);border-radius:8px;">
+      <div style="color:#4ade80;font-size:.78rem;font-weight:600;">🎁 Você tem ${girosBonus} giro(s) bônus!</div>
+    </div>`:''}
   </div>`;
 
-  return `<div class="stitle">▸ ROLETA DA SORTE</div>
+  return `<div class="stitle" style="position:relative;">▸ ROLETA DA SORTE${adminBtn}</div>
     ${cardCooldown}
-    <div class="card" style="margin-bottom:20px;">
-      <div style="text-align:center;margin-bottom:20px;">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">🎰 PRÊMIOS DISPONÍVEIS</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:16px;">
-          <div style="padding:14px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#4ade80;font-weight:800;margin-bottom:4px;">R$ 100</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">49.8% de chance</div>
+    <div class="card" style="margin-bottom:20px;position:relative;">
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:16px;">🎰 PRÊMIOS DISPONÍVEIS</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;">
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(74,222,128,.15) 0%,rgba(74,222,128,.05) 100%);border:2px solid rgba(74,222,128,.3);border-radius:14px;text-align:center;transition:transform .2s;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#4ade80;font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(74,222,128,.3);">R$ 100</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Comum</div>
           </div>
-          <div style="padding:14px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#60a5fa;font-weight:800;margin-bottom:4px;">R$ 500</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">14.2% de chance</div>
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(96,165,250,.15) 0%,rgba(96,165,250,.05) 100%);border:2px solid rgba(96,165,250,.3);border-radius:14px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#60a5fa;font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(96,165,250,.3);">R$ 500</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Incomum</div>
           </div>
-          <div style="padding:14px;background:rgba(224,192,96,.08);border:1px solid rgba(224,192,96,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:var(--warn);font-weight:800;margin-bottom:4px;">R$ 2.000</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">28.5% de chance</div>
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(224,192,96,.15) 0%,rgba(224,192,96,.05) 100%);border:2px solid rgba(224,192,96,.3);border-radius:14px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:var(--warn);font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(224,192,96,.3);">R$ 2.000</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Raro</div>
           </div>
-          <div style="padding:14px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#f87171;font-weight:800;margin-bottom:4px;">R$ 3.000</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">3.6% de chance</div>
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(248,113,113,.15) 0%,rgba(248,113,113,.05) 100%);border:2px solid rgba(248,113,113,.3);border-radius:14px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#f87171;font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(248,113,113,.3);">R$ 3.000</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Muito Raro</div>
           </div>
-          <div style="padding:14px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#a78bfa;font-weight:800;margin-bottom:4px;">R$ 4.000</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">3.6% de chance</div>
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(167,139,250,.15) 0%,rgba(167,139,250,.05) 100%);border:2px solid rgba(167,139,250,.3);border-radius:14px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#a78bfa;font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(167,139,250,.3);">R$ 4.000</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Épico</div>
           </div>
-          <div style="padding:14px;background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.25);border-radius:12px;text-align:center;">
-            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#ec4899;font-weight:800;margin-bottom:4px;">R$ 10.000</div>
-            <div style="font-size:.62rem;color:var(--text-dim);">0.35% de chance</div>
+          <div style="padding:16px;background:linear-gradient(135deg,rgba(236,72,153,.15) 0%,rgba(236,72,153,.05) 100%);border:2px solid rgba(236,72,153,.4);border-radius:14px;text-align:center;position:relative;">
+            <div style="position:absolute;top:-8px;right:-8px;background:var(--warn);color:#000;font-size:.55rem;font-weight:700;padding:3px 8px;border-radius:10px;">LEGENDÁRIO</div>
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.4rem;color:#ec4899;font-weight:800;margin-bottom:4px;text-shadow:0 0 10px rgba(236,72,153,.3);">R$ 10.000</div>
+            <div style="font-size:.68rem;color:var(--text-dim);">Ultra Raro</div>
           </div>
         </div>
       </div>
-      <div style="text-align:center;">
-        <button class="btn btn-primary" id="btn-girar-roleta" onclick="girarRoleta()" style="max-width:280px;font-size:1rem;padding:14px 24px;" ${podeGirar?'':'disabled'}>
+      <div style="text-align:center;margin-top:24px;">
+        ${girosBonus>0?`<div style="margin-bottom:12px;padding:10px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:10px;">
+          <div style="color:#4ade80;font-size:.82rem;font-weight:600;">🎁 ${girosBonus} giro(s) bônus disponível(is)</div>
+        </div>`:''}
+        <button class="btn btn-primary" id="btn-girar-roleta" onclick="girarRoleta()" style="max-width:300px;font-size:1.05rem;padding:16px 32px;box-shadow:0 4px 20px rgba(255,255,255,.2);" ${podeGirar?'':'disabled'}>
           ${podeGirar?'🎰 GIRAR ROLETA':'⏰ AGUARDE '+horasRestantes+'H'}
         </button>
       </div>
@@ -521,32 +537,124 @@ function vRoleta(){
       </div>
     </div>
     <style>
-      .roleta-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(8px);}
-      .roleta-wheel{width:280px;height:280px;border-radius:50%;border:8px solid var(--accent);position:relative;transition:transform 4s cubic-bezier(0.17,0.67,0.12,0.99);background:conic-gradient(from 0deg,#4ade80 0deg 179.28deg,#60a5fa 179.28deg 230.4deg,#e0c060 230.4deg 333deg,#f87171 333deg 345.96deg,#a78bfa 345.96deg 358.92deg,#ec4899 358.92deg 360deg);box-shadow:0 0 60px rgba(255,255,255,.3);}
-      .roleta-pointer{position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-top:30px solid var(--accent);z-index:10;}
-      .roleta-result{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(14,14,16,.95);border:2px solid var(--accent);border-radius:16px;padding:20px 30px;text-align:center;}
-      .roleta-result-text{font-family:'Orbitron',sans-serif;font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:8px;}
-      .roleta-result-sub{font-size:.78rem;color:var(--text-mid);}
+      .roleta-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+      .roleta-container{position:relative;display:flex;flex-direction:column;align-items:center;gap:30px;}
+      .roleta-wheel-wrap{position:relative;width:320px;height:320px;}
+      .roleta-wheel{width:100%;height:100%;border-radius:50%;border:10px solid var(--accent);position:relative;transition:transform 4.5s cubic-bezier(0.17,0.67,0.12,0.99);background:conic-gradient(from 0deg,#4ade80 0deg 179.28deg,#60a5fa 179.28deg 230.4deg,#e0c060 230.4deg 333deg,#f87171 333deg 345.96deg,#a78bfa 345.96deg 358.92deg,#ec4899 358.92deg 360deg);box-shadow:0 0 80px rgba(255,255,255,.4),inset 0 0 40px rgba(0,0,0,.3);}
+      .roleta-wheel::before{content:'';position:absolute;top:50%;left:50%;width:60px;height:60px;transform:translate(-50%,-50%);background:var(--accent);border-radius:50%;border:4px solid #fff;z-index:5;}
+      .roleta-wheel::after{content:'🎰';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.8rem;z-index:6;}
+      .roleta-pointer{position:absolute;top:-25px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;border-top:40px solid var(--accent);z-index:10;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5));}
+      .roleta-pointer::after{content:'';position:absolute;top:-44px;left:-6px;width:12px;height:12px;background:#fff;border-radius:50%;}
+      .roleta-result{background:rgba(14,14,16,.98);border:3px solid var(--accent);border-radius:20px;padding:30px 40px;text-align:center;box-shadow:0 8px 40px rgba(255,255,255,.3);animation:resultPulse 2s ease-in-out infinite;}
+      @keyframes resultPulse{0%,100%{box-shadow:0 8px 40px rgba(255,255,255,.3);}50%{box-shadow:0 8px 60px rgba(255,255,255,.5);}}
+      .roleta-result-icon{font-size:4rem;margin-bottom:16px;}
+      .roleta-result-text{font-family:'Orbitron',sans-serif;font-size:2.5rem;font-weight:900;color:var(--accent);margin-bottom:12px;text-shadow:0 0 20px rgba(255,255,255,.5);}
+      .roleta-result-sub{font-size:.88rem;color:var(--text-mid);line-height:1.5;margin-bottom:20px;}
+      .roleta-result-sub b{color:var(--warn);}
+      .bonus-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9998;backdrop-filter:blur(8px);}
+      .bonus-modal-content{background:var(--surface);border:2px solid var(--accent);border-radius:18px;padding:28px;max-width:420px;width:90%;max-height:80vh;overflow-y:auto;}
+      .bonus-modal-title{font-family:'Orbitron',sans-serif;font-size:1.1rem;color:var(--accent);margin-bottom:20px;text-align:center;}
+      .bonus-user-item{display:flex;align-items:center;gap:12px;padding:12px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;cursor:pointer;transition:all .2s;}
+      .bonus-user-item:hover{background:rgba(255,255,255,.06);border-color:var(--accent);}
+      .bonus-user-avatar{width:40px;height:40px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;}
+      .bonus-user-info{flex:1;min-width:0;}
+      .bonus-user-name{font-weight:600;font-size:.88rem;margin-bottom:2px;}
+      .bonus-user-cargo{font-size:.68rem;color:var(--text-dim);}
+      .bonus-user-giros{font-size:.72rem;color:#4ade80;font-weight:600;}
     </style>`;
 }
 
+function abrirModalBonus(){
+  if(!isMaster())return;
+  
+  const usuarios=STATE.users.filter(u=>ROLETA_CARGOS_PERMITIDOS.includes(u.cargo));
+  
+  const modal=document.createElement('div');
+  modal.className='bonus-modal';
+  modal.id='bonus-modal';
+  modal.innerHTML=`
+    <div class="bonus-modal-content">
+      <div class="bonus-modal-title">🎁 Liberar Giros Bônus</div>
+      <div style="font-size:.78rem;color:var(--text-mid);margin-bottom:20px;text-align:center;line-height:1.5;">
+        Selecione um usuário e informe quantos giros extras deseja liberar.
+      </div>
+      <div id="bonus-users-list">
+        ${usuarios.map(u=>{
+          const girosBonusStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+u.user);
+          const girosBonus=girosBonusStr?parseInt(girosBonusStr):0;
+          return `<div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')">
+            <div class="bonus-user-avatar">${u.nome.charAt(0).toUpperCase()}</div>
+            <div class="bonus-user-info">
+              <div class="bonus-user-name">${u.nome}</div>
+              <div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]}</div>
+            </div>
+            <div class="bonus-user-giros">${girosBonus>0?`${girosBonus} bônus`:''}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModalBonus()">CANCELAR</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function selecionarUsuarioBonus(user,nome){
+  const giros=prompt(`Quantos giros bônus deseja liberar para ${nome}?\n\nDigite um número:`);
+  if(!giros)return;
+  
+  const numGiros=parseInt(giros);
+  if(isNaN(numGiros)||numGiros<1){
+    toast('Digite um número válido maior que 0.','w');
+    return;
+  }
+  
+  const atualStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+user);
+  const atual=atualStr?parseInt(atualStr):0;
+  localStorage.setItem(ROLETA_BONUS_KEY+'_'+user,(atual+numGiros).toString());
+  
+  toast(`✅ ${numGiros} giro(s) bônus liberado(s) para ${nome}!`,'s',6000);
+  fecharModalBonus();
+  
+  if(user===me.user)renderTab(activeTab);
+}
+
+function fecharModalBonus(){
+  const modal=document.getElementById('bonus-modal');
+  if(modal)modal.remove();
+}
+
 function girarRoleta(){
-  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY);
+  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY+'_'+me.user);
+  const girosBonusStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+me.user);
+  let girosBonus=girosBonusStr?parseInt(girosBonusStr):0;
   const agora=Date.now();
   const cooldownMs=24*60*60*1000;
-  if(ultimoGiro&&(agora-parseInt(ultimoGiro))<cooldownMs){
-    toast('Você já girou hoje. Aguarde o cooldown.','w');
+  const cooldownExpirado=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs;
+  
+  if(!cooldownExpirado&&girosBonus<=0){
+    toast('Você já girou hoje. Aguarde o cooldown ou use giros bônus.','w');
     return;
   }
 
-  // Pesos dos prêmios (normalizados para somar ~140.5)
+  // Se tem giros bônus e o cooldown não expirou, usa o bônus
+  if(!cooldownExpirado&&girosBonus>0){
+    girosBonus--;
+    localStorage.setItem(ROLETA_BONUS_KEY+'_'+me.user,girosBonus.toString());
+  }else{
+    // Cooldown expirou, salva novo timestamp
+    localStorage.setItem(ROLETA_LS_KEY+'_'+me.user,agora.toString());
+  }
+
+  // Pesos dos prêmios (normalizados)
   const premios=[
-    {valor:100,peso:70},
-    {valor:500,peso:20},
-    {valor:2000,peso:40},
-    {valor:3000,peso:5},
-    {valor:4000,peso:5},
-    {valor:10000,peso:0.5}
+    {valor:100,peso:70,cor:'#4ade80',nome:'Comum'},
+    {valor:500,peso:20,cor:'#60a5fa',nome:'Incomum'},
+    {valor:2000,peso:40,cor:'#e0c060',nome:'Raro'},
+    {valor:3000,peso:5,cor:'#f87171',nome:'Muito Raro'},
+    {valor:4000,peso:5,cor:'#a78bfa',nome:'Épico'},
+    {valor:10000,peso:0.5,cor:'#ec4899',nome:'Lendário'}
   ];
   const totalPeso=premios.reduce((s,p)=>s+p.peso,0);
   let random=Math.random()*totalPeso;
@@ -556,38 +664,42 @@ function girarRoleta(){
     if(random<=0){premioSelecionado=p;break;}
   }
 
-  // Salva timestamp
-  localStorage.setItem(ROLETA_LS_KEY,agora.toString());
-
   // Cria modal de roleta
   const modal=document.createElement('div');
   modal.className='roleta-modal';
   modal.innerHTML=`
-    <div style="position:relative;">
-      <div class="roleta-pointer"></div>
-      <div class="roleta-wheel" id="roleta-wheel"></div>
+    <div class="roleta-container">
+      <div class="roleta-wheel-wrap">
+        <div class="roleta-pointer"></div>
+        <div class="roleta-wheel" id="roleta-wheel"></div>
+      </div>
     </div>
   `;
   document.body.appendChild(modal);
 
-  // Anima roleta (giro de 5 a 8 voltas completas)
+  // Anima roleta
   const wheel=document.getElementById('roleta-wheel');
-  const voltas=5+Math.floor(Math.random()*3);
+  const voltas=6+Math.floor(Math.random()*3);
   const anguloFinal=voltas*360+Math.floor(Math.random()*360);
   setTimeout(()=>{wheel.style.transform=`rotate(${anguloFinal}deg)`;},100);
 
-  // Após 4 segundos, mostra resultado
+  // Após 4.5 segundos, mostra resultado
   setTimeout(()=>{
+    const container=modal.querySelector('.roleta-container');
     const resultDiv=document.createElement('div');
     resultDiv.className='roleta-result';
     resultDiv.innerHTML=`
+      <div class="roleta-result-icon">🎉</div>
       <div class="roleta-result-text">R$ ${premioSelecionado.valor.toLocaleString('pt-BR')}</div>
-      <div class="roleta-result-sub">Parabéns! Tire um print e envie no Chat</div>
-      <button class="btn btn-primary" onclick="fecharRoletaModal()" style="margin-top:16px;max-width:200px;">✓ ENTENDI</button>
+      <div class="roleta-result-sub">
+        <b>PARABÉNS!</b> Você ganhou um prêmio <b>${premioSelecionado.nome}</b>!<br>
+        Tire um print e envie no <b>Chat</b> para o superior responsável.
+      </div>
+      <button class="btn btn-primary" onclick="fecharRoletaModal()" style="max-width:200px;">✓ ENTENDI</button>
     `;
-    modal.appendChild(resultDiv);
-    toast('🎉 Você ganhou R$ '+premioSelecionado.valor.toLocaleString('pt-BR')+'! Envie o print no chat.','s',8000);
-  },4200);
+    container.appendChild(resultDiv);
+    toast('🎉 Você ganhou R$ '+premioSelecionado.valor.toLocaleString('pt-BR')+'! Envie o print no chat.','s',10000);
+  },4700);
 }
 
 function fecharRoletaModal(){
