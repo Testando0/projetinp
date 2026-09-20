@@ -9,12 +9,23 @@ function brTimeSec(){return new Date().toLocaleTimeString('pt-BR',{timeZone:'Ame
 function brDate(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});}
 function brDateOf(ts){return new Date(ts).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'});}
 function brDateLong(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();}
+function fmtChatTime(ts){
+  const d=new Date(ts);
+  const hoje=brDate();
+  const diaMsg=brDateOf(ts);
+  const h=d.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'});
+  if(diaMsg===hoje)return h;
+  const ontem=new Date(Date.now()-86400000);
+  if(diaMsg===brDateOf(ontem.getTime()))return 'Ontem '+h;
+  return diaMsg+' '+h;
+}
 
 let me=null,activeTab=0;
-let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[]};
+let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[],chats:[]};
 let _pendingCargoChange=null,_pendingBan=null,_banTimer=null,_clockInterval;
 let _busyPonto=false,_busyPun=false,_keepIv=null;
 let QUESTIONARIO=null,QUESTIONARIO_PRISOES=null,_provaAtiva=null;
+let _chatContatoAtual=null,_chatTimer=null;
 const PROVA_TEMPO_QUESTAO=180;
 const NOMES_PROVA={gm:'PROVA DE PATENTE GUARDA',agente:'PROVA DE PATENTE AGENTE',tatico:'PROVA DE PATENTE TÁTICO',escrivao:'PROVA DE PATENTE DELEGADO'};
 const CSS_PROVA='<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
@@ -23,17 +34,8 @@ const PRISOES_QUESTOES_LOCAL=['Cite todos os comandos em ordem para efetuar pris
 function startKeepAlive(){stopKeepAlive();_keepIv=setInterval(()=>{fetch('/health',{cache:'no-store'}).catch(()=>{});},240000);}
 function stopKeepAlive(){clearInterval(_keepIv);_keepIv=null;}
 
-async function ensureQuestionario(cargo){
-  QUESTIONARIO=QUESTIONARIO||{};
-  if(QUESTIONARIO[cargo])return QUESTIONARIO[cargo];
-  try{QUESTIONARIO[cargo]=await API.request('GET','/prova/questionario?cargo='+cargo);}catch(e){console.error('[q]',e);QUESTIONARIO[cargo]=[];}
-  return QUESTIONARIO[cargo];
-}
-async function ensureQuestionarioPrisoes(){
-  if(QUESTIONARIO_PRISOES)return QUESTIONARIO_PRISOES;
-  try{QUESTIONARIO_PRISOES=await API.request('GET','/prova/questionario?tipo=prisoes');}catch(e){console.error('[q]',e);return[];}
-  return QUESTIONARIO_PRISOES;
-}
+async function ensureQuestionario(cargo){QUESTIONARIO=QUESTIONARIO||{};if(QUESTIONARIO[cargo])return QUESTIONARIO[cargo];try{QUESTIONARIO[cargo]=await API.request('GET','/prova/questionario?cargo='+cargo);}catch(e){console.error('[q]',e);QUESTIONARIO[cargo]=[];}return QUESTIONARIO[cargo];}
+async function ensureQuestionarioPrisoes(){if(QUESTIONARIO_PRISOES)return QUESTIONARIO_PRISOES;try{QUESTIONARIO_PRISOES=await API.request('GET','/prova/questionario?tipo=prisoes');}catch(e){console.error('[q]',e);return[];}return QUESTIONARIO_PRISOES;}
 
 function handleSocketMessage(data){
   const{type,payload}=data;
@@ -61,15 +63,32 @@ function handleSocketMessage(data){
       break;
     case 'USERS_UPDATED':
       if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
-      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos'))renderTab(activeTab);break;
+      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos'))renderTab(activeTab);
+      if(activeTab===getTabIdx('chat'))renderChatListaContatos();
+      break;
     case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
     case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
-    // ══ FEEDBACKS (NOVO) ══
     case 'NEW_FEEDBACK':
       if(activeTab===getTabIdx('home'))renderTab(activeTab);
       if(me&&payload.userLogin!==me.user&&(CARGO_PERM[me.cargo]||0)>=5)toast('⭐ '+payload.nome+' avaliou o sistema com '+payload.nota+'★','i');
       break;
     case 'FEEDBACKS_UPDATED':if(activeTab===getTabIdx('home'))renderTab(activeTab);break;
+    // ══════════ CHAT (NOVO) ══════════
+    case 'NEW_CHAT_MSG':
+      if(me&&activeTab===getTabIdx('chat')){
+        const outra=payload.from===me.user?payload.to:payload.from;
+        if(_chatContatoAtual===outra)renderChatMensagens();
+        renderChatListaContatos();
+        if(payload.from!==me.user){
+          toast('💬 '+payload.fromNome+': '+payload.texto.slice(0,40)+(payload.texto.length>40?'…':''),'i',3000);
+          _tocarNotifChat();
+        }
+      }
+      updateNotif();
+      break;
+    case 'CHAT_MSG_DELETED':
+      if(me&&activeTab===getTabIdx('chat')){renderChatMensagens();renderChatListaContatos();}
+      break;
     case 'USER_BANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:payload.expiresAt,banReason:payload.reason,banBy:payload.banBy}:u);
       if(activeTab===getTabIdx('users'))renderTab(activeTab);
@@ -103,11 +122,11 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;}}catch(_){}
   showPanel();
 }
 
-function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;}
+function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;}
 
 async function apiLoginRetry(u,p,btn){let lastErr=null;for(let i=0;i<3;i++){try{return await API.login(u,p);}catch(e){lastErr=e;const msg=e.message||'';const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);if(!retryable)throw e;if(btn)btn.textContent='▸ ACORDANDO… ('+(i+2)+'/3)';await new Promise(r=>setTimeout(r,1200*(i+1)));}}throw lastErr;}
 
@@ -131,7 +150,26 @@ function showCargoNotif(html,type){const n=document.createElement('div');n.class
 function showLogin(){document.getElementById('s-panel').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-login').classList.add('active');setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);}
 function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);updateNotif();}
 
-function tabDefs(c){const p=CARGO_PERM[c]||0;const base=[{label:'▸ INÍCIO',key:'home',notif:false}];const common=[{label:'▸ REGISTRAR',key:'registrar',notif:false},{label:'▸ MINHAS OCs',key:'myocs',notif:false},{label:'▸ PUNIÇÕES',key:'puns',notif:false},{label:'▸ PONTO',key:'pontos',notif:false},{label:'▸ PROVAS',key:'provas',notif:false}];if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ AUDITORIA',key:'audit',notif:false}];if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];if(p>=5)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true}];return[...base,...common];}
+// ════════════════════════════════════════════════
+// ══ TABS — ADICIONADO 'chat' para todos os cargos ══
+// ════════════════════════════════════════════════
+function tabDefs(c){
+  const p=CARGO_PERM[c]||0;
+  const base=[{label:'▸ INÍCIO',key:'home',notif:false}];
+  const common=[
+    {label:'▸ REGISTRAR',key:'registrar',notif:false},
+    {label:'▸ MINHAS OCs',key:'myocs',notif:false},
+    {label:'▸ PUNIÇÕES',key:'puns',notif:false},
+    {label:'▸ PONTO',key:'pontos',notif:false},
+    {label:'▸ PROVAS',key:'provas',notif:false},
+    {label:'💬 CHAT',key:'chat',notif:true}
+  ];
+  if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ AUDITORIA',key:'audit',notif:false}];
+  if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
+  if(p>=5)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
+  if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true}];
+  return[...base,...common];
+}
 function buildTabs(){const defs=tabDefs(me.cargo);document.getElementById('tabs').innerHTML=defs.map((t,i)=>'<div class="tab '+(i===0?'active':'')+'" id="tab-'+i+'" onclick="switchTab('+i+')">'+t.label+(t.notif?'<span class="tab-n" id="tn-'+i+'" style="display:none"></span>':'')+' </div>').join('');buildMobileDrawer();}
 function buildMobileDrawer(){if(!me)return;const defs=tabDefs(me.cargo);const drawer=document.getElementById('nav-drawer');if(!drawer)return;drawer.innerHTML=defs.map((t,i)=>'<div class="nav-drawer-item'+(i===activeTab?' active':'')+'" onclick="switchTab('+i+');closeNavDrawer();">'+t.label+(t.notif?'<span class="tab-n-badge" id="tnd-'+i+'" style="display:none">0</span>':'')+' </div>').join('');}
 function switchTab(idx){if(_provaAtiva){toast('⚠ Termine ou cancele a prova antes de trocar de aba.','w');return;}activeTab=idx;document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));document.querySelectorAll('.nav-drawer-item').forEach((t,i)=>t.classList.toggle('active',i===idx));renderTab(idx);closeSettings();if(typeof closeNavDrawer==='function')closeNavDrawer();}
@@ -141,9 +179,9 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria};
+  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat};
   const fn=views[def.key]||vInicio;
-  const aplicar=(html)=>{if(activeTab!==idx)return;document.getElementById('content').innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);};
+  const aplicar=(html)=>{if(activeTab!==idx)return;document.getElementById('content').innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);if(def.key==='chat')setTimeout(()=>{renderChatListaContatos();renderChatMensagens();scrollChatBottom();startChatPolling();},50);else stopChatPolling();};
   try{
     const result=fn();
     if(result&&typeof result.then==='function'){
@@ -153,7 +191,27 @@ function renderTab(idx){
   }catch(e){console.error('[renderTab]',e);aplicar('<div class="card">Erro: '+String(e.message||e)+'</div>');}
 }
 
-function updateNotif(){if(!me)return;const pend=STATE.ocs.filter(o=>o.status==='pendente').length;const pill=document.getElementById('notif-pill'),txt=document.getElementById('notif-txt');const ocIdx=tabDefs(me.cargo).findIndex(t=>t.key==='ocs');const tn=document.getElementById('tn-'+ocIdx);const canSee=(CARGO_PERM[me.cargo]||0)>=4;if(canSee&&pend>0){if(pill)pill.classList.add('show');if(txt)txt.textContent=pend+' PENDENTE'+(pend>1?'S':'');if(tn){tn.textContent=pend;tn.style.display='flex';}}else{if(pill)pill.classList.remove('show');if(tn)tn.style.display='none';}const apIdx=tabDefs(me.cargo).findIndex(t=>t.key==='aprovas');const tnA=document.getElementById('tn-'+apIdx);if(tnA){const pendProvas=STATE.provas.filter(p=>!p.decisao).length;if((CARGO_PERM[me.cargo]||0)>=5&&pendProvas>0){tnA.textContent=pendProvas;tnA.style.display='flex';}else tnA.style.display='none';}}
+function updateNotif(){
+  if(!me)return;
+  const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
+  const pill=document.getElementById('notif-pill'),txt=document.getElementById('notif-txt');
+  const ocIdx=tabDefs(me.cargo).findIndex(t=>t.key==='ocs');
+  const tn=document.getElementById('tn-'+ocIdx);
+  const canSee=(CARGO_PERM[me.cargo]||0)>=4;
+  if(canSee&&pend>0){if(pill)pill.classList.add('show');if(txt)txt.textContent=pend+' PENDENTE'+(pend>1?'S':'');if(tn){tn.textContent=pend;tn.style.display='flex';}}
+  else{if(pill)pill.classList.remove('show');if(tn)tn.style.display='none';}
+  const apIdx=tabDefs(me.cargo).findIndex(t=>t.key==='aprovas');
+  const tnA=document.getElementById('tn-'+apIdx);
+  if(tnA){const pendProvas=STATE.provas.filter(p=>!p.decisao).length;if((CARGO_PERM[me.cargo]||0)>=5&&pendProvas>0){tnA.textContent=pendProvas;tnA.style.display='flex';}else tnA.style.display='none';}
+  // ══ NOTIFICAÇÃO DE CHAT (mensagens não lidas) ══
+  const chatIdx=tabDefs(me.cargo).findIndex(t=>t.key==='chat');
+  const tnC=document.getElementById('tn-'+chatIdx);
+  if(tnC){
+    const naoLidas=contarMensagensNaoLidas();
+    if(naoLidas>0){tnC.textContent=naoLidas>99?'99+':naoLidas;tnC.style.display='flex';}
+    else tnC.style.display='none';
+  }
+}
 
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
@@ -267,160 +325,39 @@ async function decidirProva(id,decisao){
   try{await API.decidirProva(id,decisao,me.user);toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':decisao==='aprovado'?'✅ Avaliação de '+p.nome+' aprovada!':'❌ '+p.nome+' reprovado(a).',decisao==='reprovado'?'w':'s');}catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ INÍCIO — COM AVALIAÇÃO DO APP (NOVO) ═════════════════════
-// ══════════════════════════════════════════════════════════════
 function vInicio(){
   const p=CARGO_PERM[me.cargo]||0;
   const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
   const ace=STATE.ocs.filter(o=>o.status==='aceita').length;
   const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
   const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
-
-  // ── MÉTRICAS DE FEEDBACK ──
   const fbs=STATE.feedbacks||[];
   const totalFbs=fbs.length;
   const mediaFb=totalFbs>0?(fbs.reduce((a,f)=>a+(f.nota||0),0)/totalFbs):0;
   const mediaStr=mediaFb>0?mediaFb.toFixed(1):'—';
   const estrelasMedia=mediaFb>0?renderEstrelasHtml(Math.round(mediaFb)):'<span style="color:var(--text-dim);font-size:.8rem;">sem avaliações</span>';
-
-  // ── MEU ÚLTIMO FEEDBACK (cooldown 24h) ──
   const meuUltimoFb=fbs.find(f=>f.userLogin===me.user);
   const cooldownMs=24*60*60*1000;
   const podeAvaliar=!meuUltimoFb||(Date.now()-meuUltimoFb.ts)>=cooldownMs;
   const horasRestantes=meuUltimoFb?Math.max(0,Math.ceil((cooldownMs-(Date.now()-meuUltimoFb.ts))/3600000)):0;
-
-  // ── CARD DE AVALIAÇÃO DO APP ──
-  const cardAvaliacao=`
-    <div class="card" style="margin-bottom:20px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;">⭐ AVALIE O SISTEMA</div>
-        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">MÉDIA GERAL: <b style="color:var(--warn);font-size:.75rem;">${mediaStr}★</b> (${totalFbs} aval.)</div>
-      </div>
-      <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">${estrelasMedia}</div>
-      ${podeAvaliar?`
-        <p style="color:var(--text-mid);font-size:.85rem;margin-bottom:12px;line-height:1.5;">Sua opinião ajuda a melhorar o GMPOL. <b>De uma nota de 1 a 5 estrelas</b> e deixe suas sugestões.</p>
-        <div id="fb-estrelas" style="display:flex;gap:6px;margin-bottom:12px;user-select:none;">
-          <span class="fb-star" data-n="1" onclick="setEstrela(1)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
-          <span class="fb-star" data-n="2" onclick="setEstrela(2)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
-          <span class="fb-star" data-n="3" onclick="setEstrela(3)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
-          <span class="fb-star" data-n="4" onclick="setEstrela(4)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
-          <span class="fb-star" data-n="5" onclick="setEstrela(5)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
-          <span id="fb-nota-txt" style="margin-left:10px;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text-mid);">(clique para avaliar)</span>
-        </div>
-        <div class="fg"><label>Sugestões e melhorias</label>
-          <textarea id="fb-texto" placeholder="O que podemos melhorar? Tem alguma ideia nova? Conte aqui…" style="min-height:80px;"></textarea>
-        </div>
-        <button class="btn btn-warn" id="btn-fb-enviar" onclick="enviarFeedback()" style="max-width:280px;">📤 ENVIAR AVALIAÇÃO</button>
-      `:`
-        <div style="padding:12px 14px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);border-radius:4px;margin-bottom:10px;">
-          <div style="font-size:.85rem;color:var(--warn);margin-bottom:4px;">✅ Você já avaliou recentemente!</div>
-          <div style="font-size:.72rem;color:var(--text-dim);font-family:'Share Tech Mono',monospace;">Sua nota: <b style="color:var(--warn);">${meuUltimoFb.nota}★</b> • poderá avaliar novamente em <b>${horasRestantes}h</b></div>
-        </div>
-        <div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;margin-bottom:6px;"><b>Sua sugestão foi:</b></div>
-        <div class="dep-box" style="margin-bottom:0;">${(meuUltimoFb.texto||'').replace(/</g,'&lt;')}</div>
-      `}
-    </div>`;
-
-  // ── HISTÓRICO DE AVALIAÇÕES (só pra superiores) ──
+  const cardAvaliacao=`<div class="card" style="margin-bottom:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;">⭐ AVALIE O SISTEMA</div><div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">MÉDIA GERAL: <b style="color:var(--warn);font-size:.75rem;">${mediaStr}★</b> (${totalFbs} aval.)</div></div><div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">${estrelasMedia}</div>${podeAvaliar?`<p style="color:var(--text-mid);font-size:.85rem;margin-bottom:12px;line-height:1.5;">Sua opinião ajuda a melhorar o GMPOL. <b>De uma nota de 1 a 5 estrelas</b> e deixe suas sugestões.</p><div id="fb-estrelas" style="display:flex;gap:6px;margin-bottom:12px;user-select:none;"><span class="fb-star" data-n="1" onclick="setEstrela(1)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="2" onclick="setEstrela(2)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="3" onclick="setEstrela(3)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="4" onclick="setEstrela(4)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="5" onclick="setEstrela(5)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span id="fb-nota-txt" style="margin-left:10px;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text-mid);">(clique para avaliar)</span></div><div class="fg"><label>Sugestões e melhorias</label><textarea id="fb-texto" placeholder="O que podemos melhorar? Tem alguma ideia nova? Conte aqui…" style="min-height:80px;"></textarea></div><button class="btn btn-warn" id="btn-fb-enviar" onclick="enviarFeedback()" style="max-width:280px;">📤 ENVIAR AVALIAÇÃO</button>`:`<div style="padding:12px 14px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);border-radius:4px;margin-bottom:10px;"><div style="font-size:.85rem;color:var(--warn);margin-bottom:4px;">✅ Você já avaliou recentemente!</div><div style="font-size:.72rem;color:var(--text-dim);font-family:'Share Tech Mono',monospace;">Sua nota: <b style="color:var(--warn);">${meuUltimoFb.nota}★</b> • poderá avaliar novamente em <b>${horasRestantes}h</b></div></div><div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;margin-bottom:6px;"><b>Sua sugestão foi:</b></div><div class="dep-box" style="margin-bottom:0;">${(meuUltimoFb.texto||'').replace(/</g,'&lt;')}</div>`}</div>`;
   let histFbHtml='';
   if((CARGO_PERM[me.cargo]||0)>=5&&totalFbs>0){
     const ultimos=fbs.slice(0,10);
-    histFbHtml=`
-      <div class="card" style="margin-bottom:20px;">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">📊 ÚLTIMAS AVALIAÇÕES RECEBIDAS</div>
-        ${ultimos.map(f=>{
-          const dt=new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-          const stars=renderEstrelasHtml(f.nota);
-          const podeDel=(CARGO_PERM[me.cargo]||0)>=6;
-          return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:180px;">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                  <b style="font-size:.9rem;">${f.nome}</b>
-                  <span class="cargo-badge ${CARGO_BADGE_CLASS[f.cargo]||''}" style="font-size:.55rem;">${CARGO_LABEL[f.cargo]||f.cargo}</span>
-                </div>
-                <div style="margin-bottom:4px;">${stars}</div>
-                <div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;">${(f.texto||'').replace(/</g,'&lt;')}</div>
-                <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">${dt}</div>
-              </div>
-              ${podeDel?`<button class="btn btn-danger btn-xs" onclick="excluirFeedback('${f.id}')">🗑</button>`:''}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>`;
+    histFbHtml=`<div class="card" style="margin-bottom:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">📊 ÚLTIMAS AVALIAÇÕES RECEBIDAS</div>${ultimos.map(f=>{const dt=new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});const stars=renderEstrelasHtml(f.nota);const podeDel=(CARGO_PERM[me.cargo]||0)>=6;return `<div style="padding:10px 0;border-bottom:1px solid var(--border);"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;"><div style="flex:1;min-width:180px;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><b style="font-size:.9rem;">${f.nome}</b><span class="cargo-badge ${CARGO_BADGE_CLASS[f.cargo]||''}" style="font-size:.55rem;">${CARGO_LABEL[f.cargo]||f.cargo}</span></div><div style="margin-bottom:4px;">${stars}</div><div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;">${(f.texto||'').replace(/</g,'&lt;')}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">${dt}</div></div>${podeDel?`<button class="btn btn-danger btn-xs" onclick="excluirFeedback('${f.id}')">🗑</button>`:''}</div></div>`;}).join('')}</div>`;
   }
-
-  // ── RESTO DO PAINEL INICIAL ──
   const msgs={admin:isMaster()?'ACESSO TOTAL ABSOLUTO.':'Acesso total.',chefe:'Você pode alterar cargos, gerenciar usuários, avaliar provas e supervisionar a corporação.',delegado:'Você pode aceitar ou recusar ocorrências, avaliar provas e supervisionar os Escrivãos.',escrivao:'Você pode aceitar ou recusar ocorrências e fazer a Prova de Delegado.',tatico:'Você pode solicitar rebaixamento ou punição e fazer a Prova de Tático.',agente:'Você pode registrar ocorrências, bater ponto e fazer a Prova de Agente.',gm:'Você pode registrar ocorrências, bater seu ponto e fazer a Prova de Guarda.'};
   const today=brDateLong();
-
   const statsCards=p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:'';
-
   const auditRecent=STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>';
-
-  return `<div class="stitle">▸ PAINEL INICIAL</div>
-    <div class="card" style="margin-bottom:20px;">
-      <div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div>
-      <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div>
-      <p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p>
-    </div>
-    ${cardAvaliacao}
-    ${histFbHtml}
-    ${statsCards}
-    <div class="card" style="margin-top:20px;">
-      <div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>
-      ${auditRecent}
-    </div>`;
+  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
 }
 
-// helpers de feedback
-function renderEstrelasHtml(n){
-  let s='';
-  for(let i=1;i<=5;i++){
-    s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;
-  }
-  return s;
-}
+function renderEstrelasHtml(n){let s='';for(let i=1;i<=5;i++){s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;}return s;}
 let _fbNotaAtual=0;
-function setEstrela(n){
-  _fbNotaAtual=n;
-  document.querySelectorAll('#fb-estrelas .fb-star').forEach((el,idx)=>{
-    const ativa=idx+1<=n;
-    el.style.color=ativa?'var(--warn)':'var(--text-dim)';
-    el.style.transform=ativa?'scale(1.12)':'scale(1)';
-    el.style.textShadow=ativa?'0 0 8px rgba(224,192,96,.5)':'none';
-  });
-  const labels=['','Péssimo','Ruim','Regular','Bom','Excelente'];
-  const txt=document.getElementById('fb-nota-txt');
-  if(txt)txt.innerHTML=`<b style="color:var(--warn);">${n}★ ${labels[n]}</b>`;
-}
-async function enviarFeedback(){
-  const nota=_fbNotaAtual;
-  const texto=(document.getElementById('fb-texto')?.value||'').trim();
-  if(!nota||nota<1||nota>5){toast('Selecione uma nota de 1 a 5 estrelas.','d');return;}
-  if(texto.length<3){toast('Escreva pelo menos 3 caracteres nas sugestões.','w');return;}
-  const btn=document.getElementById('btn-fb-enviar');
-  if(btn){btn.disabled=true;btn.textContent='▸ ENVIANDO...';}
-  try{
-    await API.createFeedback({userLogin:me.user,nome:me.nome,nota,texto});
-    toast('✅ Avaliação enviada! Obrigado pelo seu feedback.','s',7000);
-    _fbNotaAtual=0;
-    renderTab(activeTab);
-  }catch(e){
-    toast(e.message||'Erro ao enviar avaliação.','d');
-    if(btn){btn.disabled=false;btn.textContent='📤 ENVIAR AVALIAÇÃO';}
-  }
-}
-async function excluirFeedback(id){
-  if(!confirm('Excluir esta avaliação?'))return;
-  try{
-    await API.deleteFeedback(id,me.user);
-    toast('Avaliação excluída.','w');
-    renderTab(activeTab);
-  }catch(e){toast(e.message||'Erro ao excluir.','d');}
-}
+function setEstrela(n){_fbNotaAtual=n;document.querySelectorAll('#fb-estrelas .fb-star').forEach((el,idx)=>{const ativa=idx+1<=n;el.style.color=ativa?'var(--warn)':'var(--text-dim)';el.style.transform=ativa?'scale(1.12)':'scale(1)';el.style.textShadow=ativa?'0 0 8px rgba(224,192,96,.5)':'none';});const labels=['','Péssimo','Ruim','Regular','Bom','Excelente'];const txt=document.getElementById('fb-nota-txt');if(txt)txt.innerHTML=`<b style="color:var(--warn);">${n}★ ${labels[n]}</b>`;}
+async function enviarFeedback(){const nota=_fbNotaAtual;const texto=(document.getElementById('fb-texto')?.value||'').trim();if(!nota||nota<1||nota>5){toast('Selecione uma nota de 1 a 5 estrelas.','d');return;}if(texto.length<3){toast('Escreva pelo menos 3 caracteres nas sugestões.','w');return;}const btn=document.getElementById('btn-fb-enviar');if(btn){btn.disabled=true;btn.textContent='▸ ENVIANDO...';}try{await API.createFeedback({userLogin:me.user,nome:me.nome,nota,texto});toast('✅ Avaliação enviada! Obrigado pelo seu feedback.','s',7000);_fbNotaAtual=0;renderTab(activeTab);}catch(e){toast(e.message||'Erro ao enviar avaliação.','d');if(btn){btn.disabled=false;btn.textContent='📤 ENVIAR AVALIAÇÃO';}}}
+async function excluirFeedback(id){if(!confirm('Excluir esta avaliação?'))return;try{await API.deleteFeedback(id,me.user);toast('Avaliação excluída.','w');renderTab(activeTab);}catch(e){toast(e.message||'Erro ao excluir.','d');}}
 
 function vRegistrar(){return `<div class="stitle">▸ REGISTRAR OCORRÊNCIA / DENÚNCIA</div><div class="card"><p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar.</p><div class="g2"><div class="fg"><label>Tipo</label><select id="oc-tipo"><option value="Ocorrência">Ocorrência</option><option value="Denúncia">Denúncia</option></select></div><div class="fg"><label>Nome do Envolvido</label><input id="oc-nome" placeholder="Nome completo"></div><div class="fg"><label>Cargo do Envolvido</label><select id="oc-cargo"><option>Guarda municipal</option><option>Agente oficial</option><option>Tático</option><option>Escrivão</option><option>Delegado</option><option>Chefe de polícia</option><option>Admin master</option><option>Civil</option><option>Outro</option></select></div><div class="fg g-full"><label>Depoimento / Relato</label><textarea id="oc-dep" placeholder="Descreva…"></textarea></div></div><button class="btn btn-primary" style="margin-top:8px;max-width:260px;" onclick="registrarOc()">▸ ENVIAR REGISTRO</button></div>`;}
 async function registrarOc(){const tipo=document.getElementById('oc-tipo')?.value||'Ocorrência';const nome=document.getElementById('oc-nome')?.value.trim();const cargo=document.getElementById('oc-cargo')?.value;const dep=document.getElementById('oc-dep')?.value.trim();if(!nome||!dep){toast('Preencha nome e depoimento.','d');return;}const oc={id:(tipo==='Denúncia'?'DN':'OC')+'-'+Date.now(),tipo,autor:me.nome,autorUser:me.user,autorCargo:me.cargo,delegado:me.nome,delegadoUser:me.user,nome,cargo,depoimento:dep,status:'pendente',resposta:'',ts:Date.now()};try{await API.createOc(oc);toast(tipo+' enviada!','s');const i=tabDefs(me.cargo).findIndex(t=>t.key==='myocs');if(i!==-1)switchTab(i);}catch(e){toast(e.message||'Erro.','d');}}
@@ -461,209 +398,251 @@ function vPunicoes(){const myP=CARGO_PERM[me.cargo]||0,canEdit=myP>=3;const nc=n
 async function addPun(){if(_busyPun)return;_busyPun=true;const btn=document.getElementById('btn-addpun');if(btn){btn.disabled=true;btn.textContent='▸ REGISTRANDO…';}try{const nome=document.getElementById('pn-nome')?.value.trim(),motivo=document.getElementById('pn-motivo')?.value.trim(),nivel=document.getElementById('pn-nivel')?.value;if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}await API.createPun({nome,motivo,nivel,autor:me.nome,ts:Date.now()});toast('Punição registrada.','s');const n=document.getElementById('pn-nome'),m=document.getElementById('pn-motivo');if(n)n.value='';if(m)m.value='';}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPun=false;const b=document.getElementById('btn-addpun');if(b){b.disabled=false;b.textContent='▸ REGISTRAR';}},1200);}}
 async function delPun(idx){try{const p=STATE.puns[idx];if(p&&p.id)await API.deletePunById(p.id,me.nome);else await API.deletePun(idx,me.nome);toast('Removida.','w');}catch(e){toast(e.message||'Erro.','d');}}
 
-// ════════════════════════════════════════════════════════════
-// ══ PONTO — COM BANCO DE HORAS (NOVO) ══════════════════════
-// ════════════════════════════════════════════════════════════
-
-// helper: formata minutos como "Xh Ymin"
-function fmtHM(mins){
-  if(!mins||mins<=0)return '0h';
-  const h=Math.floor(mins/60),m=mins%60;
-  return h+'h'+(m>0?m.toString().padStart(2,'0'):'');
-}
-
-// helper: soma totais do banco de horas de um usuário
-function somarBancoHoras(userLogin){
-  const pontosUser=STATE.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);
-  let totalTrab=0, totalExtra=0, totalDebt=0, totalReais=0, turnos=0;
-  pontosUser.forEach(p=>{
-    totalTrab  += (p.trabalhado  || 0);
-    totalExtra += (p.extraMins   || 0);
-    totalDebt  += (p.debtMins    || 0);
-    totalReais += (p.extraReais  || 0);
-    turnos++;
-  });
-  return { totalTrab, totalExtra, totalDebt, totalReais, turnos };
-}
+function fmtHM(mins){if(!mins||mins<=0)return '0h';const h=Math.floor(mins/60),m=mins%60;return h+'h'+(m>0?m.toString().padStart(2,'0'):'');}
+function somarBancoHoras(userLogin){const pontosUser=STATE.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);let totalTrab=0,totalExtra=0,totalDebt=0,totalReais=0,turnos=0;pontosUser.forEach(p=>{totalTrab+=(p.trabalhado||0);totalExtra+=(p.extraMins||0);totalDebt+=(p.debtMins||0);totalReais+=(p.extraReais||0);turnos++;});return{totalTrab,totalExtra,totalDebt,totalReais,turnos};}
 
 function vPontos(){
-  const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
+  const myP=CARGO_PERM[me.cargo]||0,isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
-  const lastPonto = mine.length ? mine[mine.length - 1] : null;
-  const isClockedIn = lastPonto && lastPonto.type === 'entrada';
+  const lastPonto=mine.length?mine[mine.length-1]:null;
+  const isClockedIn=lastPonto&&lastPonto.type==='entrada';
   const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});
-  const hojeBr=brDate();
-  const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);
-  const FM="font-family:'Share Tech Mono',monospace;";
-  const FO="font-family:'Orbitron',sans-serif;";
+  const hojeBr=brDate();const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);
+  const FM="font-family:'Share Tech Mono',monospace;";const FO="font-family:'Orbitron',sans-serif;";
   const uMe=STATE.users.find(u=>u.user===me.user);
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
   let folgaHtml='';
-  if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">\ud83c\udf34 HOJE \u00c9 SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
-  else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">\ud83c\udf34 Pr\u00f3xima folga concedida: '+folgaDia+'</div>';
-  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados \u2014 a cada 6 dias, 1 dia de folga.</div>';
-
-  // ══ BANCO DE HORAS (NOVO) ══
+  if(folgaDia===hojeBr)folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">🌴 HOJE É SEU DIA DE FOLGA!</div>';
+  else if(folgaDia)folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">🌴 Próxima folga concedida: '+folgaDia+'</div>';
+  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias</div>';
   const bh=somarBancoHoras(me.user);
   const saldoMin=bh.totalExtra-bh.totalDebt;
   const saldoStr=saldoMin>=0?'+'+fmtHM(saldoMin):'-'+fmtHM(Math.abs(saldoMin));
   const saldoColor=saldoMin>=0?'#4ade80':'#f87171';
-
-  const bancoHorasHtml=`
-    <div class="card" style="margin-bottom:20px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💼 MEU BANCO DE HORAS</div>
-        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${bh.turnos} turno(s) encerrado(s)</div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
-        <div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;text-align:center;">
-          <div style="${FO}font-size:1.5rem;color:var(--text);font-weight:800;margin-bottom:2px;">${fmtHM(bh.totalTrab)}</div>
-          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">TRABALHADAS</div>
-        </div>
-        <div style="padding:14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:12px;text-align:center;">
-          <div style="${FO}font-size:1.5rem;color:#4ade80;font-weight:800;margin-bottom:2px;">+${fmtHM(bh.totalExtra)}</div>
-          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS EXTRAS</div>
-          <div style="${FM}font-size:.68rem;color:#4ade80;margin-top:4px;">R$ ${bh.totalReais.toFixed(2).replace('.',',')}</div>
-        </div>
-        <div style="padding:14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;text-align:center;">
-          <div style="${FO}font-size:1.5rem;color:#f87171;font-weight:800;margin-bottom:2px;">-${fmtHM(bh.totalDebt)}</div>
-          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS DEVIDAS</div>
-        </div>
-        <div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;text-align:center;">
-          <div style="${FO}font-size:1.5rem;color:${saldoColor};font-weight:800;margin-bottom:2px;">${saldoStr}</div>
-          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">SALDO</div>
-        </div>
-      </div>
-
-      <div style="${FM}font-size:.64rem;color:var(--text-dim);line-height:1.5;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;">
-        💡 <b style="color:var(--text-mid);">Como funciona:</b> cada cargo tem uma carga diária (${CARGO_BASE_MINUTES[me.cargo]||0} min). Trabalhar <b style="color:#4ade80;">acima</b> gera horas extras (+R$ 20 a cada 30min). Trabalhar <b style="color:#f87171;">abaixo</b> gera horas devidas.
-      </div>
-    </div>`;
-
-  const minhaTab=mine.length
-    ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
-      +[...mine].reverse().slice(0,20).map(function(p){
-        let det='';let tipoLbl,tipoCor;
-        if(p.type==='entrada'){tipoLbl='\u25b6 ENTRADA';tipoCor='color:#4ade80;';}
-        else if(p.type==='folga'){tipoLbl='\ud83c\udf34 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>';}
-        else{tipoLbl='\u23f9 SAÍDA';tipoCor='color:#f87171;';}
-        if(p.type==='saida'&&p.trabalhado!==undefined){
-          const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;
-          det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
-          if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';
-          if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}
-        }
-        return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');
-      }).join('')+'</tbody></table>'
-    :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
-  const botaoPonto = isClockedIn
-    ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
-    : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
+  const bancoHorasHtml=`<div class="card" style="margin-bottom:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💼 MEU BANCO DE HORAS</div><div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${bh.turnos} turno(s) encerrado(s)</div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;"><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:var(--text);font-weight:800;margin-bottom:2px;">${fmtHM(bh.totalTrab)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">TRABALHADAS</div></div><div style="padding:14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#4ade80;font-weight:800;margin-bottom:2px;">+${fmtHM(bh.totalExtra)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS EXTRAS</div><div style="${FM}font-size:.68rem;color:#4ade80;margin-top:4px;">R$ ${bh.totalReais.toFixed(2).replace('.',',')}</div></div><div style="padding:14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#f87171;font-weight:800;margin-bottom:2px;">-${fmtHM(bh.totalDebt)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS DEVIDAS</div></div><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:${saldoColor};font-weight:800;margin-bottom:2px;">${saldoStr}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">SALDO</div></div></div><div style="${FM}font-size:.64rem;color:var(--text-dim);line-height:1.5;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;">💡 <b style="color:var(--text-mid);">Como funciona:</b> cada cargo tem uma carga diária (${CARGO_BASE_MINUTES[me.cargo]||0} min). Trabalhar <b style="color:#4ade80;">acima</b> gera horas extras (+R$ 20 a cada 30min). Trabalhar <b style="color:#f87171;">abaixo</b> gera horas devidas.</div></div>`;
+  const minhaTab=mine.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'+[...mine].reverse().slice(0,20).map(function(p){let det='';let tipoLbl,tipoCor;if(p.type==='entrada'){tipoLbl='▶ ENTRADA';tipoCor='color:#4ade80;';}else if(p.type==='folga'){tipoLbl='🌴 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga</span>';}else{tipoLbl='⏹ SAÍDA';tipoCor='color:#f87171;';}if(p.type==='saida'&&p.trabalhado!==undefined){const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}}return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
+  const botaoPonto=isClockedIn?'<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">⏹ ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>':'<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">▶ BATER ENTRADA</button>';
   var supervHtml='';
   if(isSuperv){
-    const tabelaHoje=hoje2.length
-      ?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'
-        +hoje2.map(function(p){const lbl=p.type==='folga'?'\ud83c\udf34':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>'
-      :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
-    const tabelaAgentes=Object.entries(porUser).map(function(kv){
-      const login=kv[0],pts=kv[1];
-      const u=STATE.users.find(function(u){return u.user===login;});
-      const nm=u?u.nome:login;const cg=u?u.cargo:'';
-      const rows=[...pts].reverse().map(function(p){
-        return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';
-      }).join('');
-      return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
-    }).join('');
-    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'+tabelaAgentes+'</div>';
+    const tabelaHoje=hoje2.length?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'+hoje2.map(function(p){const lbl=p.type==='folga'?'🌴':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
+    const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
+    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
-  return '<div class="stitle">\u25b8 BATER PONTO</div>'
-    +'<div class="card" style="margin-bottom:20px;text-align:center;">'
-      +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">\u25b8 REGISTRO DE PONTO</div>'
-      +'<div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div>'
-      +'<div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'
-      +botaoPonto+folgaHtml+cicloHtml
-    +'</div>'
-    +bancoHorasHtml
-    +'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'+minhaTab+'</div>'
-    +supervHtml;
+  return '<div class="stitle">▸ BATER PONTO</div>'+'<div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div>'+bancoHorasHtml+'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
-function startClock(){
-  clearInterval(_clockInterval);
-  _clockInterval=setInterval(()=>{
-    const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');
-    if(!ce){clearInterval(_clockInterval);return;}
-    ce.textContent=brTimeSec();
-    if(de)de.textContent=brDateLong();
-  },1000);
-}
-async function baterPonto(type){
-  if(_busyPonto)return; _busyPonto=true;
-  try{
-    const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};
-    const res=await API.createPonto(p);
-    if(res&&res.error){toast(res.error,'d');return;}
-    if(type==='entrada'){ toast('✅ Entrada registrada às '+p.hora+' (horário de Brasília)!','s'); }
-    else{
-      const rp=(res&&res.ponto)?res.ponto:{};
-      if(rp.trabalhado!==undefined){
-        const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;
-        let msg='✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
-        if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Horas extras: R$ '+rp.extraReais+',00</b>';
-        if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';}
-        if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga concedida para '+rp.folgaDia+'!</b>';
-        toast(msg,'s',9000);
-      } else toast('✅ Saída registrada às '+p.hora+'!','s');
+function startClock(){clearInterval(_clockInterval);_clockInterval=setInterval(()=>{const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');if(!ce){clearInterval(_clockInterval);return;}ce.textContent=brTimeSec();if(de)de.textContent=brDateLong();},1000);}
+async function baterPonto(type){if(_busyPonto)return;_busyPonto=true;try{const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};const res=await API.createPonto(p);if(res&&res.error){toast(res.error,'d');return;}if(type==='entrada'){toast('✅ Entrada registrada às '+p.hora+'!','s');}else{const rp=(res&&res.ponto)?res.ponto:{};if(rp.trabalhado!==undefined){const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;let msg='✅ Turno encerrado às '+p.hora+'! Total: '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00');if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Extras: R$ '+rp.extraReais+'</b>';if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</b>';}if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga: '+rp.folgaDia+'</b>';toast(msg,'s',9000);}else toast('✅ Saída registrada às '+p.hora+'!','s');}renderTab(activeTab);}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPonto=false;},1500);}}
+
+function vAuditoria(){const logs=STATE.audit;if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';}
+async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}}
+
+async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
+
+// ════════════════════════════════════════════════════════════
+// ══ CHAT PRIVADO 1:1 (NOVO) ═══════════════════════════════
+// ════════════════════════════════════════════════════════════
+const CHAT_LS_KEY='gmpol_chat_lidos_v1';
+function _lerLidos(){try{return JSON.parse(localStorage.getItem(CHAT_LS_KEY)||'{}');}catch(_){return{};}}
+function _salvarLido(obj){try{localStorage.setItem(CHAT_LS_KEY,JSON.stringify(obj));}catch(_){}}
+function contarMensagensNaoLidas(){
+  if(!me)return 0;
+  const lidos=_lerLidos();
+  let total=0;
+  (STATE.chats||[]).forEach(m=>{
+    if(m.to===me.user&&m.from!==me.user){
+      if(!lidos[m.id]){total++;}
     }
-    renderTab(activeTab);
-  }catch(e){toast(e.message||'Erro.','d');}
-  finally{ setTimeout(()=>{_busyPonto=false;},1500); }
+  });
+  return total;
+}
+function _marcarConversaComoLida(outroUser){
+  const lidos=_lerLidos();
+  let mudou=false;
+  (STATE.chats||[]).forEach(m=>{
+    if(m.from===outroUser&&m.to===me.user&&!lidos[m.id]){lidos[m.id]=1;mudou=true;}
+  });
+  if(mudou){_salvarLido(lidos);updateNotif();}
 }
 
-function vAuditoria(){
-  const logs=STATE.audit;
-  if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');
-  return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';
-}
-async function limparAuditoria(){
-  if(!confirm('Limpar auditoria?'))return;
-  try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}
+function vChat(){
+  return `<div class="stitle">▸ CHAT PRIVADO</div>
+    <div style="display:grid;grid-template-columns:280px 1fr;gap:14px;height:calc(100vh - 180px);min-height:500px;">
+      <div class="card" style="margin-bottom:0;padding:0;overflow:hidden;display:flex;flex-direction:column;">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💬 CONTATOS</div>
+        </div>
+        <div style="padding:8px 10px;border-bottom:1px solid var(--border);">
+          <input id="chat-busca" placeholder="🔍 Buscar contato…" oninput="renderChatListaContatos()" style="font-size:.8rem;padding:7px 10px;">
+        </div>
+        <div id="chat-lista" style="flex:1;overflow-y:auto;"></div>
+      </div>
+      <div class="card" style="margin-bottom:0;padding:0;overflow:hidden;display:flex;flex-direction:column;">
+        <div id="chat-header" style="padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);min-height:58px;display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--text-dim);font-size:.85rem;">Selecione um contato para iniciar a conversa</span>
+        </div>
+        <div id="chat-msgs" style="flex:1;overflow-y:auto;padding:16px;background:rgba(0,0,0,.2);"></div>
+        <div id="chat-input-wrap" style="padding:10px 12px;border-top:1px solid var(--border);background:rgba(255,255,255,.02);display:none;gap:8px;align-items:center;">
+          <textarea id="chat-input" placeholder="Digite uma mensagem… (Enter para enviar, Shift+Enter para nova linha)" style="flex:1;min-height:42px;max-height:120px;resize:none;font-size:.88rem;padding:9px 12px;" onkeydown="chatInputKeydown(event)"></textarea>
+          <button class="btn btn-primary" onclick="enviarMsgChat()" style="padding:9px 16px;">📤</button>
+        </div>
+      </div>
+    </div>
+    <style>
+      @media (max-width:768px){
+        .content > div > div[style*="grid-template-columns"]{grid-template-columns:1fr !important;height:auto !important;}
+        .content > div > div[style*="grid-template-columns"] > div{height:380px !important;}
+      }
+      .chat-item{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--border);}
+      .chat-item:hover{background:rgba(255,255,255,.04);}
+      .chat-item.ativo{background:rgba(255,255,255,.08);border-left:3px solid var(--accent);}
+      .chat-msg-wrap{display:flex;margin-bottom:8px;max-width:75%;}
+      .chat-msg-wrap.enviada{margin-left:auto;justify-content:flex-end;}
+      .chat-msg-wrap.recebida{margin-right:auto;}
+      .chat-msg{padding:8px 12px;border-radius:16px;font-size:.88rem;line-height:1.45;word-wrap:break-word;position:relative;}
+      .chat-msg.enviada{background:rgba(74,222,128,.15);color:var(--text);border:1px solid rgba(74,222,128,.25);border-bottom-right-radius:4px;}
+      .chat-msg.recebida{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border2);border-bottom-left-radius:4px;}
+      .chat-msg-time{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-top:2px;text-align:right;}
+      .chat-nao-lido{width:8px;height:8px;background:var(--danger);border-radius:50%;margin-left:auto;flex-shrink:0;}
+    </style>`;
 }
 
-async function alterarSenhaPropria(){
-  const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;
-  if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}
-  if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}
-  if(nv!==cf){toast('Confirmação de senha não confere.','d');return;}
+function renderChatListaContatos(){
+  const lista=document.getElementById('chat-lista');
+  if(!lista||!me)return;
+  const busca=(document.getElementById('chat-busca')?.value||'').toLowerCase().trim();
+  const outros=STATE.users.filter(u=>u.user!==me.user&&u.ativo!==false).sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  // ordena: contatos com mensagens recentes primeiro
+  const ultimaMsg={};
+  (STATE.chats||[]).forEach(m=>{
+    if(m.from===me.user||m.to===me.user){
+      const outro=m.from===me.user?m.to:m.from;
+      if(!ultimaMsg[outro]||m.ts>ultimaMsg[outro].ts)ultimaMsg[outro]=m;
+    }
+  });
+  outros.sort((a,b)=>{
+    const ta=ultimaMsg[a.user]?.ts||0;
+    const tb=ultimaMsg[b.user]?.ts||0;
+    return tb-ta;
+  });
+  const filtrados=busca?outros.filter(u=>(u.nome||'').toLowerCase().includes(busca)||(u.user||'').toLowerCase().includes(busca)):outros;
+  if(!filtrados.length){lista.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:.8rem;">Nenhum contato.</div>';return;}
+  const lidos=_lerLidos();
+  lista.innerHTML=filtrados.map(u=>{
+    const ult=ultimaMsg[u.user];
+    const preview=ult?(ult.from===me.user?'Você: ':'')+ult.texto.slice(0,32)+(ult.texto.length>32?'…':''):'';
+    const naoLidas=(STATE.chats||[]).filter(m=>m.from===u.user&&m.to===me.user&&!lidos[m.id]).length;
+    const ativo=_chatContatoAtual===u.user?'ativo':'';
+    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')">
+      <div class="u-avatar" style="width:36px;height:36px;font-size:.82rem;">${(u.nome||'?').charAt(0).toUpperCase()}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;gap:6px;align-items:center;">
+          <b style="font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</b>
+          <span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${preview||'<i>sem mensagens</i>'}</div>
+      </div>
+      ${naoLidas>0?`<div class="chat-nao-lido" title="${naoLidas} nova(s)"></div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function abrirChatCom(userLogin){
+  _chatContatoAtual=userLogin;
+  _marcarConversaComoLida(userLogin);
+  const u=STATE.users.find(x=>x.user===userLogin);
+  const header=document.getElementById('chat-header');
+  if(header&&u){
+    header.innerHTML=`<div class="u-avatar" style="width:38px;height:38px;font-size:.88rem;">${u.nome.charAt(0).toUpperCase()}</div>
+      <div>
+        <div style="font-weight:700;font-size:.95rem;">${u.nome}</div>
+        <div style="font-size:.68rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div>
+      </div>`;
+  }
+  const inputWrap=document.getElementById('chat-input-wrap');
+  if(inputWrap)inputWrap.style.display='flex';
+  renderChatListaContatos();
+  renderChatMensagens();
+  setTimeout(()=>{scrollChatBottom();document.getElementById('chat-input')?.focus();},80);
+}
+
+function renderChatMensagens(){
+  const area=document.getElementById('chat-msgs');
+  if(!area||!me||!_chatContatoAtual){
+    if(area)area.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-dim);font-size:.85rem;">👈 Selecione um contato para ver a conversa</div>';
+    return;
+  }
+  const msgs=(STATE.chats||[]).filter(m=>
+    (m.from===me.user&&m.to===_chatContatoAtual)||(m.from===_chatContatoAtual&&m.to===me.user)
+  ).sort((a,b)=>a.ts-b.ts);
+  if(!msgs.length){
+    area.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-dim);font-size:.85rem;">💬 Nenhuma mensagem ainda.<br><span style="font-size:.72rem;">Envie a primeira!</span></div>';
+    return;
+  }
+  area.innerHTML=msgs.map(m=>{
+    const enviada=m.from===me.user;
+    const cls=enviada?'enviada':'recebida';
+    const textoSafe=(m.texto||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    return `<div class="chat-msg-wrap ${cls}">
+      <div>
+        <div class="chat-msg ${cls}">${textoSafe}</div>
+        <div class="chat-msg-time">${fmtChatTime(m.ts)}${enviada?' ✓':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  scrollChatBottom();
+}
+
+function scrollChatBottom(){
+  const area=document.getElementById('chat-msgs');
+  if(area)area.scrollTop=area.scrollHeight;
+}
+
+function chatInputKeydown(ev){
+  if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();enviarMsgChat();}
+}
+
+async function enviarMsgChat(){
+  if(!me||!_chatContatoAtual)return;
+  const input=document.getElementById('chat-input');
+  if(!input)return;
+  const texto=input.value.trim();
+  if(!texto)return;
+  if(texto.length>2000){toast('Mensagem muito longa (máx 2000 caracteres).','w');return;}
+  input.value='';
   try{
-    const check=await API.login(me.user,at);
-    if(!check||check.banned){toast('Senha atual incorreta.','d');return;}
-    if(!check.user){toast('Senha atual incorreta.','d');return;}
-  }catch(e){toast('Senha atual incorreta.','d');return;}
+    await API.sendChatMsg(me.user,_chatContatoAtual,texto);
+    renderChatListaContatos();
+    renderChatMensagens();
+  }catch(e){
+    toast(e.message||'Erro ao enviar mensagem.','d');
+    input.value=texto;
+  }
+}
+
+function startChatPolling(){stopChatPolling();_chatTimer=setInterval(()=>{if(activeTab===getTabIdx('chat')&&_chatContatoAtual){renderChatListaContatos();}},3000);}
+function stopChatPolling(){if(_chatTimer){clearInterval(_chatTimer);_chatTimer=null;}}
+
+function _tocarNotifChat(){
   try{
-    await API.resetSenha(me.user,nv,me.nome);
-    toast('Senha alterada com sucesso!','s');
-    closeModal('m-senha');
-    ['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  }catch(e){toast(e.message||'Erro ao alterar senha.','d');}
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;osc.type='sine';
+    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.15,ctx.currentTime+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.25);
+    osc.start();osc.stop(ctx.currentTime+0.26);
+  }catch(_){}
 }
 
 function openModal(id){document.getElementById(id)?.classList.add('open');}
 function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 function toggleSettings(){document.getElementById('settings-menu')?.classList.toggle('open');}
 function closeSettings(){document.getElementById('settings-menu')?.classList.remove('open');}
-document.addEventListener('click',e=>{
-  const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');
-  if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();
-  if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');
-});
-function toast(txt,type='i',duration=3800){
-  const c=document.getElementById('toast-container'),t=document.createElement('div');
-  t.className='toast '+type; t.innerHTML='<span>'+txt+'</span>'; c.appendChild(t);
-  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);
-}
+document.addEventListener('click',e=>{const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');});
+function toast(txt,type='i',duration=3800){const c=document.getElementById('toast-container'),t=document.createElement('div');t.className='toast '+type;t.innerHTML='<span>'+txt+'</span>';c.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);}
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
 window.onload=()=>{initWebSocket();checkSession();};
