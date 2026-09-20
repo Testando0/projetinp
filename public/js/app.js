@@ -178,7 +178,18 @@ function tabDefs(c){
 }
 function buildTabs(){const defs=tabDefs(me.cargo);document.getElementById('tabs').innerHTML=defs.map((t,i)=>'<div class="tab '+(i===0?'active':'')+'" id="tab-'+i+'" onclick="switchTab('+i+')">'+t.label+(t.notif?'<span class="tab-n" id="tn-'+i+'" style="display:none"></span>':'')+' </div>').join('');buildMobileDrawer();}
 function buildMobileDrawer(){if(!me)return;const defs=tabDefs(me.cargo);const drawer=document.getElementById('nav-drawer');if(!drawer)return;drawer.innerHTML=defs.map((t,i)=>'<div class="nav-drawer-item'+(i===activeTab?' active':'')+'" onclick="switchTab('+i+');closeNavDrawer();">'+t.label+(t.notif?'<span class="tab-n-badge" id="tnd-'+i+'" style="display:none">0</span>':'')+' </div>').join('');}
-function switchTab(idx){if(_provaAtiva){toast('⚠ Termine ou cancele a prova antes de trocar de aba.','w');return;}activeTab=idx;document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));document.querySelectorAll('.nav-drawer-item').forEach((t,i)=>t.classList.toggle('active',i===idx));renderTab(idx);closeSettings();if(typeof closeNavDrawer==='function')closeNavDrawer();}
+function switchTab(idx){
+  if(_provaAtiva){ toast('⚠ Termine ou cancele a prova antes de trocar de aba.','w'); return; }
+  activeTab=idx;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.nav-drawer-item').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  renderTab(idx); closeSettings();
+  if(typeof closeNavDrawer==='function')closeNavDrawer();
+  // ══ FIX: reseta o scroll da janela ao trocar de aba ══
+  window.scrollTo(0,0);
+  document.documentElement.scrollTop=0;
+  document.body.scrollTop=0;
+}
 function toggleNavDrawer(){const d=document.getElementById('nav-drawer');if(!d)return;if(d.classList.contains('open'))closeNavDrawer();else openNavDrawer();}
 function openNavDrawer(){buildMobileDrawer();document.getElementById('nav-drawer')?.classList.add('open');document.getElementById('nav-overlay')?.classList.add('open');}
 function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remove('open');document.getElementById('nav-overlay')?.classList.remove('open');}
