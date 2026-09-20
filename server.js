@@ -1,7 +1,6 @@
 /**
- * GMPOL Sistema Central v5.7
- * + BANCO DE HORAS (calculado no client)
- * + FEEDBACKS (avaliação do app) — websocket + salvamento
+ * GMPOL Sistema Central v5.8
+ * + CHAT PRIVADO 1:1 (WebSocket + localStorage)
  */
 
 const http   = require('http');
@@ -123,7 +122,7 @@ function getDefaultData() {
       { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
     ],
-    ocs: [], puns: [], pontos: [], provas: [], audit: [], feedbacks: []
+    ocs: [], puns: [], pontos: [], provas: [], audit: [], feedbacks: [], chats: []
   };
 }
 
@@ -173,7 +172,8 @@ function sanitize(p) {
     pontos:     Array.isArray(p.pontos)     ? p.pontos     : [],
     provas:     Array.isArray(p.provas)     ? p.provas     : [],
     audit:      Array.isArray(p.audit)      ? p.audit      : [],
-    feedbacks:  Array.isArray(p.feedbacks)  ? p.feedbacks  : []
+    feedbacks:  Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
+    chats:      Array.isArray(p.chats)      ? p.chats      : []
   };
 }
 
@@ -191,7 +191,7 @@ function saveDataSync() {
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas | ${DB.feedbacks.length} feedbacks`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} mensagens de chat`);
 
 const wsClients = new Set();
 function wsHandshake(req, socket) {
@@ -292,10 +292,10 @@ async function handleAPI(req, res) {
   }
 
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length, provas: DB.provas.length, feedbacks: DB.feedbacks.length });
+    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, chats: DB.chats.length });
   }
   if (method === 'GET' && url === '/api/state') {
-    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks });
+    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats });
   }
 
   if (method === 'POST' && url === '/api/login') {
@@ -307,6 +307,54 @@ async function handleAPI(req, res) {
       return jsonRes(res, 403, { banned: true, expiresAt: u.banExpires, reason: u.banReason || 'Suspensão temporária.', banBy: u.banBy || 'Sistema' });
     }
     return jsonRes(res, 200, { ok: true, user: pub(u) });
+  }
+
+  // ══════════ CHAT ══════════
+  if (method === 'GET' && url === '/api/chats') {
+    const userLogin = body.userLogin || (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('user') : null);
+    if (!userLogin) return jsonRes(res, 200, []);
+    const minhas = DB.chats.filter(c => c.from === userLogin || c.to === userLogin);
+    return jsonRes(res, 200, minhas);
+  }
+
+  if (method === 'POST' && url === '/api/chats') {
+    const { from, to, texto } = body;
+    if (!from || !to || !texto || texto.trim().length === 0) {
+      return jsonRes(res, 400, { error: 'Dados inválidos.' });
+    }
+    if (from === to) return jsonRes(res, 400, { error: 'Você não pode enviar mensagem para si mesmo.' });
+    const uFrom = DB.users.find(u => u.user === from);
+    const uTo   = DB.users.find(u => u.user === to);
+    if (!uFrom || !uTo) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+
+    const msg = {
+      id: 'MSG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      from,
+      to,
+      fromNome: uFrom.nome,
+      toNome: uTo.nome,
+      texto: String(texto).trim().slice(0, 2000),
+      ts: Date.now()
+    };
+    DB.chats.push(msg);
+    DB.chats = DB.chats.slice(-5000);
+    saveData();
+    broadcast('NEW_CHAT_MSG', msg);
+    return jsonRes(res, 200, { ok: true, msg });
+  }
+
+  if (method === 'DELETE' && url.match(/^\/api\/chats\/[^/]+$/)) {
+    const msgId = url.split('/').pop();
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) {
+      return jsonRes(res, 403, { error: 'Apenas Chefes e Admin podem excluir mensagens.' });
+    }
+    const i = DB.chats.findIndex(m => m.id === msgId);
+    if (i === -1) return jsonRes(res, 404, { error: 'Mensagem não encontrada.' });
+    DB.chats.splice(i, 1);
+    saveData();
+    broadcast('CHAT_MSG_DELETED', { id: msgId });
+    return jsonRes(res, 200, { ok: true });
   }
 
   if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
@@ -698,7 +746,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // ══════════ FEEDBACKS (avaliação do app) ══════════
   if (method === 'GET' && url === '/api/feedbacks') {
     return jsonRes(res, 200, DB.feedbacks);
   }
@@ -767,7 +814,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   wsClients.add(socket);
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks } });
+  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats } });
   socket.on('data', (chunk) => {
     socket._buffer = Buffer.concat([socket._buffer, chunk]);
     while (socket._buffer.length >= 2) {
@@ -804,7 +851,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.7         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.8         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
@@ -827,4 +874,4 @@ if (RENDER_URL) {
     req.end();
   }, 14 * 60 * 1000);
   console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-     }
+                                                                                                  }
