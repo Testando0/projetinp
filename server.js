@@ -1,10 +1,8 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.9 — Servidor Completo
- *  • Chat privado 1:1 via WebSocket
- *  • Feedbacks / avaliação do sistema
- *  • Banco de horas, ponto, provas, auditoria
- *  • PWA support (manifest.json, sw.js, logo.png)
+ *  GMPOL Sistema Central v5.10 — Servidor Completo
+ *  + Roleta com giros ilimitados para Master
+ *  + Giros bônus automáticos por hora extra trabalhada
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -13,9 +11,6 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
-// ══════════════════════════════════════════════════════════════
-// ══ HELPERS DE DATA/HORA (timezone Brasil) ══════════════════
-// ══════════════════════════════════════════════════════════════
 const TZ = 'America/Sao_Paulo';
 function brTimeStr(ts)     { return new Date(ts).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }); }
 function brTimeStrSec(ts)  { return new Date(ts).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
@@ -29,20 +24,13 @@ function nextBrDateStr(dstr) {
          t.getUTCFullYear();
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ CARGOS, PERMISSÕES E CONSTANTES ═════════════════════════
-// ══════════════════════════════════════════════════════════════
 const CARGO_PERM_SRV = { admin: 7, chefe: 6, delegado: 5, escrivao: 4, tatico: 3, agente: 2, gm: 1 };
 const CARGO_LABEL_SRV = {
   admin: 'Admin master', chefe: 'Chefe de polícia', delegado: 'Delegado',
   escrivao: 'Escrivão', tatico: 'Tático', agente: 'Agente oficial', gm: 'Guarda municipal'
 };
-// Minutos-base por turno (usado para calcular horas extras/devidas)
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ══════════════════════════════════════════════════════════════
-// ══ BANCO DE QUESTÕES DAS PROVAS ════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const PROVAS_CARGO = {
   gm: [
     { enunciado: 'O Guarda inicia o serviço na qual patente?', alt: ['Agente','Guarda','Escrivão','Tático'], correta: 1 },
@@ -127,9 +115,6 @@ const PRISOES_QUESTOES = [
   'O que é insubordinação?'
 ];
 
-// ══════════════════════════════════════════════════════════════
-// ══ HELPERS DE USUÁRIOS ═══════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 function isMaster(u) { return !!u && u.user === 'master'; }
 
 function findUserByRef(ref) {
@@ -137,9 +122,6 @@ function findUserByRef(ref) {
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ BANCO DE DADOS (arquivo JSON em /tmp) ═══════════════════
-// ══════════════════════════════════════════════════════════════
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
 
@@ -147,9 +129,9 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: []
@@ -161,7 +143,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
 }
@@ -170,8 +152,10 @@ function sanitize(p) {
   const def = getDefaultData();
   const users = (Array.isArray(p.users) ? p.users : def.users).map(u => ({
     ...u,
-    cicloDias: Array.isArray(u.cicloDias) ? u.cicloDias : [],
-    folgaDia:  u.folgaDia || null
+    cicloDias:        Array.isArray(u.cicloDias) ? u.cicloDias : [],
+    folgaDia:         u.folgaDia || null,
+    girosBonus:       typeof u.girosBonus === 'number' ? u.girosBonus : 0,
+    ultimoGiroRoleta: u.ultimoGiroRoleta || null
   }));
   return {
     users,
@@ -228,12 +212,11 @@ function saveDataSync() {
   catch (e) { console.error('[DB] Erro sync:', e.message); }
 }
 
-// Carrega o banco ao iniciar
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas | ${DB.feedbacks.length} feedbacks | ${DB.chats.length} mensagens de chat`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats`);
 
 // ══════════════════════════════════════════════════════════════
-// ══ WEBSOCKET SERVER ════════════════════════════════════════
+// ══ WEBSOCKET ═════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 const wsClients = new Set();
 
@@ -296,9 +279,6 @@ function wsClose(socket) {
   try { socket.destroy(); } catch (_) {}
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ HELPERS GERAIS ══════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 function pub(u) { const { pass, ...r } = u; return r; }
 
 function audit(msg, icon = '📋') {
@@ -309,7 +289,7 @@ function audit(msg, icon = '📋') {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ══ SERVIR ARQUIVOS ESTÁTICOS + PWA ASSETS ═════════════════
+// ══ STATIC FILES ═══════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -325,7 +305,6 @@ const MIME = {
 function serveStatic(req, res) {
   const urlPath = req.url.split('?')[0];
 
-  // ══ PWA: serve logo.png da raiz do projeto ══
   if (urlPath === '/logo.png') {
     const logoPath = path.join(__dirname, 'logo.png');
     fs.readFile(logoPath, (err, data) => {
@@ -336,7 +315,6 @@ function serveStatic(req, res) {
     return;
   }
 
-  // ══ PWA: serve manifest.json do public/ ══
   if (urlPath === '/manifest.json') {
     const filePath = path.join(__dirname, 'public', 'manifest.json');
     fs.readFile(filePath, (err, data) => {
@@ -347,7 +325,6 @@ function serveStatic(req, res) {
     return;
   }
 
-  // ══ PWA: serve service worker (NUNCA cachear) ══
   if (urlPath === '/sw.js') {
     const filePath = path.join(__dirname, 'public', 'sw.js');
     fs.readFile(filePath, (err, data) => {
@@ -362,7 +339,6 @@ function serveStatic(req, res) {
     return;
   }
 
-  // ══ Arquivos estáticos normais ══
   let filePath = urlPath === '/' ? '/index.html' : urlPath;
   const fullPath = path.join(__dirname, 'public', filePath);
   if (!fullPath.startsWith(path.join(__dirname, 'public'))) {
@@ -405,13 +381,12 @@ function jsonRes(res, status, data) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ══ API — TODAS AS ROTAS ════════════════════════════════════
+// ══ API ═══════════════════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 async function handleAPI(req, res) {
   const method = req.method;
   const url    = req.url.split('?')[0];
 
-  // CORS preflight
   if (method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -426,23 +401,10 @@ async function handleAPI(req, res) {
     try { body = await readBody(req); } catch (e) { return jsonRes(res, 400, { error: 'Body inválido.' }); }
   }
 
-  // ══ Health check (mantém Render ativo) ══
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, {
-      ok: true,
-      uptime: Math.floor(process.uptime()),
-      clientes: wsClients.size,
-      usuarios: DB.users.length,
-      ocs: DB.ocs.length,
-      puns: DB.puns.length,
-      pontos: DB.pontos.length,
-      provas: DB.provas.length,
-      feedbacks: DB.feedbacks.length,
-      chats: DB.chats.length
-    });
+    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size });
   }
 
-  // ══ State completo ══
   if (method === 'GET' && url === '/api/state') {
     return jsonRes(res, 200, {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
@@ -451,18 +413,13 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ══ LOGIN ══
   if (method === 'POST' && url === '/api/login') {
     const { user, pass } = body;
     if (!user || !pass) return jsonRes(res, 400, { error: 'Preencha usuário e senha.' });
     const u = DB.users.find(u => u.user === String(user).trim().toLowerCase() && u.pass === String(pass) && u.ativo);
     if (!u) return jsonRes(res, 401, { error: 'Credenciais inválidas ou conta desativada.' });
     if (u.banExpires && u.banExpires > Date.now()) {
-      return jsonRes(res, 403, {
-        banned: true, expiresAt: u.banExpires,
-        reason: u.banReason || 'Suspensão temporária.',
-        banBy: u.banBy || 'Sistema'
-      });
+      return jsonRes(res, 403, { banned: true, expiresAt: u.banExpires, reason: u.banReason || 'Suspensão temporária.', banBy: u.banBy || 'Sistema' });
     }
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
@@ -483,14 +440,13 @@ async function handleAPI(req, res) {
       return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
     if (!master && (CARGO_PERM_SRV[cargo] || 0) >= (CARGO_PERM_SRV[criador.cargo] || 0))
       return jsonRes(res, 403, { error: 'Não pode criar usuários com cargo igual ou superior ao seu.' });
-    DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null });
+    DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
 
-  // Ban check
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
   if (method === 'GET' && mBanCheck) {
     const u = DB.users.find(u => u.user === mBanCheck[1]);
@@ -500,7 +456,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { banned: false });
   }
 
-  // Redefinir senha
   const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
@@ -521,7 +476,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // Ativar/desativar
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
@@ -540,7 +494,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // Alterar cargo
   const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
@@ -576,17 +529,42 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // Suspender / remover suspensão
+  // ══ NOVO: MASTER LIBERAR GIROS BÔNUS ══
+  const mGiros = url.match(/^\/api\/users\/([^/]+)\/giros$/);
+  if (method === 'POST' && mGiros) {
+    const target = DB.users.find(u => u.user === mGiros[1]);
+    if (!target) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const { quantidade, feitorPor } = body;
+    const q = parseInt(quantidade);
+    if (isNaN(q) || q < 1) return jsonRes(res, 400, { error: 'Quantidade inválida.' });
+    if (q > 100) return jsonRes(res, 400, { error: 'Máximo 100 giros por vez.' });
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode liberar giros.' });
+    if (typeof target.girosBonus !== 'number') target.girosBonus = 0;
+    target.girosBonus += q;
+    saveData();
+    audit(`<b>${executor.nome}</b> liberou <b>${q} giro(s) bônus</b> para <b>${target.nome}</b>`, '🎁');
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    broadcast('GIROS_GAINED', {
+      userLogin: target.user,
+      giros: q,
+      total: target.girosBonus,
+      motivo: `${q} giro(s) liberado(s) pelo Master`
+    });
+    return jsonRes(res, 200, { ok: true, girosBonus: target.girosBonus });
+  }
+
   const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
   if (mBan) {
     if (method === 'POST') {
       const i = DB.users.findIndex(u => u.user === mBan[1]);
       if (i === -1) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
-      const { duracao, motivo, feitorPor, feitorPorNome } = body;
+      const { duracao, motivo, feitorPor } = body;
       const mins = parseInt(duracao) || 0;
       if (mins <= 0) return jsonRes(res, 400, { error: 'Duração inválida.' });
       if (!motivo)   return jsonRes(res, 400, { error: 'Motivo obrigatório.' });
-      const executor = findUserByRef(feitorPor) || findUserByRef(feitorPorNome);
+      const executor = findUserByRef(feitorPor);
       if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
       if (DB.users[i].user === executor.user) return jsonRes(res, 403, { error: 'Você não pode suspender a si mesmo.' });
       const master = isMaster(executor);
@@ -599,10 +577,7 @@ async function handleAPI(req, res) {
       saveData();
       audit(`<b>${executor.nome}</b> suspendeu <b>${DB.users[i].nome}</b> por ${mins} min(s) — motivo: ${motivo}`, '⛔');
       broadcast('USERS_UPDATED', DB.users.map(pub));
-      broadcast('USER_BANNED', {
-        userLogin: DB.users[i].user, expiresAt, reason: motivo,
-        banBy: executor.nome, duracao: mins
-      });
+      broadcast('USER_BANNED', { userLogin: DB.users[i].user, expiresAt, reason: motivo, banBy: executor.nome, duracao: mins });
       return jsonRes(res, 200, { ok: true });
     }
     if (method === 'DELETE') {
@@ -620,7 +595,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // Deletar usuário
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
@@ -659,7 +633,6 @@ async function handleAPI(req, res) {
       const i = DB.ocs.findIndex(o => o.id === id);
       if (i === -1) return jsonRes(res, 404, { error: 'Ocorrência não encontrada.' });
       Object.assign(DB.ocs[i], body); saveData();
-      audit(`Ocorrência <b>${id}</b> atualizada por <b>${body.editadoPor || body.decididoPor || 'sistema'}</b>`, '📋');
       broadcast('OC_UPDATED', DB.ocs[i]);
       return jsonRes(res, 200, { ok: true });
     }
@@ -667,7 +640,6 @@ async function handleAPI(req, res) {
       const i = DB.ocs.findIndex(o => o.id === id);
       if (i === -1) return jsonRes(res, 404, { error: 'Ocorrência não encontrada.' });
       DB.ocs.splice(i, 1); saveData();
-      audit(`<b>${body.feitorPor}</b> excluiu a ocorrência <b>${id}</b>`, '🗑');
       broadcast('OC_DELETED', { id });
       return jsonRes(res, 200, { ok: true });
     }
@@ -678,15 +650,9 @@ async function handleAPI(req, res) {
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
     if (!pun || !pun.nome) return jsonRes(res, 400, { error: 'Dados inválidos.' });
-    const dup = DB.puns.find(p =>
-      p.nome === pun.nome && p.motivo === pun.motivo && p.nivel === pun.nivel &&
-      p.autor === pun.autor && (Date.now() - (p.ts || 0)) < 3000
-    );
-    if (dup) return jsonRes(res, 200, { ok: true, pun: dup, dup: true });
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
     DB.puns.push(pun); saveData();
-    audit(`<b>${pun.autor}</b> registrou punição <b>${pun.nivel}</b> para <b>${pun.nome}</b>`, '⚠️');
     broadcast('NEW_PUN', pun);
     return jsonRes(res, 200, { ok: true, pun });
   }
@@ -694,9 +660,7 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunId) {
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
-    const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
-    audit(`<b>${body.feitorPor}</b> removeu punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
@@ -704,14 +668,12 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunIdx) {
     const i = parseInt(mPunIdx[1]);
     if (isNaN(i) || i < 0 || i >= DB.puns.length) return jsonRes(res, 404, { error: 'Índice inválido.' });
-    const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
-    audit(`<b>${body.feitorPor}</b> removeu punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ PONTOS (com cálculo de horas extras) ══
+  // ══ PONTOS + GIROS BÔNUS POR HORA EXTRA ══
   if (method === 'GET' && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -720,6 +682,7 @@ async function handleAPI(req, res) {
     if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     if (!Array.isArray(u.cicloDias)) u.cicloDias = [];
     if (!u.folgaDia) u.folgaDia = null;
+    if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
     if (ponto.type === 'entrada' && u.folgaDia === dBr) {
@@ -734,6 +697,8 @@ async function handleAPI(req, res) {
     ponto.data = dBr;
     DB.pontos.push(ponto);
 
+    let girosGanhos = 0;
+
     if (ponto.type === 'saida') {
       const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a, b) => b.ts - a.ts);
       if (entradas.length > 0) {
@@ -745,6 +710,12 @@ async function handleAPI(req, res) {
         ponto.extraMins  = extraMins;
         ponto.extraReais = Math.floor(extraMins / 30) * 20;
         ponto.debtMins   = Math.max(0, baseMins - diffMins);
+        
+        // ═══ BÔNUS: +1 giro por hora extra (60min) ═══
+        girosGanhos = Math.floor(extraMins / 60);
+        if (girosGanhos > 0) {
+          u.girosBonus = (u.girosBonus || 0) + girosGanhos;
+        }
       }
       if (!u.cicloDias.includes(dBr)) u.cicloDias.push(dBr);
       if (u.cicloDias.length >= 6) {
@@ -769,12 +740,71 @@ async function handleAPI(req, res) {
       const h = Math.floor(ponto.trabalhado / 60), m = ponto.trabalhado % 60;
       auditMsg += ` — ${h}h${m > 0 ? m + 'min' : ''} trabalhadas.`;
       if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
+      if (girosGanhos > 0)      auditMsg += ` <b style="color:#a78bfa;">(+${girosGanhos} 🎰 giro${girosGanhos>1?'s':''})</b>`;
       if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins / 60)}h${(ponto.debtMins % 60).toString().padStart(2, '0')})</b>`;
     }
     audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
     broadcast('USERS_UPDATED', DB.users.map(pub));
-    return jsonRes(res, 200, { ok: true, ponto });
+    
+    // Broadcast específico de giros ganhos para toast
+    if (girosGanhos > 0) {
+      broadcast('GIROS_GAINED', {
+        userLogin: u.user,
+        giros: girosGanhos,
+        total: u.girosBonus,
+        motivo: `+${girosGanhos} giro(s) por ${ponto.extraMins}min de hora extra`
+      });
+    }
+    
+    return jsonRes(res, 200, { ok: true, ponto, girosGanhos });
+  }
+
+  // ══ ROLETA: REGISTRAR GIRO (decrementa 1, ou nada se master) ══
+  if (method === 'POST' && url === '/api/roleta/girar') {
+    const { userLogin } = body;
+    const u = DB.users.find(x => x.user === userLogin);
+    if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    
+    if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
+    
+    // ═══ MASTER: giros ilimitados, não gasta nada ═══
+    if (isMaster(u)) {
+      u.ultimoGiroRoleta = Date.now();
+      saveData();
+      return jsonRes(res, 200, {
+        ok: true,
+        master: true,
+        girosBonus: u.girosBonus,
+        ultimoGiro: u.ultimoGiroRoleta
+      });
+    }
+    
+    // Usuário normal: verifica cooldown 24h + giros bônus
+    const ultimoGiro = u.ultimoGiroRoleta;
+    const agora = Date.now();
+    const cooldown = 24 * 60 * 60 * 1000;
+    const cooldownOk = !ultimoGiro || (agora - ultimoGiro) >= cooldown;
+    
+    if (!cooldownOk && u.girosBonus <= 0) {
+      return jsonRes(res, 403, { error: 'Cooldown ativo e sem giros bônus.' });
+    }
+    
+    if (!cooldownOk && u.girosBonus > 0) {
+      u.girosBonus -= 1;
+      // Não atualiza ultimoGiro (continua em cooldown, mas usou bônus)
+    } else {
+      u.ultimoGiroRoleta = agora;
+    }
+    
+    saveData();
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, {
+      ok: true,
+      master: false,
+      girosBonus: u.girosBonus,
+      ultimoGiro: u.ultimoGiroRoleta
+    });
   }
 
   // ══ PROVAS ══
@@ -797,8 +827,7 @@ async function handleAPI(req, res) {
 
     if (tipo === 'prisoes') {
       const rs = PRISOES_QUESTOES.map((t, i) => ({
-        q: i,
-        texto: String((respostas && respostas[i] && respostas[i].texto) || '').trim()
+        q: i, texto: String((respostas && respostas[i] && respostas[i].texto) || '').trim()
       }));
       if (rs.some(r => r.texto.length < 3)) return jsonRes(res, 400, { error: 'Responda todas as questões.' });
       const prova = {
@@ -848,7 +877,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // Decidir prova
   const mProvaDec = url.match(/^\/api\/provas\/([^/]+)\/decisao$/);
   if (method === 'PUT' && mProvaDec) {
     const i = DB.provas.findIndex(p => p.id === mProvaDec[1]);
@@ -863,11 +891,6 @@ async function handleAPI(req, res) {
     if (executor.user === DB.provas[i].userLogin)
       return jsonRes(res, 403, { error: 'Você não pode avaliar a própria prova.' });
     const prova = DB.provas[i];
-    if (decisao === 'promovido' && !prova.cargoAlvo)
-      return jsonRes(res, 400, { error: 'Avaliação pessoal não gera promoção. Use APROVAR.' });
-    if (decisao === 'aprovado' && prova.cargoAlvo)
-      return jsonRes(res, 400, { error: 'APROVAR só é válido para avaliação pessoal (prisões).' });
-
     prova.decisao = decisao;
     prova.decididoPor = executor.nome;
     prova.decididoEm = Date.now();
@@ -882,8 +905,7 @@ async function handleAPI(req, res) {
       broadcast('USERS_UPDATED', DB.users.map(pub));
       broadcast('CARGO_CHANGED', {
         userLogin: alvo.user, oldCargo, newCargo: alvo.cargo,
-        tipo: 'promovido',
-        motivo: 'Aprovado na prova por ' + executor.nome,
+        tipo: 'promovido', motivo: 'Aprovado na prova por ' + executor.nome,
         feitorPorNome: executor.nome
       });
     } else if (decisao === 'aprovado') {
@@ -891,7 +913,7 @@ async function handleAPI(req, res) {
       audit(`<b>${executor.nome}</b> APROVOU a avaliação pessoal (prisões) de <b>${prova.nome}</b>`, '✅');
     } else {
       saveData();
-      audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b>${prova.cargoAlvo ? ' para <b>' + (CARGO_LABEL_SRV[prova.cargoAlvo] || prova.cargoAlvo) + '</b>' : ' (avaliação pessoal)'}`, '❌');
+      audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b>`, '❌');
     }
     broadcast('PROVA_DECIDIDA', {
       id: prova.id, userLogin: prova.userLogin, decisao,
@@ -901,7 +923,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // ══ FEEDBACKS (avaliação do sistema) ══
+  // ══ FEEDBACKS ══
   if (method === 'GET' && url === '/api/feedbacks') return jsonRes(res, 200, DB.feedbacks);
   if (method === 'POST' && url === '/api/feedbacks') {
     const { userLogin, nome, nota, texto } = body;
@@ -918,7 +940,7 @@ async function handleAPI(req, res) {
     DB.feedbacks.unshift(fb);
     DB.feedbacks = DB.feedbacks.slice(0, 500);
     saveData();
-    audit(`<b>${nome}</b> avaliou o sistema com <b>${nota}★</b> e deixou sugestões.`, '⭐');
+    audit(`<b>${nome}</b> avaliou o sistema com <b>${nota}★</b>`, '⭐');
     broadcast('NEW_FEEDBACK', fb);
     return jsonRes(res, 200, { ok: true, feedback: fb });
   }
@@ -935,12 +957,11 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ CHAT PRIVADO ══
+  // ══ CHAT ══
   if (method === 'GET' && url === '/api/chats') {
     const userLogin = body.userLogin || (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('user') : null);
     if (!userLogin) return jsonRes(res, 200, []);
-    const minhas = DB.chats.filter(c => c.from === userLogin || c.to === userLogin);
-    return jsonRes(res, 200, minhas);
+    return jsonRes(res, 200, DB.chats.filter(c => c.from === userLogin || c.to === userLogin));
   }
   if (method === 'POST' && url === '/api/chats') {
     const { from, to, texto } = body;
@@ -952,10 +973,8 @@ async function handleAPI(req, res) {
     if (!uFrom || !uTo) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
     const msg = {
       id: 'MSG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-      from, to,
-      fromNome: uFrom.nome, toNome: uTo.nome,
-      texto: String(texto).trim().slice(0, 2000),
-      ts: Date.now()
+      from, to, fromNome: uFrom.nome, toNome: uTo.nome,
+      texto: String(texto).trim().slice(0, 2000), ts: Date.now()
     };
     DB.chats.push(msg);
     DB.chats = DB.chats.slice(-5000);
@@ -989,7 +1008,7 @@ async function handleAPI(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ══ HTTP SERVER ═════════════════════════════════════════════
+// ══ HTTP + WS SERVER ═══════════════════════════════════════
 // ══════════════════════════════════════════════════════════════
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -997,17 +1016,12 @@ const httpServer = http.createServer(async (req, res) => {
   serveStatic(req, res);
 });
 
-// WebSocket upgrade
 httpServer.on('upgrade', (req, socket, head) => {
   if (req.url !== '/ws') { socket.destroy(); return; }
   if (!wsHandshake(req, socket)) return;
   socket.isAlive = true;
   socket._buffer = Buffer.alloc(0);
   wsClients.add(socket);
-  const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
-  console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-
-  // Envia estado completo ao conectar
   wsSend(socket, {
     type: 'INIT',
     payload: {
@@ -1035,18 +1049,10 @@ httpServer.on('upgrade', (req, socket, head) => {
     }
   });
 
-  socket.on('close', () => {
-    wsClients.delete(socket);
-    console.log(`[WS] - ${ip} | Total: ${wsClients.size}`);
-  });
-
-  socket.on('error', (e) => {
-    wsClients.delete(socket);
-    console.error(`[WS] Erro (${ip}):`, e.message);
-  });
+  socket.on('close', () => { wsClients.delete(socket); });
+  socket.on('error', () => { wsClients.delete(socket); });
 });
 
-// Ping periódico para manter conexões vivas
 setInterval(() => {
   wsClients.forEach(s => {
     if (!s.isAlive) { wsClose(s); return; }
@@ -1055,34 +1061,25 @@ setInterval(() => {
   });
 }, 25000);
 
-// ══════════════════════════════════════════════════════════════
-// ══ START ═══════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.9         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.10        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('║   chefe     / chefe123                   ║');
   console.log('║   gm        / gm123                      ║');
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   📱 PWA pronto — instale pelo celular   ║');
-  console.log('║   💬 Chat • ⭐ Feedbacks • 💼 Banco hrs  ║');
+  console.log('║   🎰 Roleta: master ilimitado            ║');
+  console.log('║   🎁 +1 giro/hora extra (automático)     ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
-// ══════════════════════════════════════════════════════════════
-// ══ SHUTDOWN GRACIOSO ═══════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 process.on('SIGTERM', () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('SIGINT',  () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('uncaughtException', (e) => { console.error('[FATAL]', e); saveDataSync(); });
 
-// ══════════════════════════════════════════════════════════════
-// ══ KEEP-ALIVE (Render) ═══════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL || null;
 if (RENDER_URL) {
   const keepAliveUrl = RENDER_URL.replace(/\/$/, '') + '/health';
@@ -1092,5 +1089,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-  console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-                                                                        }
+                                                   }
