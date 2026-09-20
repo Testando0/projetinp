@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.7 (+ feedbacks + WS único) ══
+// ══ API CLIENT — GMPOL v5.8 (+ chat) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -76,22 +76,24 @@ const API = {
   getPontos:   ()  => API.request('GET',  '/pontos'),
   createPonto: (p) => API.request('POST', '/pontos', p),
 
-  // ══ PROVAS ══
   getProvas:      ()                  => API.request('GET',  '/provas'),
   getQuestionario:()                  => API.request('GET',  '/prova/questionario'),
   createProva:    (p)                 => API.request('POST', '/provas', p),
   decidirProva:   (id, decisao, feitorPor) => API.request('PUT', `/provas/${id}/decisao`, { decisao, feitorPor }),
 
-  // ══ FEEDBACKS (novo) ══
   getFeedbacks:    ()                      => API.request('GET',    '/feedbacks'),
   createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
   deleteFeedback:  (id, feitorPor)         => API.request('DELETE', `/feedbacks/${id}`, { feitorPor }),
+
+  // ══ CHAT (NOVO) ══
+  getChats:       (userLogin)             => API.request('GET',    `/chats?user=${userLogin}`),
+  sendChatMsg:    (from, to, texto)       => API.request('POST',   '/chats', { from, to, texto }),
+  deleteChatMsg:  (id, feitorPor)         => API.request('DELETE', `/chats/${id}`, { feitorPor }),
 
   getAudit:   () => API.request('GET',    '/audit'),
   clearAudit: () => API.request('DELETE', '/audit'),
 };
 
-// ══ WEBSOCKET ROBUSTO ══
 let _ws = null, _wsConnected = false, _wsAttempts = 0, _wsTimer = null, _pingIv = null, _pollIv = null;
 
 function initWebSocket() {
@@ -154,12 +156,13 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.users))     STATE.users     = payload.users;
     if (Array.isArray(payload.audit))     STATE.audit     = payload.audit;
     if (Array.isArray(payload.feedbacks)) STATE.feedbacks = payload.feedbacks;
+    if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[]
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
   if (typeof me !== 'undefined' && me && typeof renderTab === 'function' && typeof activeTab !== 'undefined') {
@@ -207,7 +210,6 @@ function _handleServerMsg(msg) {
   if (type === 'AUDIT_CLEARED' && typeof STATE !== 'undefined') {
     STATE.audit = []; LSCache.merge('audit', []);
   }
-  // ══ FEEDBACKS (novo) ══
   if (type === 'NEW_FEEDBACK' && typeof STATE !== 'undefined') {
     if (!STATE.feedbacks.find(x => x.id === payload.id)) {
       STATE.feedbacks.unshift(payload);
@@ -217,6 +219,18 @@ function _handleServerMsg(msg) {
   }
   if (type === 'FEEDBACKS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.feedbacks = payload; LSCache.merge('feedbacks', STATE.feedbacks);
+  }
+  // ══ CHAT (NOVO) ══
+  if (type === 'NEW_CHAT_MSG' && typeof STATE !== 'undefined') {
+    if (!STATE.chats.find(x => x.id === payload.id)) {
+      STATE.chats.push(payload);
+      STATE.chats = STATE.chats.slice(-5000);
+      LSCache.merge('chats', STATE.chats);
+    }
+  }
+  if (type === 'CHAT_MSG_DELETED' && typeof STATE !== 'undefined') {
+    STATE.chats = STATE.chats.filter(x => x.id !== payload.id);
+    LSCache.merge('chats', STATE.chats);
   }
 
   if (typeof handleSocketMessage === 'function') {
