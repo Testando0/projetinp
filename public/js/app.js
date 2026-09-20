@@ -1,4 +1,4 @@
-// ══ CONFIG ═
+// ══ CONFIG ══
 const CARGO_LABEL={admin:'Admin master',chefe:'Chefe de polícia',delegado:'Delegado',escrivao:'Escrivão',tatico:'Tático',agente:'Agente oficial',gm:'Guarda municipal'};
 const CARGO_BADGE_CLASS={admin:'cb-master',chefe:'cb-chefe',delegado:'cb-delegado',escrivao:'cb-escrivao',tatico:'cb-tatico',agente:'cb-agente',gm:'cb-guarda'};
 const CARGO_PERM={admin:7,chefe:6,delegado:5,escrivao:4,tatico:3,agente:2,gm:1};
@@ -71,6 +71,7 @@ function handleSocketMessage(data){
       if(me&&payload.userLogin===me.user){
         me.girosBonus=payload.total;saveSession();
         toast('🎰 +'+payload.giros+' giro(s) bônus! '+payload.motivo,'s',7000);
+        fecharModalSemGiros();
         if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
       }
       break;
@@ -147,7 +148,7 @@ async function login(){
 function toggleSenhaVisivel(){const i=document.getElementById('l-pass'),b=document.getElementById('eye-btn');if(!i)return;if(i.type==='password'){i.type='text';if(b){b.textContent='🙈';b.title='Ocultar senha';}}else{i.type='password';if(b){b.textContent='👁';b.title='Mostrar senha';}}}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.getElementById('s-login');if(s&&s.classList.contains('active'))login();}});
 
-function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);clearInterval(_cdInterval);clearInterval(_ledInterval);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}document.body.classList.remove('chat-mode');if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
+function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);clearInterval(_cdInterval);clearInterval(_ledInterval);clearInterval(_semGirosInterval);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}document.body.classList.remove('chat-mode');if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
 
 function showBanScreen(info){document.getElementById('s-login').classList.remove('active');document.getElementById('s-panel').classList.remove('active');const s=document.getElementById('s-ban');if(!s)return;s.classList.add('active');document.getElementById('ban-by').textContent=info.banBy||'Sistema';document.getElementById('ban-reason').textContent=info.reason||'Suspensão temporária.';document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});startBanCountdown(info.expiresAt);}
 function startBanCountdown(expiresAt){clearInterval(_banTimer);function update(){const rem=expiresAt-Date.now();const el=document.getElementById('ban-timer');if(!el){clearInterval(_banTimer);return;}if(rem<=0){clearInterval(_banTimer);el.textContent='00:00:00';const m=document.getElementById('ban-status-msg');if(m){m.textContent='✅ Suspensão encerrada.';m.style.color='#4ade80';}setTimeout(()=>{clearSession();location.reload();},3000);return;}const h=Math.floor(rem/3600000),mn=Math.floor((rem%3600000)/60000),s=Math.floor((rem%60000)/1000);el.textContent=`${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}update();_banTimer=setInterval(update,1000);}
@@ -570,8 +571,6 @@ function vRoleta(){
     .roleta-spin-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transition:left .6s;}
     .roleta-spin-btn:hover::before{left:100%;}
     .roleta-spin-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(245,158,11,.7),inset 0 2px 0 rgba(255,255,255,.3);}
-    .roleta-spin-btn:disabled{background:linear-gradient(135deg,#3f3f46 0%,#27272a 100%);color:#71717a;cursor:not-allowed;box-shadow:none;}
-    .roleta-spin-btn:disabled::before{display:none;}
     .roleta-spin-btn.spinning{pointer-events:none;opacity:.7;}
     .roleta-prizes{margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
     .roleta-prize-card{position:relative;padding:18px 14px;border-radius:16px;text-align:center;overflow:hidden;transition:transform .25s;}
@@ -612,6 +611,12 @@ function vRoleta(){
     .roleta-info-text b{color:var(--text);}
     .roleta-info-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
     .roleta-info-step-num{flex:0 0 24px;height:24px;background:linear-gradient(135deg,#fbbf24,#dc2626);color:#000;font-weight:800;font-size:.75rem;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+    .sg-price-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.35);border-radius:12px;}
+    .sg-price-qtd{font-weight:800;color:var(--text);font-size:.9rem;}
+    .sg-price-val{font-family:'Orbitron',sans-serif;font-weight:800;color:#fbbf24;font-size:.95rem;}
+    .sg-best{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.45);}
+    .sg-best .sg-price-val{color:#4ade80;}
+    .sg-slogan{margin-top:12px;font-family:'Orbitron',sans-serif;font-size:.82rem;font-weight:800;color:#4ade80;letter-spacing:.06em;line-height:1.5;}
     .bonus-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;}
     .bonus-modal-content{max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:28px;background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);border:2px solid rgba(139,92,246,.5);border-radius:20px;box-shadow:0 0 60px rgba(139,92,246,.3);}
     .bonus-modal-title{font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:6px;letter-spacing:.08em;}
@@ -661,8 +666,8 @@ function vRoleta(){
           <div class="roleta-leds" id="roleta-leds"></div>
         </div>
       </div>
-      <button class="roleta-spin-btn" id="roleta-spin-btn" onclick="girarRoleta()" ${st.podeGirar?'':'disabled'}>
-        ${st.master?'👑 GIRAR (ILIMITADO)':(st.podeGirar?'🎰 GIRAR ROLETA':'⏳ '+cdTxt)}
+      <button class="roleta-spin-btn" id="roleta-spin-btn" onclick="girarRoleta()">
+        ${st.master?'👑 GIRAR (ILIMITADO)':(st.podeGirar?'🎰 GIRAR ROLETA':'🎰 OBTER GIROS')}
       </button>
     </div>
 
@@ -793,7 +798,8 @@ let _roletaGirando=false;
 async function girarRoleta(){
   if(_roletaGirando)return;
   const st=_roletaStatus();
-  if(!st.podeGirar){toast('⏳ Aguarde o cooldown ou use giros bônus.','w');return;}
+  // ══ SEM GIROS: abre o modal de "comprar giros" ══
+  if(!st.podeGirar){mostrarModalSemGiros();return;}
   _roletaGirando=true;
   const btn=document.getElementById('roleta-spin-btn');
   if(btn){btn.classList.add('spinning');btn.disabled=true;}
@@ -848,6 +854,55 @@ async function girarRoleta(){
 function _reverterRoda(){
   const canvas=document.getElementById('roleta-canvas');
   if(canvas){canvas.style.transition='transform .6s ease-out';canvas.style.transform='rotate(0deg)';}
+}
+
+// ════════════════════════════════════════════════════════════
+// ══ MODAL "SEM GIROS" — COMPRA DE GIROS (NOVO) ════════════
+// ════════════════════════════════════════════════════════════
+let _semGirosInterval=null;
+
+function mostrarModalSemGiros(){
+  fecharModalSemGiros();
+  const modal=document.createElement('div');
+  modal.className='roleta-modal';
+  modal.id='sem-giros-modal';
+  modal.innerHTML=`
+    <div class="roleta-result" style="--result-color:#fbbf24;--result-glow:rgba(251,191,36,.45);max-width:470px;">
+      <div class="roleta-result-icon">😔</div>
+      <div class="roleta-result-rarity">VOCÊ FICOU SEM GIROS</div>
+      <div style="font-size:.85rem;color:var(--text-mid);margin-bottom:4px;">Aguarde:</div>
+      <div class="roleta-result-value" id="sg-timer" style="font-size:2.3rem;margin:4px 0 18px;">--:--:--</div>
+      <div style="border-top:1px dashed rgba(251,191,36,.4);padding-top:16px;margin-bottom:14px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:800;color:var(--text);margin-bottom:12px;">Quer obter mais giros?</div>
+        <div class="sg-price-row"><span class="sg-price-qtd">1 giro</span><span class="sg-price-val">R$ 500 no RP</span></div>
+        <div class="sg-price-row"><span class="sg-price-qtd">5 giros</span><span class="sg-price-val">R$ 2.500</span></div>
+        <div class="sg-price-row sg-best"><span class="sg-price-qtd">10 giros</span><span class="sg-price-val">R$ 5.000</span></div>
+        <div class="sg-slogan">INVESTIMENTO FÁCIL<br>PARA DINHEIRO FÁCIL 🤑</div>
+      </div>
+      <div class="roleta-result-cta">💸 Pague o valor em dinheiro no RP e <b>mande o print para um Admin (Master)</b> para receber seus giros na hora.</div>
+      <button class="roleta-result-btn" onclick="fecharModalSemGiros()">✓ ENTENDI</button>
+    </div>`;
+  document.body.appendChild(modal);
+  try{tocarSomRoleta();}catch(_){}
+  const tick=()=>{
+    const modalEl=document.getElementById('sem-giros-modal');
+    if(!modalEl){clearInterval(_semGirosInterval);_semGirosInterval=null;return;}
+    const st=_roletaStatus();
+    if(st.podeGirar){clearInterval(_semGirosInterval);_semGirosInterval=null;fecharModalSemGiros();return;}
+    const el=document.getElementById('sg-timer');
+    if(!el)return;
+    const r=st.resta;
+    const h=Math.floor(r/3600000),m=Math.floor((r%3600000)/60000),s=Math.floor((r%60000)/1000);
+    el.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
+  tick();
+  _semGirosInterval=setInterval(tick,1000);
+}
+
+function fecharModalSemGiros(){
+  if(_semGirosInterval){clearInterval(_semGirosInterval);_semGirosInterval=null;}
+  const m=document.getElementById('sem-giros-modal');
+  if(m)m.remove();
 }
 
 function tocarSomRoleta(){
