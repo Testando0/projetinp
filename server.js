@@ -1,7 +1,7 @@
 /**
- * GMPOL Sistema Central v5.6
- * PROVAS por patente + AVALIAÇÃO PESSOAL com APROVAR/REPROVAR (sem promoção)
- * MASTER (master / masterx512) = acesso total | Horário de Brasília | Folga 6+1
+ * GMPOL Sistema Central v5.7
+ * + BANCO DE HORAS (calculado no client)
+ * + FEEDBACKS (avaliação do app) — websocket + salvamento
  */
 
 const http   = require('http');
@@ -48,13 +48,13 @@ const PROVAS_CARGO = {
     { enunciado:'Um policial presencia outro Agente cometendo abuso de poder. O correto é:', alt:['Ajudar a esconder','Seguir o procedimento correto para comunicar a infração','Ignorar sempre','Fazer o mesmo'], correta:1 },
     { enunciado:'O que é considerado uma conduta profissional?', alt:['Respeito, disciplina e cumprimento das regras','Abuso de autoridade','Provocar suspeitos','Ignorar superiores'], correta:0 },
     { enunciado:'Durante uma perseguição, o Agente deve:', alt:['Seguir os procedimentos da corporação','Atirar sempre','Bater propositalmente no veículo','Ignorar a segurança'], correta:0 },
-    { enunciado:'Um Agente pode revistar qualquer pessoa sem motivo?', alt:['Sim','Não, deve seguir as regras e condições previstas','Sempre que estiver em serviço','Apenas à noite'], correta:1 },
+    { enunciado:'Um Agente pode revistar qualquer pessoa sem motivo?', alt:['Sim','Não, deve seguir as regras','Sempre que estiver em serviço','Apenas à noite'], correta:1 },
     { enunciado:'Se um cidadão insultar o policial, o Agente deve:', alt:['Manter o controle e agir conforme as regras','Usar a arma','Prender automaticamente','Agredir o cidadão'], correta:0 },
-    { enunciado:'O que caracteriza uma ordem legítima?', alt:['Uma ordem compatível com as regras e procedimentos','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta:0 },
+    { enunciado:'O que caracteriza uma ordem legítima?', alt:['Uma ordem compatível com as regras','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta:0 },
     { enunciado:'O Agente pode usar informações obtidas no serviço para benefício pessoal?', alt:['Sim','Não','Apenas fora do expediente','Apenas com autorização de amigos'], correta:1 },
     { enunciado:'Qual atitude pode ser considerada abuso de poder?', alt:['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta:1 },
     { enunciado:'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt:['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar','Abandonar o rádio'], correta:0 },
-    { enunciado:'Qual é a importância do rádio durante o serviço?', alt:['Comunicação e coordenação entre os policiais','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta:0 },
+    { enunciado:'Qual é a importância do rádio durante o serviço?', alt:['Comunicação e coordenação','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta:0 },
     { enunciado:'Qual comportamento pode prejudicar a carreira de um Agente?', alt:['Disciplina e respeito','Abuso de poder, corrupção e descumprimento das regras','Trabalho em equipe','Comunicação pelo rádio'], correta:1 }
   ],
   tatico: [
@@ -80,16 +80,16 @@ const PROVAS_CARGO = {
     { enunciado:'O que um candidato a Tático deve demonstrar?', alt:['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta:0 }
   ],
   escrivao: [
-    { enunciado:'Durante uma operação, um superior determina pelo rádio que toda a equipe avance imediatamente, mas o Delegado percebe que a ordem pode colocar agentes e terceiros em risco. Qual é a conduta mais adequada?', alt:['Cumprir imediatamente','Ignorar a ordem e agir sozinho','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta:2 },
-    { enunciado:'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt:['Informar a localização do policial ou da ocorrência','Solicitar prioridade no rádio','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta:0 },
+    { enunciado:'Durante uma operação, um superior determina pelo rádio que toda a equipe avance, mas o Delegado percebe que a ordem pode colocar agentes em risco. Qual é a conduta mais adequada?', alt:['Cumprir imediatamente','Ignorar a ordem','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta:2 },
+    { enunciado:'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt:['Informar a localização','Solicitar prioridade','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta:0 },
     { enunciado:'Um agente comete infração disciplinar e pede ao Delegado que "deixe passar" por ter bons resultados. Qual princípio prevalece?', alt:['Histórico positivo pode justificar dispensa','A amizade deve ser considerada antes da disciplina','A conduta deve ser analisada conforme as regras','O superior pode anular qualquer infração'], correta:2 },
-    { enunciado:'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt:['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal de contenção','Apenas falha no uso do rádio'], correta:1 },
+    { enunciado:'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt:['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal','Apenas falha no uso do rádio'], correta:1 },
     { enunciado:'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt:['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar a equipe que não confirmou'], correta:1 },
-    { enunciado:'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt:['Manter segredo para proteger o colega','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta:2 },
-    { enunciado:'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt:['Executar imediatamente sem questionar','Questionar de forma profissional e verificar a regra','Desobedecer publicamente e discutir no rádio','Encerrar a comunicação'], correta:1 },
-    { enunciado:'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt:['Hierarquia','Disciplina, porque punição deve seguir normas','Código Q','Patrulhamento'], correta:1 },
-    { enunciado:'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt:['Permitir, pois o subordinado está obedecendo','Intervir, orientar/corrigir a conduta e adotar medidas previstas','Ignorar para não prejudicar a operação','Autorizar uso de força maior'], correta:1 },
-    { enunciado:'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. As evidências são incompletas mas existem indícios. Qual decisão demonstra melhor postura de comando?', alt:['Arquivar imediatamente para proteger a equipe','Punir o agente imediatamente sem investigação','Preservar evidências, encaminhar para apuração conforme regras e evitar favorecimento','Divulgar publicamente antes da investigação'], correta:2 }
+    { enunciado:'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt:['Manter segredo','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta:2 },
+    { enunciado:'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt:['Executar imediatamente','Questionar de forma profissional e verificar a regra','Desobedecer publicamente','Encerrar a comunicação'], correta:1 },
+    { enunciado:'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt:['Hierarquia','Disciplina','Código Q','Patrulhamento'], correta:1 },
+    { enunciado:'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt:['Permitir','Intervir, orientar e adotar medidas previstas','Ignorar','Autorizar uso de força maior'], correta:1 },
+    { enunciado:'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. Qual decisão demonstra melhor postura?', alt:['Arquivar imediatamente','Punir imediatamente','Preservar evidências e apurar conforme regras','Divulgar publicamente'], correta:2 }
   ]
 };
 
@@ -123,7 +123,7 @@ function getDefaultData() {
       { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
     ],
-    ocs: [], puns: [], pontos: [], provas: [], audit: []
+    ocs: [], puns: [], pontos: [], provas: [], audit: [], feedbacks: []
   };
 }
 
@@ -168,11 +168,12 @@ function sanitize(p) {
   }));
   return {
     users,
-    ocs:    Array.isArray(p.ocs)    ? p.ocs    : [],
-    puns:   Array.isArray(p.puns)   ? p.puns   : [],
-    pontos: Array.isArray(p.pontos) ? p.pontos : [],
-    provas: Array.isArray(p.provas) ? p.provas : [],
-    audit:  Array.isArray(p.audit)  ? p.audit  : []
+    ocs:        Array.isArray(p.ocs)        ? p.ocs        : [],
+    puns:       Array.isArray(p.puns)       ? p.puns       : [],
+    pontos:     Array.isArray(p.pontos)     ? p.pontos     : [],
+    provas:     Array.isArray(p.provas)     ? p.provas     : [],
+    audit:      Array.isArray(p.audit)      ? p.audit      : [],
+    feedbacks:  Array.isArray(p.feedbacks)  ? p.feedbacks  : []
   };
 }
 
@@ -190,7 +191,7 @@ function saveDataSync() {
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas | ${DB.feedbacks.length} feedbacks`);
 
 const wsClients = new Set();
 function wsHandshake(req, socket) {
@@ -291,10 +292,10 @@ async function handleAPI(req, res) {
   }
 
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length, provas: DB.provas.length });
+    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, puns: DB.puns.length, pontos: DB.pontos.length, provas: DB.provas.length, feedbacks: DB.feedbacks.length });
   }
   if (method === 'GET' && url === '/api/state') {
-    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit });
+    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks });
   }
 
   if (method === 'POST' && url === '/api/login') {
@@ -658,7 +659,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // ══════════ DECISÃO DE PROVAS — AGORA ACEITA 'aprovado' ══════════
   const mProvaDec = url.match(/^\/api\/provas\/([^/]+)\/decisao$/);
   if (method === 'PUT' && mProvaDec) {
     const i = DB.provas.findIndex(p => p.id === mProvaDec[1]);
@@ -698,6 +698,51 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
+  // ══════════ FEEDBACKS (avaliação do app) ══════════
+  if (method === 'GET' && url === '/api/feedbacks') {
+    return jsonRes(res, 200, DB.feedbacks);
+  }
+
+  if (method === 'POST' && url === '/api/feedbacks') {
+    const { userLogin, nome, nota, texto } = body;
+    if (!userLogin || !nome || typeof nota !== 'number' || nota < 1 || nota > 5) {
+      return jsonRes(res, 400, { error: 'Dados inválidos. Nota deve ser 1–5.' });
+    }
+    const textoLimpo = String(texto || '').trim().slice(0, 800);
+    if (textoLimpo.length < 3) {
+      return jsonRes(res, 400, { error: 'Escreva pelo menos 3 caracteres nas sugestões.' });
+    }
+    const fb = {
+      id: 'FB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      userLogin,
+      nome,
+      cargo: (DB.users.find(u => u.user === userLogin) || {}).cargo || 'gm',
+      nota,
+      texto: textoLimpo,
+      ts: Date.now()
+    };
+    DB.feedbacks.unshift(fb);
+    DB.feedbacks = DB.feedbacks.slice(0, 500);
+    saveData();
+    audit(`<b>${nome}</b> avaliou o sistema com <b>${nota}★</b> e deixou sugestões.`, '⭐');
+    broadcast('NEW_FEEDBACK', fb);
+    return jsonRes(res, 200, { ok: true, feedback: fb });
+  }
+
+  const mDelFb = url.match(/^\/api\/feedbacks\/([^/]+)$/);
+  if (method === 'DELETE' && mDelFb) {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) {
+      return jsonRes(res, 403, { error: 'Apenas Chefe e Admin podem excluir feedbacks.' });
+    }
+    const i = DB.feedbacks.findIndex(f => f.id === mDelFb[1]);
+    if (i === -1) return jsonRes(res, 404, { error: 'Feedback não encontrado.' });
+    DB.feedbacks.splice(i, 1);
+    saveData();
+    broadcast('FEEDBACKS_UPDATED', DB.feedbacks);
+    return jsonRes(res, 200, { ok: true });
+  }
+
   if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = []; saveData();
@@ -722,7 +767,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   wsClients.add(socket);
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit } });
+  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks } });
   socket.on('data', (chunk) => {
     socket._buffer = Buffer.concat([socket._buffer, chunk]);
     while (socket._buffer.length >= 2) {
@@ -759,7 +804,7 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.6         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.7         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
