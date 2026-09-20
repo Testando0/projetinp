@@ -1,9 +1,30 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#0a0a0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GMPOL">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="GMPOL">
+  <meta name="description" content="Grupamento Municipal de Policiamento — Sistema Central">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- iOS Icons -->
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/logo.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/logo.png">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="shortcut icon" href="/logo.png">
+  
   <title>GMPOL — Sistema Central</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -183,6 +204,68 @@
       .settings-btn,.hamburger-btn,input,select,textarea,div[style*="border-radius:4px"],
       .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill,.u-avatar,
       .ban-container,.ban-timer-wrap,.cargo-notif,.decide-zone.open{animation:none !important;}
+    }
+    
+    /* ══ PWA INSTALL PROMPT ══ */
+    .pwa-install-banner {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: rgba(14,14,16,.95);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 16px;
+      padding: 16px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 10000;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    .pwa-install-banner.show { display: flex; }
+    .pwa-install-banner img {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+    }
+    .pwa-install-banner-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .pwa-install-banner-title {
+      font-weight: 700;
+      font-size: .9rem;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+    .pwa-install-banner-sub {
+      font-size: .72rem;
+      color: #9ca3af;
+    }
+    .pwa-install-banner-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .pwa-install-btn {
+      background: #fff;
+      color: #0a0a0b;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-weight: 700;
+      font-size: .8rem;
+      cursor: pointer;
+    }
+    .pwa-dismiss-btn {
+      background: transparent;
+      color: #9ca3af;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: .8rem;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -433,9 +516,85 @@
     </div>
   </div>
 
+  <!-- ══════════════ PWA INSTALL BANNER ══════════════ -->
+  <div id="pwa-install-banner" class="pwa-install-banner">
+    <img src="/logo.png" alt="GMPOL">
+    <div class="pwa-install-banner-text">
+      <div class="pwa-install-banner-title">Instalar GMPOL</div>
+      <div class="pwa-install-banner-sub">Adicione à tela inicial para acesso rápido</div>
+    </div>
+    <div class="pwa-install-banner-actions">
+      <button class="pwa-install-btn" onclick="installPWA()">INSTALAR</button>
+      <button class="pwa-dismiss-btn" onclick="dismissPWABanner()">✕</button>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
+  
+  <!-- ══════════════ SERVICE WORKER REGISTRATION ══════════════ -->
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('[SW] Registrado com sucesso:', registration.scope);
+          })
+          .catch(error => {
+            console.error('[SW] Falha ao registrar:', error);
+          });
+      });
+    }
+    
+    // PWA Install Prompt
+    let deferredPrompt;
+    const installBanner = document.getElementById('pwa-install-banner');
+    
+    window.addEventListener('beforeinstallprompt', (e) => {
+      console.log('[PWA] beforeinstallprompt disparado');
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // Mostra o banner se ainda não foi dispensado
+      const dismissed = localStorage.getItem('pwa-install-dismissed');
+      if (!dismissed) {
+        installBanner.classList.add('show');
+      }
+    });
+    
+    function installPWA() {
+      if (!deferredPrompt) {
+        console.error('[PWA] Prompt não disponível');
+        return;
+      }
+      
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('[PWA] Usuário aceitou instalar');
+          toast('✅ App instalado com sucesso!', 's');
+        } else {
+          console.log('[PWA] Usuário recusou instalar');
+        }
+        deferredPrompt = null;
+        installBanner.classList.remove('show');
+      });
+    }
+    
+    function dismissPWABanner() {
+      installBanner.classList.remove('show');
+      localStorage.setItem('pwa-install-dismissed', 'true');
+    }
+    
+    // Detecta se o app já está instalado
+    window.addEventListener('appinstalled', () => {
+      console.log('[PWA] App instalado');
+      installBanner.classList.remove('show');
+      toast('✅ GMPOL instalado! Abra pelo ícone na tela inicial.', 's', 5000);
+    });
+  </script>
 </body>
-          </html>
+            </html>
