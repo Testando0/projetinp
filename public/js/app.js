@@ -930,23 +930,28 @@ function tocarSomRoleta(){
 }
 
 function mostrarResultadoRoleta(premio){
-  const modal=document.createElement('div');
-  modal.className='roleta-modal';
-  modal.innerHTML=`
-    <div class="roleta-result" style="--result-color:${premio.corBorda};--result-glow:${premio.corBorda}40;">
-      <div class="roleta-result-icon">${premio.icone}</div>
-      <div class="roleta-result-rarity">${premio.nome.toUpperCase()}</div>
-      <div class="roleta-result-value">R$ ${premio.valor.toLocaleString('pt-BR')}</div>
-      <div class="roleta-result-msg">
-        <b>🎉 PARABÉNS!</b><br>
-        Você ganhou um prêmio <b>${premio.nome}</b>!
-      </div>
-      <div class="roleta-result-cta">📸 Tire um PRINT e envie no <b>Chat</b> para validar</div>
-      <button class="roleta-result-btn" onclick="fecharResultadoRoleta(this)">✓ ENTENDI</button>
-    </div>`;
+  const agora=new Date();
+  const dataHora=agora.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const giroId='GIR-'+agora.getTime()+'-'+Math.random().toString(36).slice(2,6).toUpperCase();
+  
+  const modal=document.createElement('div');modal.className='roleta-modal';
+  modal.innerHTML=`<div class="roleta-result" style="--result-color:${premio.corBorda};--result-glow:${premio.corBorda}40;">
+    <div class="roleta-result-icon">${premio.icone}</div>
+    <div class="roleta-result-rarity">${premio.nome.toUpperCase()}</div>
+    <div class="roleta-result-value">R$ ${premio.valor.toLocaleString('pt-BR')}</div>
+    <div class="roleta-result-msg"><b>🎉 PARABÉNS!</b><br>Você ganhou um prêmio <b>${premio.nome}</b>!</div>
+    <div style="background:rgba(0,0,0,.3);border:1px dashed rgba(251,191,36,.4);border-radius:10px;padding:12px 16px;margin-bottom:16px;text-align:left;">
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);letter-spacing:.08em;margin-bottom:4px;">DATA E HORA</div>
+      <div style="font-family:'Orbitron',sans-serif;font-size:.95rem;font-weight:800;color:#fbbf24;margin-bottom:8px;">📅 ${dataHora}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);letter-spacing:.08em;margin-bottom:4px;">ID DO GIRO</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.78rem;color:var(--text);letter-spacing:.05em;">#${giroId}</div>
+    </div>
+    <div class="roleta-result-cta">📸 Tire um PRINT mostrando <b>DATA/HORA e ID</b> e envie no Chat para validar</div>
+    <button class="roleta-result-btn" onclick="fecharResultadoRoleta(this)">✓ ENTENDI</button>
+  </div>`;
   document.body.appendChild(modal);
   try{tocarSomVitoria();}catch(_){}
-  toast(`🎉 Você ganhou R$ ${premio.valor.toLocaleString('pt-BR')}! Envie o print no chat.`,'s',10000);
+  toast(`🎉 Você ganhou R$ ${premio.valor.toLocaleString('pt-BR')}! Envie o print com data/hora no chat.`,'s',10000);
 }
 
 function tocarSomVitoria(){
