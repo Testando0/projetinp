@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  
-  <!-- PWA Meta Tags -->
+
+  <!-- PWA -->
   <meta name="theme-color" content="#0a0a0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,31 +12,22 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="GMPOL">
   <meta name="description" content="Grupamento Municipal de Policiamento — Sistema Central">
-  
-  <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json">
-  
-  <!-- iOS Icons -->
   <link rel="apple-touch-icon" href="/logo.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/logo.png">
   <link rel="apple-touch-icon" sizes="167x167" href="/logo.png">
-  
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="/logo.png">
   <link rel="shortcut icon" href="/logo.png">
-  
+
   <title>GMPOL — Sistema Central</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/extra.css">
-  <style>
-    /* ═══════════════════════════════════════════════════════════
-       GMPOL — BORDAS BRANCAS (padrão Ghostzin'zk em branco)
-       ═══════════════════════════════════════════════════════════ */
 
-    /* ══ 1. FONTE ══ */
+  <style>
+    /* ══ 1. FONTE PROFISSIONAL ══ */
     *,*::before,*::after{font-family:'Inter','Roboto',system-ui,-apple-system,'Segoe UI',sans-serif !important;}
     body::after{display:none !important;}
     .login-mark{animation:none !important;font-weight:800 !important;letter-spacing:.06em !important;}
@@ -45,36 +36,23 @@
     .ban-subtitle,.ban-timer-label,.ban-info-label,.ws-status-bar,.topbar-user,.notif-pill,.empty p{letter-spacing:.06em !important;}
     .stitle,.tab,.btn,.nav-drawer-item,.modal-h h3,.cargo-badge,.status-chip,.tipo-badge,.ban-badge,.ban-title{letter-spacing:.04em !important;}
 
-    /* ══ 2. FUNDO E SUPERFÍCIES (bordas BRANCAS no padrão Ghostzin'zk) ══ */
+    /* ══ 2. FUNDO E SUPERFÍCIES ══ */
     body{background:#0a0a0b !important;}
     #s-login{background:radial-gradient(1100px 560px at 50% -10%,rgba(255,255,255,.06),transparent 60%),#0a0a0b !important;}
     #s-ban{background:radial-gradient(900px 500px at 50% 18%,rgba(255,255,255,.08),transparent 60%),#0a0a0b !important;}
     .topbar,.tabs{background:#0d0d0f !important;border-color:rgba(255,255,255,.15) !important;}
-
-    /* ═ Card principal: 30% branco + glow igual ao Ghostzin'zk ═ */
     .card,.login-card,.modal,.settings-menu,.empty,.hint-box,.dep-box,
     .ban-container,.cargo-notif,.ponto-agente-block,.toast,.tbl-wrap{
       background:rgba(14,14,16,.92) !important;
       border:1px solid rgba(255,255,255,.3) !important;
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
+      backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
     }
     .card::before{display:none !important;}
-
-    /* ═ Ocorrências e stats: 35% (mesma opacidade de .acc-item) ═ */
-    .oc-wrap,.stat-box{
-      background:rgba(18,18,22,.82) !important;
-      border:1px solid rgba(255,255,255,.35) !important;
-    }
-
-    /* ═ Glow do card (equivalente ao 0 0 40px rgba(220,0,10,0.25)) ═ */
+    .oc-wrap,.stat-box{background:rgba(18,18,22,.82) !important;border:1px solid rgba(255,255,255,.35) !important;}
     .card,.login-card,.modal,.settings-menu,.empty,.hint-box,.dep-box,
     .ban-container,.cargo-notif,.ponto-agente-block,.toast,.tbl-wrap,
     .oc-wrap,.stat-box{
-      box-shadow:
-        0 0 30px rgba(255,255,255,.10),
-        0 0 60px rgba(255,255,255,.05),
-        inset 0 0 20px rgba(0,0,0,.35) !important;
+      box-shadow:0 0 30px rgba(255,255,255,.10),0 0 60px rgba(255,255,255,.05),inset 0 0 20px rgba(0,0,0,.35) !important;
     }
     .ban-container{background:rgba(18,14,18,.92) !important;}
 
@@ -121,83 +99,50 @@
     .ws-status-bar{background:rgba(13,13,15,.92) !important;border-top:1px solid rgba(255,255,255,.15) !important;}
     .modal-overlay{backdrop-filter:blur(8px) !important;-webkit-backdrop-filter:blur(8px) !important;}
 
-    /* ══ 5. BORDA FINA "RESPIRANDO" (padrão Ghostzin'zk: pulse de 10%→30%) ══ */
-
-    /* pulse principal: vai de 0.10 para 0.30 (igual ao .card::before do Ghostzin) */
+    /* ══ 5. BORDA FINA "RESPIRANDO" ══ */
     @keyframes gmpol-borda-pulso{
-      0%,100%{
-        border-color:rgba(255,255,255,.10);
-        box-shadow:
-          0 0 20px rgba(255,255,255,.05),
-          0 0 0 0 rgba(255,255,255,0);
-      }
-      50%{
-        border-color:rgba(255,255,255,.30);
-        box-shadow:
-          0 0 40px rgba(255,255,255,.15),
-          0 0 14px rgba(255,255,255,.12);
-      }
+      0%,100%{border-color:rgba(255,255,255,.10);box-shadow:0 0 20px rgba(255,255,255,.05),0 0 0 0 rgba(255,255,255,0);}
+      50%{border-color:rgba(255,255,255,.30);box-shadow:0 0 40px rgba(255,255,255,.15),0 0 14px rgba(255,255,255,.12);}
     }
-    /* pulse suave para bolhas menores */
     @keyframes gmpol-borda-pulso-suave{
-      0%,100%{ border-color:rgba(255,255,255,.18); }
-      50%    { border-color:rgba(255,255,255,.35); }
+      0%,100%{border-color:rgba(255,255,255,.18);}
+      50%{border-color:rgba(255,255,255,.35);}
     }
-    /* glow pulse para badges coloridas */
     @keyframes gmpol-glow-pulso{
-      0%,100%{ box-shadow:0 0 0 0 rgba(255,255,255,0); }
-      50%    { box-shadow:0 0 16px 0 rgba(255,255,255,.18); }
+      0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0);}
+      50%{box-shadow:0 0 16px 0 rgba(255,255,255,.18);}
     }
-    /* estado "aberto" (igual ao .acc-item.open: 60%) */
-    @keyframes gmpol-borda-aberto{
-      0%,100%{ border-color:rgba(255,255,255,.45); box-shadow:0 0 16px rgba(255,255,255,.10); }
-      50%    { border-color:rgba(255,255,255,.60); box-shadow:0 0 28px rgba(255,255,255,.20); }
-    }
-
-    /* ═ Card / modal / painéis grandes: pulse principal (4.5s) ═ */
     .card,.oc-wrap,.login-card,.empty,.hint-box,.dep-box,.ponto-agente-block,
     .stat-box,.ban-status-msg,.tbl-wrap,.modal{
       border:1px solid rgba(255,255,255,.10) !important;
       animation:gmpol-borda-pulso 4.5s ease-in-out infinite !important;
     }
-    .modal{
-      animation:modalIn .22s cubic-bezier(0,.6,.4,1), gmpol-borda-pulso 4.5s ease-in-out infinite !important;
-    }
-
-    /* ═ Abas / botões ghost / ícones: pulse suave (3.6s) ═ */
+    .modal{animation:modalIn .22s cubic-bezier(0,.6,.4,1), gmpol-borda-pulso 4.5s ease-in-out infinite !important;}
     .tab:not(.active),.pv-alt,label.pv-alt,.btn-ghost,.settings-btn,.hamburger-btn{
       border:1px solid rgba(255,255,255,.18) !important;
       animation:gmpol-borda-pulso-suave 3.6s ease-in-out infinite !important;
     }
-
-    /* ═ Inputs: pulse lento (5.5s) ═ */
     input,select,textarea{
       border:1px solid rgba(255,255,255,.18) !important;
       animation:gmpol-borda-pulso-suave 5.5s ease-in-out infinite !important;
     }
-
-    /* ═ Blocos gerados pelo app.js ═ */
     div[style*="border-radius:4px"],div[style*="border-radius: 4px"]{
       animation:gmpol-borda-pulso-suave 4.2s ease-in-out infinite !important;
     }
-
-    /* ═ Itens abertos/ativos (60% — igual .acc-item.open) ═ */
     .decide-zone.open,.acc-item.open,.card:hover,.oc-wrap:hover,.modal:hover{
       animation:gmpol-borda-aberto 2.8s ease-in-out infinite !important;
     }
-
-    /* ═ Badges coloridas / avatares: mantêm cor, brilho respira ═ */
+    @keyframes gmpol-borda-aberto{
+      0%,100%{border-color:rgba(255,255,255,.45);box-shadow:0 0 16px rgba(255,255,255,.10);}
+      50%{border-color:rgba(255,255,255,.60);box-shadow:0 0 28px rgba(255,255,255,.20);}
+    }
     .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill,.u-avatar,
     .ban-container,.ban-timer-wrap,.cargo-notif{
       animation:gmpol-glow-pulso 3.6s ease-in-out infinite !important;
     }
-
-    /* ═ Exceções: estados sólidos sem pulso ═ */
     .tab.active{animation:none !important;border-color:rgba(255,255,255,.9) !important;}
     input:focus,select:focus,textarea:focus{animation:none !important;border-color:rgba(255,255,255,.7) !important;}
     .btn-primary,.btn-success,.btn-danger,.btn-warn{animation:none !important;}
-
-    /* ═ Respeita prefers-reduced-motion ═ */
     @media (prefers-reduced-motion: reduce){
       .card,.oc-wrap,.login-card,.empty,.hint-box,.dep-box,.ponto-agente-block,.stat-box,
       .ban-status-msg,.tbl-wrap,.modal,.tab:not(.active),.pv-alt,label.pv-alt,.btn-ghost,
@@ -205,67 +150,129 @@
       .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill,.u-avatar,
       .ban-container,.ban-timer-wrap,.cargo-notif,.decide-zone.open{animation:none !important;}
     }
-    
-    /* ══ PWA INSTALL PROMPT ══ */
-    .pwa-install-banner {
-      position: fixed;
-      bottom: 20px;
-      left: 20px;
-      right: 20px;
-      background: rgba(14,14,16,.95);
-      border: 1px solid rgba(255,255,255,.3);
-      border-radius: 16px;
-      padding: 16px;
-      display: none;
-      align-items: center;
-      gap: 12px;
-      z-index: 10000;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      box-shadow: 0 8px 32px rgba(0,0,0,.5);
-    }
-    .pwa-install-banner.show { display: flex; }
-    .pwa-install-banner img {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-    }
-    .pwa-install-banner-text {
-      flex: 1;
-      min-width: 0;
-    }
-    .pwa-install-banner-title {
-      font-weight: 700;
-      font-size: .9rem;
-      color: #fff;
-      margin-bottom: 2px;
-    }
-    .pwa-install-banner-sub {
-      font-size: .72rem;
-      color: #9ca3af;
-    }
-    .pwa-install-banner-actions {
-      display: flex;
-      gap: 8px;
-    }
-    .pwa-install-btn {
-      background: #fff;
-      color: #0a0a0b;
-      border: none;
-      border-radius: 10px;
-      padding: 8px 16px;
-      font-weight: 700;
-      font-size: .8rem;
-      cursor: pointer;
-    }
-    .pwa-dismiss-btn {
-      background: transparent;
-      color: #9ca3af;
-      border: 1px solid rgba(255,255,255,.2);
-      border-radius: 10px;
-      padding: 8px 12px;
-      font-size: .8rem;
-      cursor: pointer;
+
+    /* ══════════════════════════════════════════════════════════
+       ══ 6. ROLETA — CSS GLOBAL (FIX: modais estilizados em QUALQUER aba) ══
+       ══════════════════════════════════════════════════════════ */
+    .roleta-hero{position:relative;padding:28px 24px;border-radius:20px;margin-bottom:20px;background:radial-gradient(circle at 20% 30%,rgba(245,158,11,.15) 0%,transparent 50%),radial-gradient(circle at 80% 70%,rgba(139,92,246,.15) 0%,transparent 50%),linear-gradient(135deg,rgba(14,14,16,.95) 0%,rgba(20,20,24,.95) 100%);border:1px solid rgba(255,255,255,.15);overflow:hidden;}
+    .roleta-hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);}
+    .roleta-hero-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+    .roleta-hero-title{font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:900;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;letter-spacing:.08em;}
+    .roleta-hero-sub{font-size:.78rem;color:var(--text-mid);letter-spacing:.04em;}
+    .roleta-master-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:linear-gradient(135deg,#7c3aed 0%,#ec4899 100%);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;letter-spacing:.05em;box-shadow:0 4px 16px rgba(236,72,153,.4);transition:all .2s;}
+    .roleta-master-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(236,72,153,.6);}
+    .roleta-master-btn-ico{font-size:1rem;}
+    .roleta-master-banner{position:relative;padding:14px 18px;margin-bottom:18px;background:linear-gradient(135deg,rgba(167,139,250,.15) 0%,rgba(236,72,153,.1) 100%);border:1px solid rgba(167,139,250,.5);border-radius:14px;overflow:hidden;}
+    .roleta-master-glow{position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(167,139,250,.3) 0%,transparent 50%);animation:roletaPulse 3s ease-in-out infinite;}
+    .roleta-master-content{position:relative;display:flex;align-items:center;gap:14px;}
+    .roleta-master-ico{font-size:2rem;filter:drop-shadow(0 0 8px rgba(167,139,250,.8));}
+    .roleta-master-main{font-weight:800;color:#a78bfa;font-size:.92rem;letter-spacing:.05em;}
+    .roleta-master-sub{font-size:.72rem;color:var(--text-mid);margin-top:2px;}
+    .roleta-bonus-banner{position:relative;padding:14px 18px;margin-bottom:18px;background:linear-gradient(135deg,rgba(16,185,129,.15) 0%,rgba(34,197,94,.08) 100%);border:1px solid rgba(34,197,94,.4);border-radius:14px;overflow:hidden;}
+    .roleta-bonus-glow{position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(34,197,94,.3) 0%,transparent 50%);animation:roletaPulse 3s ease-in-out infinite;}
+    @keyframes roletaPulse{0%,100%{transform:scale(1);opacity:.5;}50%{transform:scale(1.1);opacity:1;}}
+    .roleta-bonus-content{position:relative;display:flex;align-items:center;gap:14px;}
+    .roleta-bonus-ico{font-size:2rem;filter:drop-shadow(0 0 8px rgba(34,197,94,.6));}
+    .roleta-bonus-main{font-weight:700;color:#4ade80;font-size:.92rem;}
+    .roleta-bonus-main b{font-size:1.1rem;}
+    .roleta-bonus-sub{font-size:.72rem;color:var(--text-mid);margin-top:2px;}
+    .roleta-cooldown-banner{display:flex;align-items:center;gap:14px;padding:14px 18px;margin-bottom:18px;background:rgba(224,192,96,.08);border:1px solid rgba(224,192,96,.3);border-radius:14px;}
+    .roleta-cooldown-ico{font-size:2rem;}
+    .roleta-cooldown-main{font-size:.78rem;color:var(--text-mid);letter-spacing:.04em;}
+    .roleta-cooldown-timer{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:800;color:var(--warn);letter-spacing:.05em;margin-top:2px;}
+    .roleta-cooldown-hint{font-size:.68rem;color:var(--text-dim);margin-top:6px;font-style:italic;}
+    .roleta-stage{position:relative;display:flex;flex-direction:column;align-items:center;padding:30px 0;}
+    .roleta-wheel-wrap{position:relative;width:min(420px,92vw);aspect-ratio:1;}
+    .roleta-canvas-container{position:relative;width:100%;height:100%;filter:drop-shadow(0 12px 40px rgba(0,0,0,.6));}
+    #roleta-canvas{width:100%;height:100%;transition:transform 5.5s cubic-bezier(0.15,0.7,0.1,1);transform:rotate(0deg);}
+    .roleta-pointer{position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:22px solid transparent;border-right:22px solid transparent;border-top:44px solid #fff;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6)) drop-shadow(0 0 16px rgba(251,191,36,.6));z-index:10;}
+    .roleta-pointer::after{content:'';position:absolute;top:-48px;left:-8px;width:16px;height:16px;background:#fbbf24;border-radius:50%;box-shadow:0 0 20px rgba(251,191,36,.8);}
+    .roleta-leds{position:absolute;top:50%;left:50%;width:100%;height:100%;transform:translate(-50%,-50%);pointer-events:none;}
+    .roleta-led{position:absolute;width:10px;height:10px;border-radius:50%;}
+    .roleta-led.on{background:#fbbf24;box-shadow:0 0 12px #fbbf24,0 0 20px #fbbf24;}
+    .roleta-led.off{background:rgba(255,255,255,.15);box-shadow:0 0 4px rgba(255,255,255,.1);}
+    .roleta-spin-btn{margin-top:30px;position:relative;padding:18px 48px;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);border:none;border-radius:999px;color:#000;font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 32px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3);transition:all .2s;overflow:hidden;}
+    .roleta-spin-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transition:left .6s;}
+    .roleta-spin-btn:hover::before{left:100%;}
+    .roleta-spin-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(245,158,11,.7),inset 0 2px 0 rgba(255,255,255,.3);}
+    .roleta-spin-btn.spinning{pointer-events:none;opacity:.7;}
+    .roleta-prizes{margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+    .roleta-prize-card{position:relative;padding:18px 14px;border-radius:16px;text-align:center;overflow:hidden;transition:transform .25s;}
+    .roleta-prize-card:hover{transform:translateY(-4px);}
+    .roleta-prize-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,var(--card-glow) 0%,transparent 70%);opacity:.6;pointer-events:none;}
+    .roleta-prize-card::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.1) 50%,transparent 60%);animation:roletaShimmer 3s linear infinite;pointer-events:none;}
+    @keyframes roletaShimmer{0%{transform:translateX(-50%) translateY(-50%);}100%{transform:translateX(50%) translateY(50%);}}
+    .roleta-prize-icon{font-size:2.2rem;margin-bottom:8px;filter:drop-shadow(0 0 12px var(--card-glow));}
+    .roleta-prize-value{font-family:'Orbitron',sans-serif;font-size:1.35rem;font-weight:900;color:var(--card-color);letter-spacing:.04em;margin-bottom:4px;text-shadow:0 0 12px var(--card-glow);}
+    .roleta-prize-name{font-size:.72rem;color:var(--card-color);letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+    .roleta-prize-rarity{position:absolute;top:8px;right:8px;font-size:.55rem;padding:2px 6px;border-radius:6px;font-weight:700;background:rgba(0,0,0,.5);color:var(--card-color);letter-spacing:.05em;border:1px solid var(--card-color);}
+    .roleta-prize-card.common{--card-color:#4ade80;--card-glow:rgba(74,222,128,.5);background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(5,150,105,.06) 100%);border:1px solid rgba(74,222,128,.4);}
+    .roleta-prize-card.uncommon{--card-color:#60a5fa;--card-glow:rgba(96,165,250,.5);background:linear-gradient(135deg,rgba(59,130,246,.12) 0%,rgba(29,78,216,.06) 100%);border:1px solid rgba(96,165,250,.4);}
+    .roleta-prize-card.rare{--card-color:#fbbf24;--card-glow:rgba(251,191,36,.5);background:linear-gradient(135deg,rgba(245,158,11,.12) 0%,rgba(180,83,9,.06) 100%);border:1px solid rgba(251,191,36,.4);}
+    .roleta-prize-card.epic{--card-color:#f87171;--card-glow:rgba(248,113,113,.5);background:linear-gradient(135deg,rgba(239,68,68,.12) 0%,rgba(153,27,27,.06) 100%);border:1px solid rgba(248,113,113,.4);}
+    .roleta-prize-card.epic2{--card-color:#a78bfa;--card-glow:rgba(167,139,250,.5);background:linear-gradient(135deg,rgba(139,92,246,.12) 0%,rgba(91,33,182,.06) 100%);border:1px solid rgba(167,139,250,.4);}
+    .roleta-prize-card.legendary{--card-color:#f9a8d4;--card-glow:rgba(236,72,153,.7);background:linear-gradient(135deg,rgba(236,72,153,.18) 0%,rgba(157,23,77,.08) 100%);border:2px solid rgba(249,168,212,.6);animation:legendaryPulse 2.5s ease-in-out infinite;}
+    @keyframes legendaryPulse{0%,100%{box-shadow:0 0 0 0 rgba(236,72,153,.4);}50%{box-shadow:0 0 30px 8px rgba(236,72,153,.3);}}
+
+    /* ══ MODAIS DA ROLETA (agora GLOBAIS — funcionam em qualquer aba) ══ */
+    .roleta-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+    .roleta-result{position:relative;max-width:440px;width:100%;padding:36px 30px;background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);border-radius:24px;border:2px solid var(--result-color,#fbbf24);box-shadow:0 0 60px var(--result-glow,rgba(251,191,36,.5)),0 20px 60px rgba(0,0,0,.7);text-align:center;overflow:hidden;animation:resultEnter .5s cubic-bezier(.34,1.56,.64,1);}
+    @keyframes resultEnter{0%{transform:scale(.7) translateY(40px);opacity:0;}100%{transform:scale(1) translateY(0);opacity:1;}}
+    .roleta-result::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--result-color,#fbbf24),transparent);animation:resultShine 2s ease-in-out infinite;}
+    @keyframes resultShine{0%,100%{opacity:.5;}50%{opacity:1;}}
+    .roleta-result-icon{font-size:4rem;margin-bottom:12px;filter:drop-shadow(0 0 20px var(--result-glow));}
+    .roleta-result-rarity{display:inline-block;padding:4px 14px;margin-bottom:14px;background:rgba(0,0,0,.4);border:1px solid var(--result-color);color:var(--result-color);border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+    .roleta-result-value{font-family:'Orbitron',sans-serif;font-size:3.2rem;font-weight:900;color:var(--result-color);margin:8px 0 16px;letter-spacing:.04em;text-shadow:0 0 30px var(--result-glow);animation:resultValuePulse 1.5s ease-in-out infinite;}
+    @keyframes resultValuePulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+    .roleta-result-msg{color:var(--text-mid);font-size:.88rem;line-height:1.6;margin-bottom:22px;}
+    .roleta-result-msg b{color:var(--text);}
+    .roleta-result-cta{padding:8px 16px;background:rgba(251,191,36,.1);border:1px dashed rgba(251,191,36,.4);border-radius:10px;font-size:.78rem;color:var(--warn);margin-bottom:20px;}
+    .roleta-result-btn{padding:14px 32px;background:linear-gradient(135deg,#fff 0%,#fbbf24 100%);border:none;border-radius:999px;color:#000;font-family:'Orbitron',sans-serif;font-size:.9rem;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 24px rgba(251,191,36,.4);transition:transform .2s;}
+    .roleta-result-btn:hover{transform:translateY(-2px);}
+    .confetti-piece{position:fixed;width:10px;height:10px;top:-10px;z-index:9998;pointer-events:none;animation:confettiFall 3s linear forwards;}
+    @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
+    .roleta-info{padding:18px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.1);border-radius:14px;margin-top:20px;}
+    .roleta-info-title{font-size:.78rem;font-weight:700;color:var(--accent);letter-spacing:.08em;margin-bottom:10px;text-transform:uppercase;}
+    .roleta-info-text{font-size:.82rem;color:var(--text-mid);line-height:1.7;}
+    .roleta-info-text b{color:var(--text);}
+    .roleta-info-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+    .roleta-info-step-num{flex:0 0 24px;height:24px;background:linear-gradient(135deg,#fbbf24,#dc2626);color:#000;font-weight:800;font-size:.75rem;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+
+    /* ══ MODAL "SEM GIROS" (preços) ══ */
+    .sg-price-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.35);border-radius:12px;}
+    .sg-price-qtd{font-weight:800;color:var(--text);font-size:.9rem;}
+    .sg-price-val{font-family:'Orbitron',sans-serif;font-weight:800;color:#fbbf24;font-size:.95rem;}
+    .sg-best{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.45);}
+    .sg-best .sg-price-val{color:#4ade80;}
+    .sg-slogan{margin-top:12px;font-family:'Orbitron',sans-serif;font-size:.82rem;font-weight:800;color:#4ade80;letter-spacing:.06em;line-height:1.5;}
+
+    /* ══ MODAL LIBERAR GIROS (MASTER) ══ */
+    .bonus-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;}
+    .bonus-modal-content{max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:28px;background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);border:2px solid rgba(139,92,246,.5);border-radius:20px;box-shadow:0 0 60px rgba(139,92,246,.3);}
+    .bonus-modal-title{font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:6px;letter-spacing:.08em;}
+    .bonus-modal-sub{text-align:center;font-size:.78rem;color:var(--text-mid);margin-bottom:22px;}
+    .bonus-user-list{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;padding-right:4px;}
+    .bonus-user-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);border-radius:12px;cursor:pointer;transition:all .2s;}
+    .bonus-user-item:hover{background:rgba(255,255,255,.06);border-color:rgba(139,92,246,.5);transform:translateX(2px);}
+    .bonus-user-avatar{flex:0 0 42px;width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#ec4899);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff;}
+    .bonus-user-info{flex:1;min-width:0;}
+    .bonus-user-name{font-weight:700;font-size:.92rem;color:var(--text);}
+    .bonus-user-cargo{font-size:.7rem;color:var(--text-mid);margin-top:2px;}
+    .bonus-user-giros{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:2px 8px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);border-radius:999px;font-size:.68rem;font-weight:700;color:#4ade80;}
+    .bonus-modal-close{margin-top:18px;width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;color:var(--text-mid);font-weight:600;cursor:pointer;transition:all .2s;}
+    .bonus-modal-close:hover{background:rgba(255,255,255,.05);color:var(--text);}
+
+    @media (max-width:520px){
+      .roleta-hero{padding:20px 16px;}
+      .roleta-hero-title{font-size:1.15rem;}
+      .roleta-prizes{grid-template-columns:repeat(2,1fr);gap:10px;}
+      .roleta-prize-card{padding:14px 10px;}
+      .roleta-prize-icon{font-size:1.8rem;}
+      .roleta-prize-value{font-size:1.1rem;}
+      .roleta-prize-name{font-size:.62rem;}
+      .roleta-spin-btn{padding:16px 36px;font-size:.88rem;}
+      .roleta-result-value{font-size:2.4rem;}
+      .roleta-result-icon{font-size:3rem;}
     }
   </style>
 </head>
@@ -516,85 +523,9 @@
     </div>
   </div>
 
-  <!-- ══════════════ PWA INSTALL BANNER ══════════════ -->
-  <div id="pwa-install-banner" class="pwa-install-banner">
-    <img src="/logo.png" alt="GMPOL">
-    <div class="pwa-install-banner-text">
-      <div class="pwa-install-banner-title">Instalar GMPOL</div>
-      <div class="pwa-install-banner-sub">Adicione à tela inicial para acesso rápido</div>
-    </div>
-    <div class="pwa-install-banner-actions">
-      <button class="pwa-install-btn" onclick="installPWA()">INSTALAR</button>
-      <button class="pwa-dismiss-btn" onclick="dismissPWABanner()">✕</button>
-    </div>
-  </div>
-
   <div id="toast-container"></div>
 
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
-  
-  <!-- ══════════════ SERVICE WORKER REGISTRATION ══════════════ -->
-  <script>
-    // Register Service Worker for PWA
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(registration => {
-            console.log('[SW] Registrado com sucesso:', registration.scope);
-          })
-          .catch(error => {
-            console.error('[SW] Falha ao registrar:', error);
-          });
-      });
-    }
-    
-    // PWA Install Prompt
-    let deferredPrompt;
-    const installBanner = document.getElementById('pwa-install-banner');
-    
-    window.addEventListener('beforeinstallprompt', (e) => {
-      console.log('[PWA] beforeinstallprompt disparado');
-      e.preventDefault();
-      deferredPrompt = e;
-      
-      // Mostra o banner se ainda não foi dispensado
-      const dismissed = localStorage.getItem('pwa-install-dismissed');
-      if (!dismissed) {
-        installBanner.classList.add('show');
-      }
-    });
-    
-    function installPWA() {
-      if (!deferredPrompt) {
-        console.error('[PWA] Prompt não disponível');
-        return;
-      }
-      
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('[PWA] Usuário aceitou instalar');
-          toast('✅ App instalado com sucesso!', 's');
-        } else {
-          console.log('[PWA] Usuário recusou instalar');
-        }
-        deferredPrompt = null;
-        installBanner.classList.remove('show');
-      });
-    }
-    
-    function dismissPWABanner() {
-      installBanner.classList.remove('show');
-      localStorage.setItem('pwa-install-dismissed', 'true');
-    }
-    
-    // Detecta se o app já está instalado
-    window.addEventListener('appinstalled', () => {
-      console.log('[PWA] App instalado');
-      installBanner.classList.remove('show');
-      toast('✅ GMPOL instalado! Abra pelo ícone na tela inicial.', 's', 5000);
-    });
-  </script>
 </body>
-            </html>
+  </html>
