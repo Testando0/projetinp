@@ -1,4 +1,4 @@
-// ══ CONFIG ══
+// ══ CONFIG ═
 const CARGO_LABEL={admin:'Admin master',chefe:'Chefe de polícia',delegado:'Delegado',escrivao:'Escrivão',tatico:'Tático',agente:'Agente oficial',gm:'Guarda municipal'};
 const CARGO_BADGE_CLASS={admin:'cb-master',chefe:'cb-chefe',delegado:'cb-delegado',escrivao:'cb-escrivao',tatico:'cb-tatico',agente:'cb-agente',gm:'cb-guarda'};
 const CARGO_PERM={admin:7,chefe:6,delegado:5,escrivao:4,tatico:3,agente:2,gm:1};
@@ -62,9 +62,17 @@ function handleSocketMessage(data){
       }
       break;
     case 'USERS_UPDATED':
-      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
+      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
       if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos'))renderTab(activeTab);
       if(activeTab===getTabIdx('chat'))renderChatListaContatos();
+      if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
+      break;
+    case 'GIROS_GAINED':
+      if(me&&payload.userLogin===me.user){
+        me.girosBonus=payload.total;saveSession();
+        toast('🎰 +'+payload.giros+' giro(s) bônus! '+payload.motivo,'s',7000);
+        if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
+      }
       break;
     case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
     case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
@@ -121,7 +129,7 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;}}catch(_){}
   showPanel();
 }
 
@@ -139,7 +147,7 @@ async function login(){
 function toggleSenhaVisivel(){const i=document.getElementById('l-pass'),b=document.getElementById('eye-btn');if(!i)return;if(i.type==='password'){i.type='text';if(b){b.textContent='🙈';b.title='Ocultar senha';}}else{i.type='password';if(b){b.textContent='👁';b.title='Mostrar senha';}}}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.getElementById('s-login');if(s&&s.classList.contains('active'))login();}});
 
-function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}document.body.classList.remove('chat-mode');if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
+function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);clearInterval(_cdInterval);clearInterval(_ledInterval);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}document.body.classList.remove('chat-mode');if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
 
 function showBanScreen(info){document.getElementById('s-login').classList.remove('active');document.getElementById('s-panel').classList.remove('active');const s=document.getElementById('s-ban');if(!s)return;s.classList.add('active');document.getElementById('ban-by').textContent=info.banBy||'Sistema';document.getElementById('ban-reason').textContent=info.reason||'Suspensão temporária.';document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});startBanCountdown(info.expiresAt);}
 function startBanCountdown(expiresAt){clearInterval(_banTimer);function update(){const rem=expiresAt-Date.now();const el=document.getElementById('ban-timer');if(!el){clearInterval(_banTimer);return;}if(rem<=0){clearInterval(_banTimer);el.textContent='00:00:00';const m=document.getElementById('ban-status-msg');if(m){m.textContent='✅ Suspensão encerrada.';m.style.color='#4ade80';}setTimeout(()=>{clearSession();location.reload();},3000);return;}const h=Math.floor(rem/3600000),mn=Math.floor((rem%3600000)/60000),s=Math.floor((rem%60000)/1000);el.textContent=`${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}update();_banTimer=setInterval(update,1000);}
@@ -214,7 +222,6 @@ function updateNotif(){
 
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-// [vProvas, vAnaliseProvas, decidirProva, vInicio, etc - mantidos iguais]
 function vProvas(){
   const myP=CARGO_PERM[me.cargo]||0;const temProva=!!NOMES_PROVA[me.cargo];const minhas=STATE.provas.filter(p=>p.userLogin===me.user).reverse();
   const opcoes=Object.entries(CARGO_LABEL).filter(([k])=>(CARGO_PERM[k]||0)>myP&&(CARGO_PERM[k]||0)<6).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');
@@ -322,7 +329,6 @@ async function decidirProva(id,decisao){
   try{await API.decidirProva(id,decisao,me.user);toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':decisao==='aprovado'?'✅ Avaliação de '+p.nome+' aprovada!':'❌ '+p.nome+' reprovado(a).',decisao==='reprovado'?'w':'s');}catch(e){toast(e.message||'Erro.','d');}
 }
 
-// [vInicio - igual]
 function vInicio(){
   const p=CARGO_PERM[me.cargo]||0;
   const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
@@ -357,9 +363,9 @@ function setEstrela(n){_fbNotaAtual=n;document.querySelectorAll('#fb-estrelas .f
 async function enviarFeedback(){const nota=_fbNotaAtual;const texto=(document.getElementById('fb-texto')?.value||'').trim();if(!nota||nota<1||nota>5){toast('Selecione uma nota de 1 a 5 estrelas.','d');return;}if(texto.length<3){toast('Escreva pelo menos 3 caracteres nas sugestões.','w');return;}const btn=document.getElementById('btn-fb-enviar');if(btn){btn.disabled=true;btn.textContent='▸ ENVIANDO...';}try{await API.createFeedback({userLogin:me.user,nome:me.nome,nota,texto});toast('✅ Avaliação enviada! Obrigado pelo seu feedback.','s',7000);_fbNotaAtual=0;renderTab(activeTab);}catch(e){toast(e.message||'Erro ao enviar avaliação.','d');if(btn){btn.disabled=false;btn.textContent='📤 ENVIAR AVALIAÇÃO';}}}
 async function excluirFeedback(id){if(!confirm('Excluir esta avaliação?'))return;try{await API.deleteFeedback(id,me.user);toast('Avaliação excluída.','w');renderTab(activeTab);}catch(e){toast(e.message||'Erro ao excluir.','d');}}
 
-// [vRegistrar, vOcDelegado, vOcAdmin, vHistorico, vUsuarios, vPunicoes, vPontos, vAuditoria - iguais]
 function vRegistrar(){return `<div class="stitle">▸ REGISTRAR OCORRÊNCIA / DENÚNCIA</div><div class="card"><p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar.</p><div class="g2"><div class="fg"><label>Tipo</label><select id="oc-tipo"><option value="Ocorrência">Ocorrência</option><option value="Denúncia">Denúncia</option></select></div><div class="fg"><label>Nome do Envolvido</label><input id="oc-nome" placeholder="Nome completo"></div><div class="fg"><label>Cargo do Envolvido</label><select id="oc-cargo"><option>Guarda municipal</option><option>Agente oficial</option><option>Tático</option><option>Escrivão</option><option>Delegado</option><option>Chefe de polícia</option><option>Admin master</option><option>Civil</option><option>Outro</option></select></div><div class="fg g-full"><label>Depoimento / Relato</label><textarea id="oc-dep" placeholder="Descreva…"></textarea></div></div><button class="btn btn-primary" style="margin-top:8px;max-width:260px;" onclick="registrarOc()">▸ ENVIAR REGISTRO</button></div>`;}
 async function registrarOc(){const tipo=document.getElementById('oc-tipo')?.value||'Ocorrência';const nome=document.getElementById('oc-nome')?.value.trim();const cargo=document.getElementById('oc-cargo')?.value;const dep=document.getElementById('oc-dep')?.value.trim();if(!nome||!dep){toast('Preencha nome e depoimento.','d');return;}const oc={id:(tipo==='Denúncia'?'DN':'OC')+'-'+Date.now(),tipo,autor:me.nome,autorUser:me.user,autorCargo:me.cargo,delegado:me.nome,delegadoUser:me.user,nome,cargo,depoimento:dep,status:'pendente',resposta:'',ts:Date.now()};try{await API.createOc(oc);toast(tipo+' enviada!','s');const i=tabDefs(me.cargo).findIndex(t=>t.key==='myocs');if(i!==-1)switchTab(i);}catch(e){toast(e.message||'Erro.','d');}}
+
 function vOcDelegado(){const ocs=STATE.ocs.filter(o=>o.delegadoUser===me.user).reverse();return '<div class="stitle">▸ MEUS REGISTROS</div>'+(ocs.length?ocs.map(o=>ocCard(o,false,false)).join(''):empty('📋','Nenhum registro.'));}
 function vOcAdmin(){const myP=CARGO_PERM[me.cargo]||0;const ocs=STATE.ocs.filter(o=>o.status==='pendente').reverse();return '<div class="stitle">▸ REGISTROS PENDENTES</div>'+(ocs.length?ocs.map(o=>ocCard(o,myP>=4,myP>=7||isMaster())).join(''):empty('✅','Nenhum pendente.'));}
 function vHistorico(){const ocs=STATE.ocs.filter(o=>o.status!=='pendente').reverse();const isRei=(CARGO_PERM[me.cargo]||0)>=7||isMaster();return `<div class="stitle">▸ HISTÓRICO</div><div class="filter-bar"><button class="btn btn-sm btn-ghost" onclick="filtrarHist('')">TODOS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('aceita')">✅ ACEITAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('recusada')">❌ RECUSADAS</button><button class="btn btn-sm btn-ghost" onclick="filtrarHist('cancelada')">🚫 CANCELADAS</button></div><div id="hist-list">${ocs.length?ocs.map(o=>ocCard(o,false,isRei)).join(''):empty('📂','Nenhuma.')}</div>`;}
@@ -375,6 +381,7 @@ async function salvarEdicaoOc(){if(!_editOcId)return;const oc=STATE.ocs.find(o=>
 function confirmarDeleteOc(id){const oc=STATE.ocs.find(o=>o.id===id);if(!oc)return;document.getElementById('del-info').innerHTML='Excluir <b>'+id+'</b>?';document.getElementById('del-confirm-btn').onclick=()=>{closeModal('m-confirm-del');deleteOc(id);};openModal('m-confirm-del');}
 async function deleteOc(id){try{await API.deleteOc(id,me.user);toast('Excluída.','w');}catch(e){toast(e.message,'d');}}
 async function cancelarOc(id){const oc=STATE.ocs.find(o=>o.id===id);if(!oc)return;try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}}
+
 function vUsuarios(){const myP=CARGO_PERM[me.cargo]||0;const master=isMaster();const rows=STATE.users.map(u=>{const isMe=u.user===me.user,tP=CARGO_PERM[u.cargo]||0;const canAct=!isMe&&(master||myP>tP);const isRei=(u.cargo==='admin')&&!master;const isBanned=u.banExpires&&u.banExpires>Date.now();const bannedBadge=isBanned?'<span class="ban-badge">⛔ SUSPENSO</span>':'';const opts=Object.entries(CARGO_LABEL).filter(([k])=>master||(CARGO_PERM[k]||0)<myP).map(([k,v])=>'<option value="'+k+'" '+(u.cargo===k?'selected':'')+'>'+v+'</option>').join('');const cargoCell=(canAct&&!isRei&&(master||myP>=6)&&opts)?'<select class="cargo-select" onchange="alterarCargo(\''+u.user+'\', this.value, this)">'+opts+'</select>':'<span class="cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'')+'">'+(CARGO_LABEL[u.cargo]||u.cargo)+'</span>';const nn=u.nome.replace(/'/g,"\\'");return '<tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar">'+u.nome.charAt(0).toUpperCase()+'</div><div><div style="font-weight:600;">'+u.nome+' '+bannedBadge+'</div><div style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">@'+u.user+'</div></div></div></td><td>'+cargoCell+'</td><td><span class="status-chip '+(u.ativo?'sc-a':'sc-r')+'">'+(u.ativo?'✅ Ativo':'❌ Inativo')+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+(u.criadoPor||'padrão')+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+(isMe?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>':'')+(canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+(canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+(canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+(canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+(u.ativo?'🚫':'✅')+'</button>':'')+((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+'</div></td></tr>';}).join('');return '<div class="stitle">▸ GERENCIAR USUÁRIOS</div>'+((master||myP>=6)?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+'<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div><div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).</div>';}
 async function criarUsuario(){const nome=document.getElementById('nu-nome').value.trim(),user=document.getElementById('nu-user').value.trim().toLowerCase().replace(/\s/g,''),cargo=document.getElementById('nu-cargo').value,pass=document.getElementById('nu-pass').value;if(!nome||!user||!cargo||!pass){toast('Preencha todos os campos.','d');return;}if(pass.length<6){toast('Senha mínima: 6 caracteres.','w');return;}if(!/^[a-z0-9_]+$/.test(user)){toast('Login: apenas letras, números e _.','w');return;}if(!isMaster()&&(CARGO_PERM[cargo]||0)>=(CARGO_PERM[me.cargo]||0)){toast('Não pode criar usuários com cargo igual ou superior.','d');return;}try{await API.createUser({nome,user,cargo,pass,criadoPor:me.user});toast('Usuário '+nome+' criado!','s');closeModal('m-novo-user');['nu-nome','nu-user','nu-pass'].forEach(id=>document.getElementById(id).value='');}catch(e){toast(e.message||'Erro.','d');}}
 function abrirCriarUsuario(){const myP=CARGO_PERM[me.cargo]||0;const sel=document.getElementById('nu-cargo');if(sel){sel.innerHTML=Object.entries(CARGO_LABEL).filter(([k])=>isMaster()||(CARGO_PERM[k]||0)<myP).reverse().map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('');}['nu-nome','nu-user','nu-pass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});openModal('m-novo-user');}
@@ -390,11 +397,14 @@ function cancelarRebaixar(){if(_pendingCargoChange?.selectEl)_pendingCargoChange
 function abrirBanModal(username,nome,cargo){_pendingBan={username,nome};document.getElementById('bn-info').innerHTML='Suspender <b>'+nome+'</b>';document.getElementById('bn-duracao').value='';document.getElementById('bn-motivo').value='';openModal('m-ban');}
 async function confirmarBan(){if(!_pendingBan){closeModal('m-ban');return;}const dur=parseInt(document.getElementById('bn-duracao').value)||0;const motivo=document.getElementById('bn-motivo').value.trim();if(dur<=0){toast('Duração inválida (em minutos).','d');return;}if(!motivo){toast('Informe o motivo.','d');return;}try{await API.applyBan(_pendingBan.username,dur,motivo,me.user,me.nome);toast(_pendingBan.nome+' suspenso por '+dur+' min(s).','w');closeModal('m-ban');_pendingBan=null;}catch(e){toast(e.message||'Erro.','d');}}
 async function removerBan(username,nome){try{await API.removeBan(username,me.nome);toast('Suspensão de '+nome+' removida.','s');}catch(e){toast(e.message||'Erro.','d');}}
+
 function vPunicoes(){const myP=CARGO_PERM[me.cargo]||0,canEdit=myP>=3;const nc=n=>({Leve:'sc-a',Médio:'sc-p',Grave:'sc-r'})[n]||'sc-p';const form=canEdit?`<div class="card" style="margin-bottom:22px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:16px;">▸ REGISTRAR PUNIÇÃO</div><div class="g2"><div class="fg"><label>Nome do Agente</label><input id="pn-nome"></div><div class="fg"><label>Nível</label><select id="pn-nivel"><option>Leve</option><option>Médio</option><option>Grave</option></select></div><div class="fg g-full"><label>Motivo</label><input id="pn-motivo"></div></div><button class="btn btn-primary" id="btn-addpun" style="margin-top:10px;max-width:200px;" onclick="addPun()">▸ REGISTRAR</button></div>`:`<div class="card c-none" style="margin-bottom:16px;padding:12px 16px;border:1px solid var(--border);font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);">▸ Apenas Táticos e acima podem registrar punições.</div>`;const rows=[...STATE.puns].reverse().map((p,ri)=>{const realIdx=STATE.puns.length-1-ri;return '<tr><td style="font-weight:600;">'+p.nome+'</td><td style="color:var(--text-mid);">'+p.motivo+'</td><td><span class="status-chip '+nc(p.nivel)+'">'+p.nivel+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+p.autor+'</td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">'+new Date(p.ts).toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'})+'</td>'+(canEdit?'<td><button class="btn btn-danger btn-xs" onclick="delPun('+realIdx+')">✘</button></td>':'<td></td>')+'</tr>';}).join('');return '<div class="stitle">▸ QUADRO DE PUNIÇÕES</div>'+form+'<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>NOME</th><th>MOTIVO</th><th>NÍVEL</th><th>REGISTRADO POR</th><th>DATA</th><th></th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;padding:30px;">Nenhuma punição registrada.</td></tr>')+'</tbody></table></div></div>';}
 async function addPun(){if(_busyPun)return;_busyPun=true;const btn=document.getElementById('btn-addpun');if(btn){btn.disabled=true;btn.textContent='▸ REGISTRANDO…';}try{const nome=document.getElementById('pn-nome')?.value.trim(),motivo=document.getElementById('pn-motivo')?.value.trim(),nivel=document.getElementById('pn-nivel')?.value;if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}await API.createPun({nome,motivo,nivel,autor:me.nome,ts:Date.now()});toast('Punição registrada.','s');const n=document.getElementById('pn-nome'),m=document.getElementById('pn-motivo');if(n)n.value='';if(m)m.value='';}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPun=false;const b=document.getElementById('btn-addpun');if(b){b.disabled=false;b.textContent='▸ REGISTRAR';}},1200);}}
 async function delPun(idx){try{const p=STATE.puns[idx];if(p&&p.id)await API.deletePunById(p.id,me.nome);else await API.deletePun(idx,me.nome);toast('Removida.','w');}catch(e){toast(e.message||'Erro.','d');}}
+
 function fmtHM(mins){if(!mins||mins<=0)return '0h';const h=Math.floor(mins/60),m=mins%60;return h+'h'+(m>0?m.toString().padStart(2,'0'):'');}
 function somarBancoHoras(userLogin){const pontosUser=STATE.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);let totalTrab=0,totalExtra=0,totalDebt=0,totalReais=0,turnos=0;pontosUser.forEach(p=>{totalTrab+=(p.trabalhado||0);totalExtra+=(p.extraMins||0);totalDebt+=(p.debtMins||0);totalReais+=(p.extraReais||0);turnos++;});return{totalTrab,totalExtra,totalDebt,totalReais,turnos};}
+
 function vPontos(){
   const myP=CARGO_PERM[me.cargo]||0,isSuperv=myP>=3;
   const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
@@ -414,8 +424,8 @@ function vPontos(){
   const saldoMin=bh.totalExtra-bh.totalDebt;
   const saldoStr=saldoMin>=0?'+'+fmtHM(saldoMin):'-'+fmtHM(Math.abs(saldoMin));
   const saldoColor=saldoMin>=0?'#4ade80':'#f87171';
-  const bancoHorasHtml=`<div class="card" style="margin-bottom:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💼 MEU BANCO DE HORAS</div><div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${bh.turnos} turno(s) encerrado(s)</div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;"><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:var(--text);font-weight:800;margin-bottom:2px;">${fmtHM(bh.totalTrab)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">TRABALHADAS</div></div><div style="padding:14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#4ade80;font-weight:800;margin-bottom:2px;">+${fmtHM(bh.totalExtra)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS EXTRAS</div><div style="${FM}font-size:.68rem;color:#4ade80;margin-top:4px;">R$ ${bh.totalReais.toFixed(2).replace('.',',')}</div></div><div style="padding:14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#f87171;font-weight:800;margin-bottom:2px;">-${fmtHM(bh.totalDebt)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS DEVIDAS</div></div><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:${saldoColor};font-weight:800;margin-bottom:2px;">${saldoStr}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">SALDO</div></div></div><div style="${FM}font-size:.64rem;color:var(--text-dim);line-height:1.5;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;">💡 <b style="color:var(--text-mid);">Como funciona:</b> cada cargo tem uma carga diária (${CARGO_BASE_MINUTES[me.cargo]||0} min). Trabalhar <b style="color:#4ade80;">acima</b> gera horas extras (+R$ 20 a cada 30min). Trabalhar <b style="color:#f87171;">abaixo</b> gera horas devidas.</div></div>`;
-  const minhaTab=mine.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'+[...mine].reverse().slice(0,20).map(function(p){let det='';let tipoLbl,tipoCor;if(p.type==='entrada'){tipoLbl='▶ ENTRADA';tipoCor='color:#4ade80;';}else if(p.type==='folga'){tipoLbl='🌴 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga</span>';}else{tipoLbl='⏹ SAÍDA';tipoCor='color:#f87171;';}if(p.type==='saida'&&p.trabalhado!==undefined){const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}}return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
+  const bancoHorasHtml=`<div class="card" style="margin-bottom:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💼 MEU BANCO DE HORAS</div><div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${bh.turnos} turno(s) encerrado(s)</div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;"><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:var(--text);font-weight:800;margin-bottom:2px;">${fmtHM(bh.totalTrab)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">TRABALHADAS</div></div><div style="padding:14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#4ade80;font-weight:800;margin-bottom:2px;">+${fmtHM(bh.totalExtra)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS EXTRAS</div><div style="${FM}font-size:.68rem;color:#4ade80;margin-top:4px;">R$ ${bh.totalReais.toFixed(2).replace('.',',')}</div></div><div style="padding:14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:#f87171;font-weight:800;margin-bottom:2px;">-${fmtHM(bh.totalDebt)}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS DEVIDAS</div></div><div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;text-align:center;"><div style="${FO}font-size:1.5rem;color:${saldoColor};font-weight:800;margin-bottom:2px;">${saldoStr}</div><div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">SALDO</div></div></div><div style="${FM}font-size:.64rem;color:var(--text-dim);line-height:1.5;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;">💡 <b style="color:var(--text-mid);">Como funciona:</b> cada cargo tem uma carga diária (${CARGO_BASE_MINUTES[me.cargo]||0} min). Trabalhar <b style="color:#4ade80;">acima</b> gera horas extras (+R$ 20 a cada 30min) e <b style="color:#a78bfa;">+1 🎰 giro de roleta por hora extra</b>. Trabalhar <b style="color:#f87171;">abaixo</b> gera horas devidas.</div></div>`;
+  const minhaTab=mine.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'+[...mine].reverse().slice(0,20).map(function(p){let det='';let tipoLbl,tipoCor;if(p.type==='entrada'){tipoLbl='▶ ENTRADA';tipoCor='color:#4ade80;';}else if(p.type==='folga'){tipoLbl='🌴 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga</span>';}else{tipoLbl='⏹ SAÍDA';tipoCor='color:#f87171;';}if(p.type==='saida'&&p.trabalhado!==undefined){const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';if(p.extraMins>=60)det+='<br><span style="color:#a78bfa;font-size:.65rem;">🎰 +'+Math.floor(p.extraMins/60)+' giro(s)</span>';if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}}return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
   const botaoPonto=isClockedIn?'<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">⏹ ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>':'<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">▶ BATER ENTRADA</button>';
   var supervHtml='';
   if(isSuperv){
@@ -427,38 +437,43 @@ function vPontos(){
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
 function startClock(){clearInterval(_clockInterval);_clockInterval=setInterval(()=>{const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');if(!ce){clearInterval(_clockInterval);return;}ce.textContent=brTimeSec();if(de)de.textContent=brDateLong();},1000);}
-async function baterPonto(type){if(_busyPonto)return;_busyPonto=true;try{const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};const res=await API.createPonto(p);if(res&&res.error){toast(res.error,'d');return;}if(type==='entrada'){toast('✅ Entrada registrada às '+p.hora+'!','s');}else{const rp=(res&&res.ponto)?res.ponto:{};if(rp.trabalhado!==undefined){const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;let msg='✅ Turno encerrado às '+p.hora+'! Total: '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00');if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Extras: R$ '+rp.extraReais+'</b>';if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</b>';}if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga: '+rp.folgaDia+'</b>';toast(msg,'s',9000);}else toast('✅ Saída registrada às '+p.hora+'!','s');}renderTab(activeTab);}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPonto=false;},1500);}}
+async function baterPonto(type){if(_busyPonto)return;_busyPonto=true;try{const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};const res=await API.createPonto(p);if(res&&res.error){toast(res.error,'d');return;}if(type==='entrada'){toast('✅ Entrada registrada às '+p.hora+'!','s');}else{const rp=(res&&res.ponto)?res.ponto:{};if(rp.trabalhado!==undefined){const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;let msg='✅ Turno encerrado às '+p.hora+'! Total: '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00');if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Extras: R$ '+rp.extraReais+'</b>';if(res.girosGanhos>0)msg+='<br><b style="color:#a78bfa;">🎰 +'+res.girosGanhos+' giro(s) de roleta!</b>';if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</b>';}if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga: '+rp.folgaDia+'</b>';toast(msg,'s',9000);}else toast('✅ Saída registrada às '+p.hora+'!','s');}renderTab(activeTab);}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPonto=false;},1500);}}
+
 function vAuditoria(){const logs=STATE.audit;if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';}
 async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}}
+
 async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
 
 // ════════════════════════════════════════════════════════════
-// ══ ROLETA — CANVAS PROFISSIONAL COM LEDS + CONFETE ═══════
+// ══ ROLETA — CASSINO PRO + SERVIDOR (MASTER ILIMITADO) ═══
 // ════════════════════════════════════════════════════════════
-const ROLETA_LS_KEY='gmpol_roleta_ultimo_giro';
-const ROLETA_BONUS_KEY='gmpol_roleta_giros_bonus';
 const ROLETA_CARGOS_PERMITIDOS=['gm','agente','tatico','escrivao'];
-
+const ROLETA_COOLDOWN_MS=24*60*60*1000;
 const ROLETA_PREMIOS=[
-  {valor:100,   peso:70,  cor:'#10b981', cor2:'#059669', corBorda:'#34d399', nome:'Comum',       icone:'💵', raridade:'common'},
-  {valor:500,   peso:20,  cor:'#3b82f6', cor2:'#1d4ed8', corBorda:'#60a5fa', nome:'Incomum',     icone:'💰', raridade:'uncommon'},
-  {valor:2000,  peso:40,  cor:'#f59e0b', cor2:'#b45309', corBorda:'#fbbf24', nome:'Raro',        icone:'💎', raridade:'rare'},
-  {valor:3000,  peso:5,   cor:'#ef4444', cor2:'#991b1b', corBorda:'#f87171', nome:'Muito Raro',  icone:'🏆', raridade:'epic'},
-  {valor:4000,  peso:5,   cor:'#8b5cf6', cor2:'#5b21b6', corBorda:'#a78bfa', nome:'Épico',       icone:'👑', raridade:'epic2'},
-  {valor:10000, peso:0.5, cor:'#ec4899', cor2:'#9d174d', corBorda:'#f9a8d4', nome:'LENDÁRIO',    icone:'💠', raridade:'legendary'}
+  {valor:100,   peso:70,  cor:'#10b981', cor2:'#059669', corBorda:'#34d399', nome:'Comum',      icone:'💵', raridade:'common'},
+  {valor:500,   peso:20,  cor:'#3b82f6', cor2:'#1d4ed8', corBorda:'#60a5fa', nome:'Incomum',    icone:'💰', raridade:'uncommon'},
+  {valor:2000,  peso:40,  cor:'#f59e0b', cor2:'#b45309', corBorda:'#fbbf24', nome:'Raro',       icone:'💎', raridade:'rare'},
+  {valor:3000,  peso:5,   cor:'#ef4444', cor2:'#991b1b', corBorda:'#f87171', nome:'Muito Raro', icone:'🏆', raridade:'epic'},
+  {valor:4000,  peso:5,   cor:'#8b5cf6', cor2:'#5b21b6', corBorda:'#a78bfa', nome:'Épico',      icone:'👑', raridade:'epic2'},
+  {valor:10000, peso:0.5, cor:'#ec4899', cor2:'#9d174d', corBorda:'#f9a8d4', nome:'LENDÁRIO',   icone:'💠', raridade:'legendary'}
 ];
+
+function _roletaStatus(){
+  const master=isMaster();
+  const giros=(me&&typeof me.girosBonus==='number')?me.girosBonus:0;
+  const ultimo=(me&&me.ultimoGiroRoleta)?me.ultimoGiroRoleta:null;
+  const agora=Date.now();
+  const cooldownOk=!ultimo||(agora-ultimo)>=ROLETA_COOLDOWN_MS;
+  const podeGirar=master||cooldownOk||giros>0;
+  const resta=ultimo?Math.max(0,ROLETA_COOLDOWN_MS-(agora-ultimo)):0;
+  return{master,giros,ultimo,cooldownOk,podeGirar,resta};
+}
 
 function vRoleta(){
   const cargoPermitido=ROLETA_CARGOS_PERMITIDOS.includes(me.cargo)||isMaster();
-  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY+'_'+me.user);
-  const girosBonusStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+me.user);
-  const girosBonus=girosBonusStr?parseInt(girosBonusStr):0;
-  const agora=Date.now();
-  const cooldownMs=24*60*60*1000;
-  const podeGirar=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs||girosBonus>0;
-  const horasRestantes=ultimoGiro?Math.max(0,Math.ceil((cooldownMs-(agora-parseInt(ultimoGiro)))/3600000)):0;
-  const minutosRestantes=ultimoGiro?Math.max(0,Math.floor((cooldownMs-(agora-parseInt(ultimoGiro)))/60000)):0;
-  const podeGirarTxt=!podeGirar?(horasRestantes>0?`${horasRestantes}h ${minutosRestantes%60}min`:`${minutosRestantes}min`):'';
+  const st=_roletaStatus();
+  const hRest=Math.floor(st.resta/3600000),mRest=Math.floor((st.resta%3600000)/60000),sRest=Math.floor((st.resta%60000)/1000);
+  const cdTxt=hRest>0?`${hRest}h ${mRest}m ${sRest}s`:`${mRest}m ${sRest}s`;
 
   if(!cargoPermitido){
     return `<div class="stitle">▸ ROLETA DA SORTE</div>
@@ -472,272 +487,102 @@ function vRoleta(){
       </div>`;
   }
 
-  // Botão master
-  const adminBtn=isMaster()?`
+  const adminBtn=st.master?`
     <button class="roleta-master-btn" onclick="abrirModalBonus()" title="Liberar giros para usuários">
       <span class="roleta-master-btn-ico">🎁</span>
       <span>LIBERAR GIROS</span>
     </button>`:'';
 
-  const bannerBonus=girosBonus>0?`
+  const bannerMaster=st.master?`
+    <div class="roleta-master-banner">
+      <div class="roleta-master-glow"></div>
+      <div class="roleta-master-content">
+        <span class="roleta-master-ico">👑</span>
+        <div class="roleta-master-txt">
+          <div class="roleta-master-main">ACESSO ILIMITADO</div>
+          <div class="roleta-master-sub">Master pode girar quantas vezes quiser, sem cooldown</div>
+        </div>
+      </div>
+    </div>`:'';
+
+  const bannerBonus=st.giros>0?`
     <div class="roleta-bonus-banner">
       <div class="roleta-bonus-glow"></div>
       <div class="roleta-bonus-content">
         <span class="roleta-bonus-ico">🎁</span>
         <div class="roleta-bonus-txt">
-          <div class="roleta-bonus-main">Você tem <b>${girosBonus}</b> giro(s) bônus!</div>
-          <div class="roleta-bonus-sub">Disponíveis para usar agora</div>
+          <div class="roleta-bonus-main">Você tem <b>${st.giros}</b> giro(s) bônus!</div>
+          <div class="roleta-bonus-sub">Ganhos por hora extra trabalhada ou liberados pelo Master</div>
         </div>
       </div>
     </div>`:'';
 
-  const bannerCooldown=!podeGirar&&girosBonus===0?`
+  const bannerCooldown=(!st.podeGirar&&!st.master)?`
     <div class="roleta-cooldown-banner">
       <div class="roleta-cooldown-ico">⏳</div>
       <div class="roleta-cooldown-txt">
-        <div class="roleta-cooldown-main">Próximo giro em</div>
-        <div class="roleta-cooldown-timer" id="roleta-cd-timer">${podeGirarTxt}</div>
+        <div class="roleta-cooldown-main">Próximo giro gratuito em</div>
+        <div class="roleta-cooldown-timer" id="roleta-cd-timer">${cdTxt}</div>
+        <div class="roleta-cooldown-hint">💡 Faça horas extras no ponto para ganhar +1 giro por hora!</div>
       </div>
     </div>`:'';
 
   return `
   <style>
-    /* ══════════════════════════════════════════════════════ */
-    /* ═══ ROLETA - DESIGN CASSINO PROFISSIONAL ═══ */
-    /* ══════════════════════════════════════════════════════ */
-    
-    .roleta-hero{
-      position:relative;
-      padding:28px 24px;
-      border-radius:20px;
-      margin-bottom:20px;
-      background:
-        radial-gradient(circle at 20% 30%, rgba(245,158,11,.15) 0%, transparent 50%),
-        radial-gradient(circle at 80% 70%, rgba(139,92,246,.15) 0%, transparent 50%),
-        linear-gradient(135deg, rgba(14,14,16,.95) 0%, rgba(20,20,24,.95) 100%);
-      border:1px solid rgba(255,255,255,.15);
-      overflow:hidden;
-    }
-    .roleta-hero::before{
-      content:'';
-      position:absolute;top:0;left:0;right:0;height:1px;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
-    }
-    .roleta-hero-header{
-      display:flex;justify-content:space-between;align-items:center;
-      margin-bottom:24px;flex-wrap:wrap;gap:12px;
-    }
-    .roleta-hero-title{
-      font-family:'Orbitron',sans-serif;
-      font-size:1.4rem;font-weight:900;
-      background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);
-      -webkit-background-clip:text;background-clip:text;
-      -webkit-text-fill-color:transparent;color:transparent;
-      letter-spacing:.08em;
-      text-shadow:0 0 30px rgba(251,191,36,.3);
-    }
-    .roleta-hero-sub{
-      font-size:.78rem;color:var(--text-mid);letter-spacing:.04em;
-    }
-    
-    /* Master button */
-    .roleta-master-btn{
-      display:flex;align-items:center;gap:8px;
-      padding:10px 16px;
-      background:linear-gradient(135deg,#7c3aed 0%,#ec4899 100%);
-      border:none;border-radius:10px;
-      color:#fff;font-weight:700;font-size:.75rem;
-      cursor:pointer;letter-spacing:.05em;
-      box-shadow:0 4px 16px rgba(236,72,153,.4);
-      transition:all .2s;
-    }
+    .roleta-hero{position:relative;padding:28px 24px;border-radius:20px;margin-bottom:20px;background:radial-gradient(circle at 20% 30%,rgba(245,158,11,.15) 0%,transparent 50%),radial-gradient(circle at 80% 70%,rgba(139,92,246,.15) 0%,transparent 50%),linear-gradient(135deg,rgba(14,14,16,.95) 0%,rgba(20,20,24,.95) 100%);border:1px solid rgba(255,255,255,.15);overflow:hidden;}
+    .roleta-hero::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);}
+    .roleta-hero-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+    .roleta-hero-title{font-family:'Orbitron',sans-serif;font-size:1.4rem;font-weight:900;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;letter-spacing:.08em;}
+    .roleta-hero-sub{font-size:.78rem;color:var(--text-mid);letter-spacing:.04em;}
+    .roleta-master-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:linear-gradient(135deg,#7c3aed 0%,#ec4899 100%);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:.75rem;cursor:pointer;letter-spacing:.05em;box-shadow:0 4px 16px rgba(236,72,153,.4);transition:all .2s;}
     .roleta-master-btn:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(236,72,153,.6);}
     .roleta-master-btn-ico{font-size:1rem;}
-    
-    /* Bonus banner */
-    .roleta-bonus-banner{
-      position:relative;
-      padding:14px 18px;margin-bottom:18px;
-      background:linear-gradient(135deg,rgba(16,185,129,.15) 0%,rgba(34,197,94,.08) 100%);
-      border:1px solid rgba(34,197,94,.4);
-      border-radius:14px;overflow:hidden;
-    }
-    .roleta-bonus-glow{
-      position:absolute;top:-50%;left:-50%;width:200%;height:200%;
-      background:radial-gradient(circle,rgba(34,197,94,.3) 0%,transparent 50%);
-      animation:bonusPulse 3s ease-in-out infinite;
-    }
-    @keyframes bonusPulse{0%,100%{transform:scale(1);opacity:.5;}50%{transform:scale(1.1);opacity:1;}}
+    .roleta-master-banner{position:relative;padding:14px 18px;margin-bottom:18px;background:linear-gradient(135deg,rgba(167,139,250,.15) 0%,rgba(236,72,153,.1) 100%);border:1px solid rgba(167,139,250,.5);border-radius:14px;overflow:hidden;}
+    .roleta-master-glow{position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(167,139,250,.3) 0%,transparent 50%);animation:roletaPulse 3s ease-in-out infinite;}
+    .roleta-master-content{position:relative;display:flex;align-items:center;gap:14px;}
+    .roleta-master-ico{font-size:2rem;filter:drop-shadow(0 0 8px rgba(167,139,250,.8));}
+    .roleta-master-main{font-weight:800;color:#a78bfa;font-size:.92rem;letter-spacing:.05em;}
+    .roleta-master-sub{font-size:.72rem;color:var(--text-mid);margin-top:2px;}
+    .roleta-bonus-banner{position:relative;padding:14px 18px;margin-bottom:18px;background:linear-gradient(135deg,rgba(16,185,129,.15) 0%,rgba(34,197,94,.08) 100%);border:1px solid rgba(34,197,94,.4);border-radius:14px;overflow:hidden;}
+    .roleta-bonus-glow{position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(34,197,94,.3) 0%,transparent 50%);animation:roletaPulse 3s ease-in-out infinite;}
+    @keyframes roletaPulse{0%,100%{transform:scale(1);opacity:.5;}50%{transform:scale(1.1);opacity:1;}}
     .roleta-bonus-content{position:relative;display:flex;align-items:center;gap:14px;}
     .roleta-bonus-ico{font-size:2rem;filter:drop-shadow(0 0 8px rgba(34,197,94,.6));}
     .roleta-bonus-main{font-weight:700;color:#4ade80;font-size:.92rem;}
     .roleta-bonus-main b{font-size:1.1rem;}
     .roleta-bonus-sub{font-size:.72rem;color:var(--text-mid);margin-top:2px;}
-    
-    /* Cooldown banner */
-    .roleta-cooldown-banner{
-      display:flex;align-items:center;gap:14px;
-      padding:14px 18px;margin-bottom:18px;
-      background:rgba(224,192,96,.08);
-      border:1px solid rgba(224,192,96,.3);
-      border-radius:14px;
-    }
+    .roleta-cooldown-banner{display:flex;align-items:center;gap:14px;padding:14px 18px;margin-bottom:18px;background:rgba(224,192,96,.08);border:1px solid rgba(224,192,96,.3);border-radius:14px;}
     .roleta-cooldown-ico{font-size:2rem;}
     .roleta-cooldown-main{font-size:.78rem;color:var(--text-mid);letter-spacing:.04em;}
-    .roleta-cooldown-timer{
-      font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:800;
-      color:var(--warn);letter-spacing:.05em;margin-top:2px;
-    }
-    
-    /* ═══ ROULETTE WHEEL (Canvas) ═══ */
-    .roleta-stage{
-      position:relative;
-      display:flex;flex-direction:column;align-items:center;
-      padding:30px 0;
-    }
-    .roleta-wheel-wrap{
-      position:relative;
-      width:min(420px, 92vw);
-      aspect-ratio:1;
-    }
-    .roleta-canvas-container{
-      position:relative;
-      width:100%;height:100%;
-      filter:drop-shadow(0 12px 40px rgba(0,0,0,.6));
-    }
-    #roleta-canvas{
-      width:100%;height:100%;
-      transition:transform 5s cubic-bezier(0.17,0.67,0.12,0.99);
-      transform:rotate(0deg);
-    }
-    .roleta-pointer{
-      position:absolute;top:-18px;left:50%;transform:translateX(-50%);
-      width:0;height:0;
-      border-left:22px solid transparent;
-      border-right:22px solid transparent;
-      border-top:44px solid #fff;
-      filter:drop-shadow(0 4px 10px rgba(0,0,0,.6)) drop-shadow(0 0 16px rgba(251,191,36,.6));
-      z-index:10;
-    }
-    .roleta-pointer::after{
-      content:'';position:absolute;
-      top:-48px;left:-8px;
-      width:16px;height:16px;
-      background:#fbbf24;border-radius:50%;
-      box-shadow:0 0 20px rgba(251,191,36,.8);
-    }
-    
-    /* LED ring */
-    .roleta-leds{
-      position:absolute;top:50%;left:50%;
-      width:100%;height:100%;
-      transform:translate(-50%,-50%);
-      pointer-events:none;
-    }
-    .roleta-led{
-      position:absolute;
-      width:10px;height:10px;border-radius:50%;
-      top:50%;left:50%;
-      transform-origin:0 0;
-    }
-    .roleta-led.on{
-      background:#fbbf24;
-      box-shadow:0 0 12px #fbbf24, 0 0 20px #fbbf24;
-    }
-    .roleta-led.off{
-      background:rgba(255,255,255,.15);
-      box-shadow:0 0 4px rgba(255,255,255,.1);
-    }
-    
-    /* Spin button */
-    .roleta-spin-btn{
-      margin-top:30px;
-      position:relative;
-      padding:18px 48px;
-      background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);
-      border:none;border-radius:999px;
-      color:#000;font-family:'Orbitron',sans-serif;
-      font-size:1rem;font-weight:900;
-      letter-spacing:.1em;cursor:pointer;
-      box-shadow:0 8px 32px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3);
-      transition:all .2s;
-      overflow:hidden;
-    }
-    .roleta-spin-btn::before{
-      content:'';position:absolute;
-      top:0;left:-100%;width:100%;height:100%;
-      background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);
-      transition:left .6s;
-    }
+    .roleta-cooldown-timer{font-family:'Orbitron',sans-serif;font-size:1.3rem;font-weight:800;color:var(--warn);letter-spacing:.05em;margin-top:2px;}
+    .roleta-cooldown-hint{font-size:.68rem;color:var(--text-dim);margin-top:6px;font-style:italic;}
+    .roleta-stage{position:relative;display:flex;flex-direction:column;align-items:center;padding:30px 0;}
+    .roleta-wheel-wrap{position:relative;width:min(420px,92vw);aspect-ratio:1;}
+    .roleta-canvas-container{position:relative;width:100%;height:100%;filter:drop-shadow(0 12px 40px rgba(0,0,0,.6));}
+    #roleta-canvas{width:100%;height:100%;transition:transform 5.5s cubic-bezier(0.15,0.7,0.1,1);transform:rotate(0deg);}
+    .roleta-pointer{position:absolute;top:-18px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:22px solid transparent;border-right:22px solid transparent;border-top:44px solid #fff;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6)) drop-shadow(0 0 16px rgba(251,191,36,.6));z-index:10;}
+    .roleta-pointer::after{content:'';position:absolute;top:-48px;left:-8px;width:16px;height:16px;background:#fbbf24;border-radius:50%;box-shadow:0 0 20px rgba(251,191,36,.8);}
+    .roleta-leds{position:absolute;top:50%;left:50%;width:100%;height:100%;transform:translate(-50%,-50%);pointer-events:none;}
+    .roleta-led{position:absolute;width:10px;height:10px;border-radius:50%;}
+    .roleta-led.on{background:#fbbf24;box-shadow:0 0 12px #fbbf24,0 0 20px #fbbf24;}
+    .roleta-led.off{background:rgba(255,255,255,.15);box-shadow:0 0 4px rgba(255,255,255,.1);}
+    .roleta-spin-btn{margin-top:30px;position:relative;padding:18px 48px;background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#dc2626 100%);border:none;border-radius:999px;color:#000;font-family:'Orbitron',sans-serif;font-size:1rem;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 32px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3);transition:all .2s;overflow:hidden;}
+    .roleta-spin-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transition:left .6s;}
     .roleta-spin-btn:hover::before{left:100%;}
     .roleta-spin-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(245,158,11,.7),inset 0 2px 0 rgba(255,255,255,.3);}
-    .roleta-spin-btn:active{transform:translateY(0);}
-    .roleta-spin-btn:disabled{
-      background:linear-gradient(135deg,#3f3f46 0%,#27272a 100%);
-      color:#71717a;cursor:not-allowed;
-      box-shadow:none;
-    }
+    .roleta-spin-btn:disabled{background:linear-gradient(135deg,#3f3f46 0%,#27272a 100%);color:#71717a;cursor:not-allowed;box-shadow:none;}
     .roleta-spin-btn:disabled::before{display:none;}
     .roleta-spin-btn.spinning{pointer-events:none;opacity:.7;}
-    
-    /* ═══ PRIZES GRID ═══ */
-    .roleta-prizes{
-      margin-top:28px;
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-      gap:14px;
-    }
-    .roleta-prize-card{
-      position:relative;
-      padding:18px 14px;
-      border-radius:16px;
-      text-align:center;
-      overflow:hidden;
-      transition:transform .25s;
-      cursor:default;
-    }
+    .roleta-prizes{margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+    .roleta-prize-card{position:relative;padding:18px 14px;border-radius:16px;text-align:center;overflow:hidden;transition:transform .25s;}
     .roleta-prize-card:hover{transform:translateY(-4px);}
-    .roleta-prize-card::before{
-      content:'';position:absolute;inset:0;
-      background:radial-gradient(circle at 50% 0%, var(--card-glow) 0%, transparent 70%);
-      opacity:.6;pointer-events:none;
-    }
-    .roleta-prize-card::after{
-      content:'';position:absolute;
-      top:-50%;left:-50%;width:200%;height:200%;
-      background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.1) 50%,transparent 60%);
-      animation:shimmer 3s linear infinite;
-      pointer-events:none;
-    }
-    @keyframes shimmer{0%{transform:translateX(-50%) translateY(-50%);}100%{transform:translateX(50%) translateY(50%);}}
-    .roleta-prize-icon{
-      font-size:2.2rem;margin-bottom:8px;
-      filter:drop-shadow(0 0 12px var(--card-glow));
-    }
-    .roleta-prize-value{
-      font-family:'Orbitron',sans-serif;
-      font-size:1.35rem;font-weight:900;
-      color:var(--card-color);
-      letter-spacing:.04em;margin-bottom:4px;
-      text-shadow:0 0 12px var(--card-glow);
-    }
-    .roleta-prize-name{
-      font-size:.72rem;
-      color:var(--card-color);
-      letter-spacing:.08em;
-      text-transform:uppercase;font-weight:700;
-    }
-    .roleta-prize-rarity{
-      position:absolute;top:8px;right:8px;
-      font-size:.55rem;padding:2px 6px;
-      border-radius:6px;font-weight:700;
-      background:rgba(0,0,0,.5);
-      color:var(--card-color);
-      letter-spacing:.05em;
-      border:1px solid var(--card-color);
-    }
-    
-    /* Card variations */
+    .roleta-prize-card::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,var(--card-glow) 0%,transparent 70%);opacity:.6;pointer-events:none;}
+    .roleta-prize-card::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent 40%,rgba(255,255,255,.1) 50%,transparent 60%);animation:roletaShimmer 3s linear infinite;pointer-events:none;}
+    @keyframes roletaShimmer{0%{transform:translateX(-50%) translateY(-50%);}100%{transform:translateX(50%) translateY(50%);}}
+    .roleta-prize-icon{font-size:2.2rem;margin-bottom:8px;filter:drop-shadow(0 0 12px var(--card-glow));}
+    .roleta-prize-value{font-family:'Orbitron',sans-serif;font-size:1.35rem;font-weight:900;color:var(--card-color);letter-spacing:.04em;margin-bottom:4px;text-shadow:0 0 12px var(--card-glow);}
+    .roleta-prize-name{font-size:.72rem;color:var(--card-color);letter-spacing:.08em;text-transform:uppercase;font-weight:700;}
+    .roleta-prize-rarity{position:absolute;top:8px;right:8px;font-size:.55rem;padding:2px 6px;border-radius:6px;font-weight:700;background:rgba(0,0,0,.5);color:var(--card-color);letter-spacing:.05em;border:1px solid var(--card-color);}
     .roleta-prize-card.common{--card-color:#4ade80;--card-glow:rgba(74,222,128,.5);background:linear-gradient(135deg,rgba(16,185,129,.12) 0%,rgba(5,150,105,.06) 100%);border:1px solid rgba(74,222,128,.4);}
     .roleta-prize-card.uncommon{--card-color:#60a5fa;--card-glow:rgba(96,165,250,.5);background:linear-gradient(135deg,rgba(59,130,246,.12) 0%,rgba(29,78,216,.06) 100%);border:1px solid rgba(96,165,250,.4);}
     .roleta-prize-card.rare{--card-color:#fbbf24;--card-glow:rgba(251,191,36,.5);background:linear-gradient(135deg,rgba(245,158,11,.12) 0%,rgba(180,83,9,.06) 100%);border:1px solid rgba(251,191,36,.4);}
@@ -745,181 +590,42 @@ function vRoleta(){
     .roleta-prize-card.epic2{--card-color:#a78bfa;--card-glow:rgba(167,139,250,.5);background:linear-gradient(135deg,rgba(139,92,246,.12) 0%,rgba(91,33,182,.06) 100%);border:1px solid rgba(167,139,250,.4);}
     .roleta-prize-card.legendary{--card-color:#f9a8d4;--card-glow:rgba(236,72,153,.7);background:linear-gradient(135deg,rgba(236,72,153,.18) 0%,rgba(157,23,77,.08) 100%);border:2px solid rgba(249,168,212,.6);animation:legendaryPulse 2.5s ease-in-out infinite;}
     @keyframes legendaryPulse{0%,100%{box-shadow:0 0 0 0 rgba(236,72,153,.4);}50%{box-shadow:0 0 30px 8px rgba(236,72,153,.3);}}
-    
-    /* ═══ RESULT MODAL ═══ */
-    .roleta-modal{
-      position:fixed;inset:0;
-      background:rgba(0,0,0,.85);
-      backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-      display:flex;align-items:center;justify-content:center;
-      z-index:9999;padding:20px;
-    }
-    .roleta-result{
-      position:relative;
-      max-width:440px;width:100%;
-      padding:36px 30px;
-      background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);
-      border-radius:24px;
-      border:2px solid var(--result-color,#fbbf24);
-      box-shadow:0 0 60px var(--result-glow,rgba(251,191,36,.5)),0 20px 60px rgba(0,0,0,.7);
-      text-align:center;overflow:hidden;
-      animation:resultEnter .5s cubic-bezier(.34,1.56,.64,1);
-    }
+    .roleta-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+    .roleta-result{position:relative;max-width:440px;width:100%;padding:36px 30px;background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);border-radius:24px;border:2px solid var(--result-color,#fbbf24);box-shadow:0 0 60px var(--result-glow,rgba(251,191,36,.5)),0 20px 60px rgba(0,0,0,.7);text-align:center;overflow:hidden;animation:resultEnter .5s cubic-bezier(.34,1.56,.64,1);}
     @keyframes resultEnter{0%{transform:scale(.7) translateY(40px);opacity:0;}100%{transform:scale(1) translateY(0);opacity:1;}}
-    .roleta-result::before{
-      content:'';position:absolute;top:0;left:0;right:0;height:4px;
-      background:linear-gradient(90deg,transparent,var(--result-color,#fbbf24),transparent);
-      animation:resultShine 2s ease-in-out infinite;
-    }
+    .roleta-result::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--result-color,#fbbf24),transparent);animation:resultShine 2s ease-in-out infinite;}
     @keyframes resultShine{0%,100%{opacity:.5;}50%{opacity:1;}}
     .roleta-result-icon{font-size:4rem;margin-bottom:12px;filter:drop-shadow(0 0 20px var(--result-glow));}
-    .roleta-result-rarity{
-      display:inline-block;padding:4px 14px;margin-bottom:14px;
-      background:rgba(0,0,0,.4);border:1px solid var(--result-color);
-      color:var(--result-color);border-radius:999px;
-      font-size:.72rem;font-weight:700;letter-spacing:.1em;
-      text-transform:uppercase;
-    }
-    .roleta-result-value{
-      font-family:'Orbitron',sans-serif;
-      font-size:3.2rem;font-weight:900;
-      color:var(--result-color);
-      margin:8px 0 16px;
-      letter-spacing:.04em;
-      text-shadow:0 0 30px var(--result-glow);
-      animation:resultValuePulse 1.5s ease-in-out infinite;
-    }
+    .roleta-result-rarity{display:inline-block;padding:4px 14px;margin-bottom:14px;background:rgba(0,0,0,.4);border:1px solid var(--result-color);color:var(--result-color);border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+    .roleta-result-value{font-family:'Orbitron',sans-serif;font-size:3.2rem;font-weight:900;color:var(--result-color);margin:8px 0 16px;letter-spacing:.04em;text-shadow:0 0 30px var(--result-glow);animation:resultValuePulse 1.5s ease-in-out infinite;}
     @keyframes resultValuePulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
-    .roleta-result-msg{
-      color:var(--text-mid);font-size:.88rem;line-height:1.6;margin-bottom:22px;
-    }
+    .roleta-result-msg{color:var(--text-mid);font-size:.88rem;line-height:1.6;margin-bottom:22px;}
     .roleta-result-msg b{color:var(--text);}
-    .roleta-result-cta{
-      padding:8px 16px;
-      background:rgba(251,191,36,.1);border:1px dashed rgba(251,191,36,.4);
-      border-radius:10px;
-      font-size:.78rem;color:var(--warn);
-      margin-bottom:20px;
-    }
-    .roleta-result-btn{
-      padding:14px 32px;
-      background:linear-gradient(135deg,#fff 0%,#fbbf24 100%);
-      border:none;border-radius:999px;
-      color:#000;font-family:'Orbitron',sans-serif;
-      font-size:.9rem;font-weight:900;letter-spacing:.1em;
-      cursor:pointer;box-shadow:0 8px 24px rgba(251,191,36,.4);
-      transition:transform .2s;
-    }
+    .roleta-result-cta{padding:8px 16px;background:rgba(251,191,36,.1);border:1px dashed rgba(251,191,36,.4);border-radius:10px;font-size:.78rem;color:var(--warn);margin-bottom:20px;}
+    .roleta-result-btn{padding:14px 32px;background:linear-gradient(135deg,#fff 0%,#fbbf24 100%);border:none;border-radius:999px;color:#000;font-family:'Orbitron',sans-serif;font-size:.9rem;font-weight:900;letter-spacing:.1em;cursor:pointer;box-shadow:0 8px 24px rgba(251,191,36,.4);transition:transform .2s;}
     .roleta-result-btn:hover{transform:translateY(-2px);}
-    
-    /* ═══ CONFETTI ═══ */
-    .confetti-piece{
-      position:fixed;
-      width:10px;height:10px;
-      top:-10px;
-      z-index:9998;
-      pointer-events:none;
-      animation:confettiFall 3s linear forwards;
-    }
-    @keyframes confettiFall{
-      0%{transform:translateY(0) rotate(0deg);opacity:1;}
-      100%{transform:translateY(100vh) rotate(720deg);opacity:0;}
-    }
-    
-    /* ═══ INFO CARD ═══ */
-    .roleta-info{
-      padding:18px 20px;
-      background:rgba(255,255,255,.02);
-      border:1px solid rgba(255,255,255,.1);
-      border-radius:14px;
-      margin-top:20px;
-    }
-    .roleta-info-title{
-      font-size:.78rem;font-weight:700;color:var(--accent);
-      letter-spacing:.08em;margin-bottom:10px;text-transform:uppercase;
-    }
-    .roleta-info-text{
-      font-size:.82rem;color:var(--text-mid);line-height:1.7;
-    }
+    .confetti-piece{position:fixed;width:10px;height:10px;top:-10px;z-index:9998;pointer-events:none;animation:confettiFall 3s linear forwards;}
+    @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1;}100%{transform:translateY(100vh) rotate(720deg);opacity:0;}}
+    .roleta-info{padding:18px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.1);border-radius:14px;margin-top:20px;}
+    .roleta-info-title{font-size:.78rem;font-weight:700;color:var(--accent);letter-spacing:.08em;margin-bottom:10px;text-transform:uppercase;}
+    .roleta-info-text{font-size:.82rem;color:var(--text-mid);line-height:1.7;}
     .roleta-info-text b{color:var(--text);}
-    .roleta-info-step{
-      display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;
-    }
-    .roleta-info-step-num{
-      flex:0 0 24px;height:24px;
-      background:linear-gradient(135deg,#fbbf24,#dc2626);
-      color:#000;font-weight:800;font-size:.75rem;
-      border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-    }
-    
-    /* ═══ MASTER MODAL ═══ */
-    .bonus-modal{
-      position:fixed;inset:0;
-      background:rgba(0,0,0,.88);
-      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-      display:flex;align-items:center;justify-content:center;
-      z-index:10000;padding:20px;
-    }
-    .bonus-modal-content{
-      max-width:480px;width:100%;
-      max-height:85vh;overflow-y:auto;
-      padding:28px;
-      background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);
-      border:2px solid rgba(139,92,246,.5);
-      border-radius:20px;
-      box-shadow:0 0 60px rgba(139,92,246,.3);
-    }
-    .bonus-modal-title{
-      font-family:'Orbitron',sans-serif;
-      font-size:1.15rem;font-weight:800;
-      background:linear-gradient(135deg,#a78bfa,#ec4899);
-      -webkit-background-clip:text;background-clip:text;
-      -webkit-text-fill-color:transparent;
-      text-align:center;margin-bottom:6px;letter-spacing:.08em;
-    }
-    .bonus-modal-sub{
-      text-align:center;font-size:.78rem;color:var(--text-mid);
-      margin-bottom:22px;
-    }
+    .roleta-info-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+    .roleta-info-step-num{flex:0 0 24px;height:24px;background:linear-gradient(135deg,#fbbf24,#dc2626);color:#000;font-weight:800;font-size:.75rem;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+    .bonus-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;}
+    .bonus-modal-content{max-width:480px;width:100%;max-height:85vh;overflow-y:auto;padding:28px;background:linear-gradient(135deg,rgba(14,14,16,.98) 0%,rgba(20,20,24,.98) 100%);border:2px solid rgba(139,92,246,.5);border-radius:20px;box-shadow:0 0 60px rgba(139,92,246,.3);}
+    .bonus-modal-title{font-family:'Orbitron',sans-serif;font-size:1.15rem;font-weight:800;background:linear-gradient(135deg,#a78bfa,#ec4899);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-align:center;margin-bottom:6px;letter-spacing:.08em;}
+    .bonus-modal-sub{text-align:center;font-size:.78rem;color:var(--text-mid);margin-bottom:22px;}
     .bonus-user-list{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;padding-right:4px;}
-    .bonus-user-item{
-      display:flex;align-items:center;gap:12px;
-      padding:12px 14px;
-      background:rgba(255,255,255,.03);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:12px;
-      cursor:pointer;transition:all .2s;
-    }
+    .bonus-user-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);border-radius:12px;cursor:pointer;transition:all .2s;}
     .bonus-user-item:hover{background:rgba(255,255,255,.06);border-color:rgba(139,92,246,.5);transform:translateX(2px);}
-    .bonus-user-avatar{
-      flex:0 0 42px;width:42px;height:42px;
-      border-radius:10px;
-      background:linear-gradient(135deg,#6366f1,#ec4899);
-      display:flex;align-items:center;justify-content:center;
-      font-weight:800;font-size:1.1rem;color:#fff;
-    }
+    .bonus-user-avatar{flex:0 0 42px;width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#ec4899);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff;}
     .bonus-user-info{flex:1;min-width:0;}
     .bonus-user-name{font-weight:700;font-size:.92rem;color:var(--text);}
     .bonus-user-cargo{font-size:.7rem;color:var(--text-mid);margin-top:2px;}
-    .bonus-user-badges{display:flex;gap:6px;margin-top:4px;}
-    .bonus-user-giros{
-      display:inline-flex;align-items:center;gap:4px;
-      padding:2px 8px;
-      background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);
-      border-radius:999px;
-      font-size:.68rem;font-weight:700;color:#4ade80;
-    }
-    .bonus-modal-close{
-      margin-top:18px;width:100%;
-      padding:10px;
-      background:transparent;border:1px solid rgba(255,255,255,.2);
-      border-radius:10px;color:var(--text-mid);
-      font-weight:600;cursor:pointer;transition:all .2s;
-    }
+    .bonus-user-giros{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:2px 8px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);border-radius:999px;font-size:.68rem;font-weight:700;color:#4ade80;}
+    .bonus-modal-close{margin-top:18px;width:100%;padding:10px;background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;color:var(--text-mid);font-weight:600;cursor:pointer;transition:all .2s;}
     .bonus-modal-close:hover{background:rgba(255,255,255,.05);color:var(--text);}
-    
-    /* Mobile */
     @media (max-width:520px){
       .roleta-hero{padding:20px 16px;}
       .roleta-hero-title{font-size:1.15rem;}
@@ -933,19 +639,20 @@ function vRoleta(){
       .roleta-result-icon{font-size:3rem;}
     }
   </style>
-  
+
   <div class="roleta-hero">
     <div class="roleta-hero-header">
       <div>
         <div class="roleta-hero-title">🎰 ROLETA DA SORTE</div>
-        <div class="roleta-hero-sub">Gire 1x por dia • Ganhe prêmios reais</div>
+        <div class="roleta-hero-sub">1 giro/dia • +1 giro por hora extra • Master ilimitado</div>
       </div>
       ${adminBtn}
     </div>
-    
+
+    ${bannerMaster}
     ${bannerBonus}
     ${bannerCooldown}
-    
+
     <div class="roleta-stage">
       <div class="roleta-wheel-wrap">
         <div class="roleta-pointer"></div>
@@ -954,12 +661,11 @@ function vRoleta(){
           <div class="roleta-leds" id="roleta-leds"></div>
         </div>
       </div>
-      
-      <button class="roleta-spin-btn" id="roleta-spin-btn" onclick="girarRoleta()" ${podeGirar?'':'disabled'}>
-        ${podeGirar?'🎰 GIRAR ROLETA':'⏳ '+podeGirarTxt}
+      <button class="roleta-spin-btn" id="roleta-spin-btn" onclick="girarRoleta()" ${st.podeGirar?'':'disabled'}>
+        ${st.master?'👑 GIRAR (ILIMITADO)':(st.podeGirar?'🎰 GIRAR ROLETA':'⏳ '+cdTxt)}
       </button>
     </div>
-    
+
     <div class="roleta-prizes">
       ${ROLETA_PREMIOS.map(p=>`
         <div class="roleta-prize-card ${p.raridade}">
@@ -970,153 +676,79 @@ function vRoleta(){
         </div>
       `).join('')}
     </div>
-    
+
     <div class="roleta-info">
       <div class="roleta-info-title">📋 Como Funciona</div>
-      <div class="roleta-info-step">
-        <div class="roleta-info-step-num">1</div>
-        <div class="roleta-info-text">Gire a roleta <b>1x por dia</b> (ou use giros bônus do Master)</div>
-      </div>
-      <div class="roleta-info-step">
-        <div class="roleta-info-step-num">2</div>
-        <div class="roleta-info-text">Ao ganhar, <b>tire um print</b> da tela de resultado</div>
-      </div>
-      <div class="roleta-info-step">
-        <div class="roleta-info-step-num">3</div>
-        <div class="roleta-info-text">Envie no <b>Chat</b> para um superior validar seu prêmio</div>
-      </div>
+      <div class="roleta-info-step"><div class="roleta-info-step-num">1</div><div class="roleta-info-text">Gire a roleta <b>1x por dia</b> (ou use giros bônus)</div></div>
+      <div class="roleta-info-step"><div class="roleta-info-step-num">2</div><div class="roleta-info-text"><b>+1 giro bônus</b> a cada hora extra trabalhada no ponto</div></div>
+      <div class="roleta-info-step"><div class="roleta-info-step-num">3</div><div class="roleta-info-text">Ao ganhar, <b>tire um print</b> e envie no Chat para validar</div></div>
     </div>
   </div>`;
 }
 
-// ═══ CANVAS: desenha a roleta ═══
-function desenharRoleta(rotacao=0){
+function desenharRoleta(){
   const canvas=document.getElementById('roleta-canvas');
   if(!canvas)return;
   const ctx=canvas.getContext('2d');
-  const W=canvas.width, H=canvas.height;
-  const cx=W/2, cy=H/2;
+  const W=canvas.width,H=canvas.height;
+  const cx=W/2,cy=H/2;
   const raio=W/2-20;
-  
   ctx.clearRect(0,0,W,H);
   ctx.save();
   ctx.translate(cx,cy);
-  ctx.rotate(rotacao*Math.PI/180);
-  
   const numFatias=ROLETA_PREMIOS.length;
   const angFatia=(2*Math.PI)/numFatias;
-  
-  // Fundo externo (anel dourado)
   const gradAnel=ctx.createRadialGradient(0,0,raio-10,0,0,raio+8);
-  gradAnel.addColorStop(0,'#fbbf24');
-  gradAnel.addColorStop(0.5,'#f59e0b');
-  gradAnel.addColorStop(1,'#78350f');
+  gradAnel.addColorStop(0,'#fbbf24');gradAnel.addColorStop(0.5,'#f59e0b');gradAnel.addColorStop(1,'#78350f');
   ctx.fillStyle=gradAnel;
-  ctx.beginPath();
-  ctx.arc(0,0,raio+8,0,2*Math.PI);
-  ctx.fill();
-  
-  // Fatias
+  ctx.beginPath();ctx.arc(0,0,raio+8,0,2*Math.PI);ctx.fill();
   ROLETA_PREMIOS.forEach((p,i)=>{
     const ini=i*angFatia-Math.PI/2;
     const fim=ini+angFatia;
-    
-    // Gradiente da fatia
     const grad=ctx.createRadialGradient(0,0,0,0,0,raio);
-    grad.addColorStop(0,p.cor2);
-    grad.addColorStop(0.6,p.cor);
-    grad.addColorStop(1,p.cor);
+    grad.addColorStop(0,p.cor2);grad.addColorStop(0.6,p.cor);grad.addColorStop(1,p.cor);
     ctx.fillStyle=grad;
-    
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.arc(0,0,raio,ini,fim);
-    ctx.closePath();
-    ctx.fill();
-    
-    // Borda da fatia
-    ctx.strokeStyle='rgba(0,0,0,.4)';
-    ctx.lineWidth=2;
-    ctx.stroke();
-    
-    // Linha divisória brilhante
-    ctx.strokeStyle='rgba(255,255,255,.3)';
-    ctx.lineWidth=1;
-    ctx.beginPath();
-    ctx.moveTo(0,0);
-    ctx.lineTo(Math.cos(ini)*raio,Math.sin(ini)*raio);
-    ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,raio,ini,fim);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.4)';ctx.lineWidth=2;ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(ini)*raio,Math.sin(ini)*raio);ctx.stroke();
   });
-  
-  // Texto em cada fatia
-  ctx.textAlign='center';
-  ctx.textBaseline='middle';
+  ctx.textAlign='center';ctx.textBaseline='middle';
   ROLETA_PREMIOS.forEach((p,i)=>{
     const ang=i*angFatia+angFatia/2-Math.PI/2;
-    ctx.save();
-    ctx.rotate(ang);
-    
-    // Ícone
+    ctx.save();ctx.rotate(ang);
     ctx.font='48px system-ui, sans-serif';
-    ctx.fillText(p.icone, raio*0.62, 0);
-    
-    // Valor
-    ctx.fillStyle='#fff';
-    ctx.shadowColor='rgba(0,0,0,.8)';
-    ctx.shadowBlur=6;
+    ctx.fillText(p.icone,raio*0.62,0);
+    ctx.fillStyle='#fff';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=6;
     ctx.font='bold 32px "Orbitron", system-ui, sans-serif';
-    ctx.fillText('R$ '+p.valor.toLocaleString('pt-BR'), raio*0.36, 0);
-    
-    ctx.shadowBlur=0;
-    ctx.restore();
+    ctx.fillText('R$ '+p.valor.toLocaleString('pt-BR'),raio*0.36,0);
+    ctx.shadowBlur=0;ctx.restore();
   });
-  
-  // Centro decorativo
   const gradCentro=ctx.createRadialGradient(0,0,0,0,0,60);
-  gradCentro.addColorStop(0,'#fbbf24');
-  gradCentro.addColorStop(0.5,'#dc2626');
-  gradCentro.addColorStop(1,'#7f1d1d');
+  gradCentro.addColorStop(0,'#fbbf24');gradCentro.addColorStop(0.5,'#dc2626');gradCentro.addColorStop(1,'#7f1d1d');
   ctx.fillStyle=gradCentro;
-  ctx.beginPath();
-  ctx.arc(0,0,55,0,2*Math.PI);
-  ctx.fill();
-  
-  // Borda dourada do centro
-  ctx.strokeStyle='#fbbf24';
-  ctx.lineWidth=4;
-  ctx.stroke();
-  ctx.strokeStyle='rgba(255,255,255,.5)';
-  ctx.lineWidth=2;
-  ctx.stroke();
-  
-  // Texto central
-  ctx.fillStyle='#fff';
-  ctx.shadowColor='rgba(0,0,0,.8)';
-  ctx.shadowBlur=4;
-  ctx.font='bold 28px "Orbitron", system-ui';
-  ctx.fillText('GMPOL',0,-6);
-  ctx.font='600 14px system-ui';
-  ctx.fillText('SORTE',0,14);
+  ctx.beginPath();ctx.arc(0,0,55,0,2*Math.PI);ctx.fill();
+  ctx.strokeStyle='#fbbf24';ctx.lineWidth=4;ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.shadowColor='rgba(0,0,0,.8)';ctx.shadowBlur=4;
+  ctx.font='bold 28px "Orbitron", system-ui';ctx.fillText('GMPOL',0,-6);
+  ctx.font='600 14px system-ui';ctx.fillText('SORTE',0,14);
   ctx.shadowBlur=0;
-  
   ctx.restore();
 }
 
-// ═══ LEDs ao redor da roleta ═══
 function inicializarLEDs(){
   const wrap=document.getElementById('roleta-leds');
   if(!wrap||wrap.children.length>0)return;
   const numLeds=20;
   for(let i=0;i<numLeds;i++){
     const led=document.createElement('div');
-    led.className='roleta-led';
+    led.className='roleta-led off';
     const ang=(i/numLeds)*360;
     const angRad=(ang-90)*Math.PI/180;
-    const r=50; // percent
-    const x=50+Math.cos(angRad)*r;
-    const y=50+Math.sin(angRad)*r;
-    led.style.left=x+'%';
-    led.style.top=y+'%';
+    const x=50+Math.cos(angRad)*50;
+    const y=50+Math.sin(angRad)*50;
+    led.style.left=x+'%';led.style.top=y+'%';
     led.style.transform='translate(-50%,-50%)';
     wrap.appendChild(led);
   }
@@ -1130,117 +762,97 @@ function animarLEDs(){
   if(!leds.length)return;
   let frame=0;
   _ledInterval=setInterval(()=>{
-    leds.forEach((led,i)=>{
-      const on=(i+frame)%3===0;
-      led.className='roleta-led '+(on?'on':'off');
-    });
+    leds.forEach((led,i)=>{led.className='roleta-led '+(((i+frame)%3===0)?'on':'off');});
     frame++;
   },300);
-}
-
-function inicializarRoleta(){
-  desenharRoleta(0);
-  inicializarLEDs();
-  iniciarTimerCooldown();
 }
 
 let _cdInterval=null;
 function iniciarTimerCooldown(){
   if(_cdInterval)clearInterval(_cdInterval);
-  const el=document.getElementById('roleta-cd-timer');
-  if(!el)return;
-  _cdInterval=setInterval(()=>{
-    const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY+'_'+me.user);
-    if(!ultimoGiro){clearInterval(_cdInterval);return;}
-    const resta=24*60*60*1000-(Date.now()-parseInt(ultimoGiro));
-    if(resta<=0){
-      clearInterval(_cdInterval);
-      renderTab(activeTab);
-      return;
-    }
-    const h=Math.floor(resta/3600000);
-    const m=Math.floor((resta%3600000)/60000);
-    const s=Math.floor((resta%60000)/1000);
+  if(!document.getElementById('roleta-cd-timer'))return;
+  const tick=()=>{
+    const el=document.getElementById('roleta-cd-timer');
+    if(!el||!me){clearInterval(_cdInterval);_cdInterval=null;return;}
+    const st=_roletaStatus();
+    if(st.podeGirar){clearInterval(_cdInterval);_cdInterval=null;renderTab(activeTab);return;}
+    const h=Math.floor(st.resta/3600000),m=Math.floor((st.resta%3600000)/60000),s=Math.floor((st.resta%60000)/1000);
     el.textContent=h>0?`${h}h ${m}m ${s}s`:`${m}m ${s}s`;
-  },1000);
+  };
+  tick();
+  _cdInterval=setInterval(tick,1000);
 }
 
-// ═══ GIRAR ═══
+function inicializarRoleta(){
+  desenharRoleta();
+  inicializarLEDs();
+  iniciarTimerCooldown();
+}
+
 let _roletaGirando=false;
-function girarRoleta(){
+async function girarRoleta(){
   if(_roletaGirando)return;
-  
-  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY+'_'+me.user);
-  const girosBonusStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+me.user);
-  let girosBonus=girosBonusStr?parseInt(girosBonusStr):0;
-  const agora=Date.now();
-  const cooldownMs=24*60*60*1000;
-  const cooldownExpirado=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs;
-  
-  if(!cooldownExpirado&&girosBonus<=0){
-    toast('Você já girou hoje. Aguarde o cooldown ou use giros bônus.','w');
-    return;
-  }
-  
-  if(!cooldownExpirado&&girosBonus>0){
-    girosBonus--;
-    localStorage.setItem(ROLETA_BONUS_KEY+'_'+me.user,girosBonus.toString());
-  }else{
-    localStorage.setItem(ROLETA_LS_KEY+'_'+me.user,agora.toString());
-  }
-  
-  // Sorteia o prêmio
+  const st=_roletaStatus();
+  if(!st.podeGirar){toast('⏳ Aguarde o cooldown ou use giros bônus.','w');return;}
+  _roletaGirando=true;
+  const btn=document.getElementById('roleta-spin-btn');
+  if(btn){btn.classList.add('spinning');btn.disabled=true;}
+
   const totalPeso=ROLETA_PREMIOS.reduce((s,p)=>s+p.peso,0);
   let random=Math.random()*totalPeso;
-  let premio=ROLETA_PREMIOS[0];
-  let idxPremio=0;
+  let premio=ROLETA_PREMIOS[0],idxPremio=0;
   for(let i=0;i<ROLETA_PREMIOS.length;i++){
     random-=ROLETA_PREMIOS[i].peso;
     if(random<=0){premio=ROLETA_PREMIOS[i];idxPremio=i;break;}
   }
-  
-  _roletaGirando=true;
-  const btn=document.getElementById('roleta-spin-btn');
-  if(btn)btn.classList.add('spinning');
-  
-  // Calcula ângulo final para parar no prêmio
+
   const numFatias=ROLETA_PREMIOS.length;
   const angFatia=360/numFatias;
-  // Centro da fatia
   const centroFatia=idxPremio*angFatia+angFatia/2;
-  // Queremos que o ponteiro (topo) aponte para essa fatia
-  // Rotação = voltas completas + offset para alinhar
   const voltas=7+Math.floor(Math.random()*3);
-  const offsetAleatorio=(Math.random()-0.5)*angFatia*0.6; // variação para não cair sempre no centro
+  const offsetAleatorio=(Math.random()-0.5)*angFatia*0.6;
   const anguloFinal=voltas*360+(360-centroFatia)+offsetAleatorio;
-  
+
   const canvas=document.getElementById('roleta-canvas');
-  if(!canvas)return;
-  
-  // Animação via transform
+  if(!canvas){_roletaGirando=false;return;}
   canvas.style.transition='none';
   canvas.style.transform='rotate(0deg)';
-  // força reflow
   canvas.offsetHeight;
-  canvas.style.transition='transform 5.5s cubic-bezier(0.15, 0.7, 0.1, 1)';
+  canvas.style.transition='transform 5.5s cubic-bezier(0.15,0.7,0.1,1)';
   canvas.style.transform=`rotate(${anguloFinal}deg)`;
-  
-  // Som de "tictac" acelerando e desacelerando (opcional, só beep simples)
   try{tocarSomRoleta();}catch(_){}
-  
-  // Após 5.5s, mostra resultado
-  setTimeout(()=>{
-    _roletaGirando=false;
-    if(btn)btn.classList.remove('spinning');
-    mostrarResultadoRoleta(premio);
-    if(premio.valor>=2000)lancarConfete();
+
+  setTimeout(async()=>{
+    try{
+      const res=await API.girarRoleta(me.user);
+      if(res&&res.ok){
+        if(typeof res.girosBonus==='number')me.girosBonus=res.girosBonus;
+        if(res.ultimoGiro)me.ultimoGiroRoleta=res.ultimoGiro;
+        saveSession();
+        mostrarResultadoRoleta(premio);
+        if(premio.valor>=2000)lancarConfete();
+      }else{
+        toast((res&&res.error)||'Não foi possível registrar o giro.','w');
+        _reverterRoda();
+      }
+    }catch(e){
+      toast(e.message||'Erro ao registrar giro.','d');
+      _reverterRoda();
+    }finally{
+      _roletaGirando=false;
+      renderTab(activeTab);
+    }
   },5600);
+}
+
+function _reverterRoda(){
+  const canvas=document.getElementById('roleta-canvas');
+  if(canvas){canvas.style.transition='transform .6s ease-out';canvas.style.transform='rotate(0deg)';}
 }
 
 function tocarSomRoleta(){
   try{
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    // Beep curto de início
     const osc=ctx.createOscillator();const gain=ctx.createGain();
     osc.connect(gain);gain.connect(ctx.destination);
     osc.frequency.value=600;osc.type='triangle';
@@ -1261,13 +873,11 @@ function mostrarResultadoRoleta(premio){
       <div class="roleta-result-value">R$ ${premio.valor.toLocaleString('pt-BR')}</div>
       <div class="roleta-result-msg">
         <b>🎉 PARABÉNS!</b><br>
-        Você ganhou um prêmio <b>${premio.nome}</b>!<br>
-        <small style="color:var(--text-dim);">Salvo no seu histórico de giros</small>
+        Você ganhou um prêmio <b>${premio.nome}</b>!
       </div>
       <div class="roleta-result-cta">📸 Tire um PRINT e envie no <b>Chat</b> para validar</div>
       <button class="roleta-result-btn" onclick="fecharResultadoRoleta(this)">✓ ENTENDI</button>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(modal);
   try{tocarSomVitoria();}catch(_){}
   toast(`🎉 Você ganhou R$ ${premio.valor.toLocaleString('pt-BR')}! Envie o print no chat.`,'s',10000);
@@ -1276,8 +886,7 @@ function mostrarResultadoRoleta(premio){
 function tocarSomVitoria(){
   try{
     const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    const notes=[523.25,659.25,783.99,1046.50];
-    notes.forEach((freq,i)=>{
+    [523.25,659.25,783.99,1046.50].forEach((freq,i)=>{
       const osc=ctx.createOscillator();const gain=ctx.createGain();
       osc.connect(gain);gain.connect(ctx.destination);
       osc.frequency.value=freq;osc.type='triangle';
@@ -1313,11 +922,9 @@ function fecharResultadoRoleta(btn){
   renderTab(activeTab);
 }
 
-// ═══ MODAL MASTER ═══
 function abrirModalBonus(){
   if(!isMaster())return;
   const usuarios=STATE.users.filter(u=>ROLETA_CARGOS_PERMITIDOS.includes(u.cargo)&&u.ativo!==false);
-  
   const modal=document.createElement('div');
   modal.className='bonus-modal';
   modal.id='bonus-modal';
@@ -1326,44 +933,44 @@ function abrirModalBonus(){
       <div class="bonus-modal-title">🎁 LIBERAR GIROS BÔNUS</div>
       <div class="bonus-modal-sub">Selecione um usuário e informe a quantidade de giros</div>
       <div class="bonus-user-list">
-        ${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível encontrado.</div>':
+        ${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível.</div>':
         usuarios.map(u=>{
-          const girosStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+u.user);
-          const giros=girosStr?parseInt(girosStr):0;
+          const g=(typeof u.girosBonus==='number')?u.girosBonus:0;
           return `
             <div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')">
               <div class="bonus-user-avatar">${u.nome.charAt(0).toUpperCase()}</div>
               <div class="bonus-user-info">
                 <div class="bonus-user-name">${u.nome}</div>
-                <div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]}</div>
-                <div class="bonus-user-badges">
-                  ${giros>0?`<div class="bonus-user-giros">🎁 ${giros} bônus</div>`:''}
-                </div>
+                <div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]||u.cargo}</div>
+                ${g>0?`<div class="bonus-user-giros">🎁 ${g} bônus</div>`:''}
               </div>
-            </div>
-          `;
+            </div>`;
         }).join('')}
       </div>
       <button class="bonus-modal-close" onclick="fecharModalBonus()">FECHAR</button>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(modal);
 }
 
-function selecionarUsuarioBonus(user,nome){
+async function selecionarUsuarioBonus(user,nome){
+  if(!isMaster())return;
   const giros=prompt(`Quantos giros bônus deseja liberar para ${nome}?\n\nDigite um número:`);
   if(!giros)return;
   const num=parseInt(giros);
   if(isNaN(num)||num<1){toast('Digite um número válido maior que 0.','w');return;}
   if(num>100){toast('Máximo de 100 giros por vez.','w');return;}
-  
-  const atualStr=localStorage.getItem(ROLETA_BONUS_KEY+'_'+user);
-  const atual=atualStr?parseInt(atualStr):0;
-  localStorage.setItem(ROLETA_BONUS_KEY+'_'+user,(atual+num).toString());
-  
-  toast(`✅ ${num} giro(s) bônus liberado(s) para ${nome}!`,'s',6000);
-  fecharModalBonus();
-  if(user===me.user)renderTab(activeTab);
+  try{
+    const res=await API.liberarGiros(user,num,me.user);
+    if(res&&res.ok){
+      toast(`✅ ${num} giro(s) bônus liberado(s) para ${nome}!`,'s',6000);
+      fecharModalBonus();
+      if(user===me.user)renderTab(activeTab);
+    }else{
+      toast((res&&res.error)||'Erro ao liberar giros.','d');
+    }
+  }catch(e){
+    toast('Erro: '+(e.message||'Tente novamente.'),'d');
+  }
 }
 
 function fecharModalBonus(){
