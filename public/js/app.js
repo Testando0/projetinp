@@ -512,7 +512,7 @@ function vRoleta(){
         <span class="roleta-master-ico">👑</span>
         <div class="roleta-master-txt">
           <div class="roleta-master-main">ACESSO ILIMITADO</div>
-          <div class="roleta-master-sub">Master pode girar quantas vezes quiser, sem cooldown</div>
+          <div class="roleta-master-sub">Master pode girar quantas vezes quiser, sem limite</div>
         </div>
       </div>
     </div>`:'';
