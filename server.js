@@ -1,6 +1,11 @@
 /**
- * GMPOL Sistema Central v5.8
- * + CHAT PRIVADO 1:1 (WebSocket + localStorage)
+ * ════════════════════════════════════════════════════════════════════════
+ *  GMPOL Sistema Central v5.9 — Servidor Completo
+ *  • Chat privado 1:1 via WebSocket
+ *  • Feedbacks / avaliação do sistema
+ *  • Banco de horas, ponto, provas, auditoria
+ *  • PWA support (manifest.json, sw.js, logo.png)
+ * ════════════════════════════════════════════════════════════════════════
  */
 
 const http   = require('http');
@@ -8,87 +13,104 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 
+// ══════════════════════════════════════════════════════════════
+// ══ HELPERS DE DATA/HORA (timezone Brasil) ══════════════════
+// ══════════════════════════════════════════════════════════════
 const TZ = 'America/Sao_Paulo';
-function brTimeStr(ts){return new Date(ts).toLocaleTimeString('pt-BR',{timeZone:TZ,hour:'2-digit',minute:'2-digit'});}
-function brTimeStrSec(ts){return new Date(ts).toLocaleTimeString('pt-BR',{timeZone:TZ,hour:'2-digit',minute:'2-digit',second:'2-digit'});}
-function brDateStr(ts){return new Date(ts).toLocaleDateString('pt-BR',{timeZone:TZ});}
-function nextBrDateStr(dstr){const p=dstr.split('/');const dd=+p[0],mm=+p[1],yy=+p[2];const t=new Date(Date.UTC(yy,mm-1,dd+1,12));return String(t.getUTCDate()).padStart(2,'0')+'/'+String(t.getUTCMonth()+1).padStart(2,'0')+'/'+t.getUTCFullYear();}
+function brTimeStr(ts)     { return new Date(ts).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }); }
+function brTimeStrSec(ts)  { return new Date(ts).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+function brDateStr(ts)     { return new Date(ts).toLocaleDateString('pt-BR', { timeZone: TZ }); }
+function nextBrDateStr(dstr) {
+  const p = dstr.split('/');
+  const dd = +p[0], mm = +p[1], yy = +p[2];
+  const t = new Date(Date.UTC(yy, mm - 1, dd + 1, 12));
+  return String(t.getUTCDate()).padStart(2, '0') + '/' +
+         String(t.getUTCMonth() + 1).padStart(2, '0') + '/' +
+         t.getUTCFullYear();
+}
 
+// ══════════════════════════════════════════════════════════════
+// ══ CARGOS, PERMISSÕES E CONSTANTES ═════════════════════════
+// ══════════════════════════════════════════════════════════════
 const CARGO_PERM_SRV = { admin: 7, chefe: 6, delegado: 5, escrivao: 4, tatico: 3, agente: 2, gm: 1 };
 const CARGO_LABEL_SRV = {
-  admin:'Admin master', chefe:'Chefe de polícia', delegado:'Delegado',
-  escrivao:'Escrivão', tatico:'Tático', agente:'Agente oficial', gm:'Guarda municipal'
+  admin: 'Admin master', chefe: 'Chefe de polícia', delegado: 'Delegado',
+  escrivao: 'Escrivão', tatico: 'Tático', agente: 'Agente oficial', gm: 'Guarda municipal'
 };
+// Minutos-base por turno (usado para calcular horas extras/devidas)
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
+// ══════════════════════════════════════════════════════════════
+// ══ BANCO DE QUESTÕES DAS PROVAS ════════════════════════════
+// ══════════════════════════════════════════════════════════════
 const PROVAS_CARGO = {
   gm: [
-    { enunciado:'O Guarda inicia o serviço na qual patente?', alt:['Agente','Guarda','Escrivão','Tático'], correta:1 },
-    { enunciado:'Quais equipamentos o Guarda pode utilizar no serviço?', alt:['Pistola G18, colete e cassetete','Cassetete, taser, colete e Desert Eagle somente em caso de ameaça','Fuzil M4, pistola e colete','Apenas cassetete e colete'], correta:1 },
-    { enunciado:'Onde o Guarda deve permanecer durante o turno?', alt:['Em todo o mapa livremente','Somente na Delegacia (DP)','Na rua e na DP','Onde o chefe mandar'], correta:2 },
-    { enunciado:'Qual das três regras básicas da PF NÃO faz parte?', alt:['Respeito','Comprometimento','Velocidade','Não azaralhar'], correta:2 },
-    { enunciado:'A Desert Eagle do Guarda é liberada para uso em qual situação?', alt:['Sempre que estiver de plantão','Apenas em caso de ameaça','Nunca, é proibida','Quando o chefe autorizar por rádio'], correta:1 },
-    { enunciado:'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert)?', alt:['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta:1 },
-    { enunciado:'Para o Guarda ser promovido, ele precisa:', alt:['Apenas de tempo jogado','Fazer paradinhas e passar pela prova','Pagar a administração','Pedir pra chefe diretamente'], correta:1 },
-    { enunciado:'Qual é a ÚNICA patente da PF em que a promoção é feita APENAS por mérito, sem prova?', alt:['Agente','Tático','Escrivão','Delegado'], correta:2 },
-    { enunciado:'É correto afirmar que o Guarda pode conduzir presos?', alt:['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só se for autorizado pelo Chefe na hora'], correta:1 },
-    { enunciado:'O que o Guarda DEVE fazer ao encontrar um superior no Barra Amiga ou no interior da DP?', alt:['Ignorar','Prender','Prestar continência','Pedir hora'], correta:2 }
+    { enunciado: 'O Guarda inicia o serviço na qual patente?', alt: ['Agente','Guarda','Escrivão','Tático'], correta: 1 },
+    { enunciado: 'Quais equipamentos o Guarda pode utilizar no serviço?', alt: ['Pistola G18, colete e cassetete','Cassetete, taser, colete e Desert Eagle somente em caso de ameaça','Fuzil M4, pistola e colete','Apenas cassetete e colete'], correta: 1 },
+    { enunciado: 'Onde o Guarda deve permanecer durante o turno?', alt: ['Em todo o mapa livremente','Somente na Delegacia (DP)','Na rua e na DP','Onde o chefe mandar'], correta: 2 },
+    { enunciado: 'Qual das três regras básicas da PF NÃO faz parte?', alt: ['Respeito','Comprometimento','Velocidade','Não azaralhar'], correta: 2 },
+    { enunciado: 'A Desert Eagle do Guarda é liberada para uso em qual situação?', alt: ['Sempre que estiver de plantão','Apenas em caso de ameaça','Nunca, é proibida','Quando o chefe autorizar por rádio'], correta: 1 },
+    { enunciado: 'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert)?', alt: ['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta: 1 },
+    { enunciado: 'Para o Guarda ser promovido, ele precisa:', alt: ['Apenas de tempo jogado','Fazer paradinhas e passar pela prova','Pagar a administração','Pedir pra chefe diretamente'], correta: 1 },
+    { enunciado: 'Qual é a ÚNICA patente da PF em que a promoção é feita APENAS por mérito, sem prova?', alt: ['Agente','Tático','Escrivão','Delegado'], correta: 2 },
+    { enunciado: 'É correto afirmar que o Guarda pode conduzir presos?', alt: ['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só se for autorizado pelo Chefe na hora'], correta: 1 },
+    { enunciado: 'O que o Guarda DEVE fazer ao encontrar um superior no Barra Amiga ou no interior da DP?', alt: ['Ignorar','Prender','Prestar continência','Pedir hora'], correta: 2 }
   ],
   agente: [
-    { enunciado:'Qual é uma das principais funções de um Agente?', alt:['Patrulhar e atender ocorrências','Ignorar chamados','Aplicar punições sem motivo','Fazer apenas escoltas'], correta:0 },
-    { enunciado:'O que é abuso de poder?', alt:['Cumprir uma ordem legítima','Usar a autoridade de forma indevida','Fazer uma abordagem','Solicitar apoio'], correta:1 },
-    { enunciado:'Um policial pode prender alguém apenas porque não gosta da pessoa?', alt:['Sim','Não','Apenas se estiver fardado','Apenas durante patrulhamento'], correta:1 },
-    { enunciado:'Durante uma abordagem, o Agente deve:', alt:['Agir com respeito e seguir os procedimentos','Ofender o cidadão','Usar força sem necessidade','Prender todos os envolvidos'], correta:0 },
-    { enunciado:'O policial pode usar sua autoridade para conseguir dinheiro de um jogador?', alt:['Sim','Não','Apenas em ocorrências','Apenas se for pouco dinheiro'], correta:1 },
-    { enunciado:'Se um policial ameaça prender alguém sem justificativa para conseguir vantagem, isso pode ser:', alt:['Abuso de poder','Patrulhamento','Procedimento normal','QRR'], correta:0 },
-    { enunciado:'O que deve ser feito ao receber um QRR?', alt:['Ignorar','Prestar apoio conforme os procedimentos','Desligar o rádio','Sair da ocorrência'], correta:1 },
-    { enunciado:'O uso da força deve ser:', alt:['Sempre utilizado','Necessário e proporcional à situação','Usado para intimidar','Usado contra qualquer pessoa'], correta:1 },
-    { enunciado:'O Agente pode utilizar o armamento apenas para intimidar um cidadão?', alt:['Sim','Não','Sempre que estiver armado','Durante qualquer discussão'], correta:1 },
-    { enunciado:'Um policial presencia outro Agente cometendo abuso de poder. O correto é:', alt:['Ajudar a esconder','Seguir o procedimento correto para comunicar a infração','Ignorar sempre','Fazer o mesmo'], correta:1 },
-    { enunciado:'O que é considerado uma conduta profissional?', alt:['Respeito, disciplina e cumprimento das regras','Abuso de autoridade','Provocar suspeitos','Ignorar superiores'], correta:0 },
-    { enunciado:'Durante uma perseguição, o Agente deve:', alt:['Seguir os procedimentos da corporação','Atirar sempre','Bater propositalmente no veículo','Ignorar a segurança'], correta:0 },
-    { enunciado:'Um Agente pode revistar qualquer pessoa sem motivo?', alt:['Sim','Não, deve seguir as regras','Sempre que estiver em serviço','Apenas à noite'], correta:1 },
-    { enunciado:'Se um cidadão insultar o policial, o Agente deve:', alt:['Manter o controle e agir conforme as regras','Usar a arma','Prender automaticamente','Agredir o cidadão'], correta:0 },
-    { enunciado:'O que caracteriza uma ordem legítima?', alt:['Uma ordem compatível com as regras','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta:0 },
-    { enunciado:'O Agente pode usar informações obtidas no serviço para benefício pessoal?', alt:['Sim','Não','Apenas fora do expediente','Apenas com autorização de amigos'], correta:1 },
-    { enunciado:'Qual atitude pode ser considerada abuso de poder?', alt:['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta:1 },
-    { enunciado:'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt:['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar','Abandonar o rádio'], correta:0 },
-    { enunciado:'Qual é a importância do rádio durante o serviço?', alt:['Comunicação e coordenação','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta:0 },
-    { enunciado:'Qual comportamento pode prejudicar a carreira de um Agente?', alt:['Disciplina e respeito','Abuso de poder, corrupção e descumprimento das regras','Trabalho em equipe','Comunicação pelo rádio'], correta:1 }
+    { enunciado: 'Qual é uma das principais funções de um Agente?', alt: ['Patrulhar e atender ocorrências','Ignorar chamados','Aplicar punições sem motivo','Fazer apenas escoltas'], correta: 0 },
+    { enunciado: 'O que é abuso de poder?', alt: ['Cumprir uma ordem legítima','Usar a autoridade de forma indevida','Fazer uma abordagem','Solicitar apoio'], correta: 1 },
+    { enunciado: 'Um policial pode prender alguém apenas porque não gosta da pessoa?', alt: ['Sim','Não','Apenas se estiver fardado','Apenas durante patrulhamento'], correta: 1 },
+    { enunciado: 'Durante uma abordagem, o Agente deve:', alt: ['Agir com respeito e seguir os procedimentos','Ofender o cidadão','Usar força sem necessidade','Prender todos os envolvidos'], correta: 0 },
+    { enunciado: 'O policial pode usar sua autoridade para conseguir dinheiro de um jogador?', alt: ['Sim','Não','Apenas em ocorrências','Apenas se for pouco dinheiro'], correta: 1 },
+    { enunciado: 'Se um policial ameaça prender alguém sem justificativa para conseguir vantagem, isso pode ser:', alt: ['Abuso de poder','Patrulhamento','Procedimento normal','QRR'], correta: 0 },
+    { enunciado: 'O que deve ser feito ao receber um QRR?', alt: ['Ignorar','Prestar apoio conforme os procedimentos','Desligar o rádio','Sair da ocorrência'], correta: 1 },
+    { enunciado: 'O uso da força deve ser:', alt: ['Sempre utilizado','Necessário e proporcional à situação','Usado para intimidar','Usado contra qualquer pessoa'], correta: 1 },
+    { enunciado: 'O Agente pode utilizar o armamento apenas para intimidar um cidadão?', alt: ['Sim','Não','Sempre que estiver armado','Durante qualquer discussão'], correta: 1 },
+    { enunciado: 'Um policial presencia outro Agente cometendo abuso de poder. O correto é:', alt: ['Ajudar a esconder','Seguir o procedimento correto para comunicar a infração','Ignorar sempre','Fazer o mesmo'], correta: 1 },
+    { enunciado: 'O que é considerado uma conduta profissional?', alt: ['Respeito, disciplina e cumprimento das regras','Abuso de autoridade','Provocar suspeitos','Ignorar superiores'], correta: 0 },
+    { enunciado: 'Durante uma perseguição, o Agente deve:', alt: ['Seguir os procedimentos da corporação','Atirar sempre','Bater propositalmente no veículo','Ignorar a segurança'], correta: 0 },
+    { enunciado: 'Um Agente pode revistar qualquer pessoa sem motivo?', alt: ['Sim','Não, deve seguir as regras','Sempre que estiver em serviço','Apenas à noite'], correta: 1 },
+    { enunciado: 'Se um cidadão insultar o policial, o Agente deve:', alt: ['Manter o controle e agir conforme as regras','Usar a arma','Prender automaticamente','Agredir o cidadão'], correta: 0 },
+    { enunciado: 'O que caracteriza uma ordem legítima?', alt: ['Uma ordem compatível com as regras','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta: 0 },
+    { enunciado: 'O Agente pode usar informações obtidas no serviço para benefício pessoal?', alt: ['Sim','Não','Apenas fora do expediente','Apenas com autorização de amigos'], correta: 1 },
+    { enunciado: 'Qual atitude pode ser considerada abuso de poder?', alt: ['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta: 1 },
+    { enunciado: 'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt: ['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar','Abandonar o rádio'], correta: 0 },
+    { enunciado: 'Qual é a importância do rádio durante o serviço?', alt: ['Comunicação e coordenação','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta: 0 },
+    { enunciado: 'Qual comportamento pode prejudicar a carreira de um Agente?', alt: ['Disciplina e respeito','Abuso de poder, corrupção e descumprimento das regras','Trabalho em equipe','Comunicação pelo rádio'], correta: 1 }
   ],
   tatico: [
-    { enunciado:'Qual é a principal função do Tático?', alt:['Fazer apenas patrulhamento','Atuar em ocorrências de maior risco','Aplicar multas','Fazer apenas abordagens'], correta:1 },
-    { enunciado:'O que significa QRR?', alt:['Questionário de Rotina de Rádio','Pedido de reforço','Qualificação de Recruta','Quadro de Ronda Rápida'], correta:1 },
-    { enunciado:'Quando um Tático recebe um QRR, ele deve:', alt:['Ignorar','Prestar apoio conforme o procedimento','Desligar o rádio','Continuar a patrulha normalmente'], correta:1 },
-    { enunciado:'O uso da força deve ser:', alt:['Sempre permitido','Proporcional à situação e conforme as regras','Usado para intimidar','Usado em qualquer discussão'], correta:1 },
-    { enunciado:'Durante uma abordagem, o policial deve:', alt:['Manter a calma e seguir o procedimento','Ofender o suspeito','Usar força imediatamente','Ignorar as regras'], correta:0 },
-    { enunciado:'Qual característica é importante para um Tático?', alt:['Agir sozinho','Trabalho em equipe','Ignorar ordens','Procurar confrontos'], correta:1 },
-    { enunciado:'Em uma ocorrência de alto risco, o Tático deve:', alt:['Agir sem comunicação','Coordenar a equipe e solicitar apoio','Abandonar a ocorrência','Atuar sem planejamento'], correta:1 },
-    { enunciado:'O policial pode usar sua função para benefício próprio?', alt:['Sim','Apenas fora do serviço','Não','Somente com amigos'], correta:2 },
-    { enunciado:'A comunicação pelo rádio durante uma operação serve para:', alt:['Conversar assuntos pessoais','Coordenar a equipe e solicitar apoio','Distrair os policiais','Evitar contato com outras unidades'], correta:1 },
-    { enunciado:'Qual comportamento é esperado de um Tático?', alt:['Disciplina, respeito às regras e trabalho em equipe','Abuso de autoridade','Desobedecer procedimentos','Agir sempre sozinho'], correta:0 },
-    { enunciado:'O Tático deve conhecer:', alt:['Apenas os armamentos','As regras e procedimentos da unidade','Apenas os veículos','Apenas os códigos de rádio'], correta:1 },
-    { enunciado:'Se a ocorrência for muito grande para a equipe presente:', alt:['Agir sozinho','Solicitar reforço','Ignorar a ocorrência','Sair do servidor'], correta:1 },
-    { enunciado:'Um policial deve usar o armamento:', alt:['Para intimidar jogadores','Somente quando permitido e necessário','Sempre que estiver armado','Em qualquer discussão'], correta:1 },
-    { enunciado:'Durante uma perseguição, o policial deve:', alt:['Ignorar os procedimentos','Priorizar a segurança e seguir as regras','Atirar sempre','Colidir propositalmente'], correta:1 },
-    { enunciado:'O trabalho em equipe é importante porque:', alt:['Facilita a coordenação da operação','Impede a comunicação','Permite agir sem regras','Evita pedir reforço'], correta:0 },
-    { enunciado:'Um Tático pode desrespeitar as regras por estar em uma unidade especial?', alt:['Sim','Não','Apenas em perseguições','Apenas em operações'], correta:1 },
-    { enunciado:'Ao receber uma ordem de um superior, o policial deve:', alt:['Seguir os procedimentos e regras aplicáveis','Ignorar sempre','Fazer o contrário','Sair da ocorrência'], correta:0 },
-    { enunciado:'Em uma ocorrência com vários suspeitos, o ideal é:', alt:['Cada policial agir por conta própria','Coordenar a equipe e pedir apoio quando necessário','Ignorar o rádio','Entrar sem planejamento'], correta:1 },
-    { enunciado:'Qual atitude pode prejudicar uma operação?', alt:['Comunicação','Trabalho em equipe','Agir sem coordenação','Solicitar apoio'], correta:2 },
-    { enunciado:'O que um candidato a Tático deve demonstrar?', alt:['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta:0 }
+    { enunciado: 'Qual é a principal função do Tático?', alt: ['Fazer apenas patrulhamento','Atuar em ocorrências de maior risco','Aplicar multas','Fazer apenas abordagens'], correta: 1 },
+    { enunciado: 'O que significa QRR?', alt: ['Questionário de Rotina de Rádio','Pedido de reforço','Qualificação de Recruta','Quadro de Ronda Rápida'], correta: 1 },
+    { enunciado: 'Quando um Tático recebe um QRR, ele deve:', alt: ['Ignorar','Prestar apoio conforme o procedimento','Desligar o rádio','Continuar a patrulha normalmente'], correta: 1 },
+    { enunciado: 'O uso da força deve ser:', alt: ['Sempre permitido','Proporcional à situação e conforme as regras','Usado para intimidar','Usado em qualquer discussão'], correta: 1 },
+    { enunciado: 'Durante uma abordagem, o policial deve:', alt: ['Manter a calma e seguir o procedimento','Ofender o suspeito','Usar força imediatamente','Ignorar as regras'], correta: 0 },
+    { enunciado: 'Qual característica é importante para um Tático?', alt: ['Agir sozinho','Trabalho em equipe','Ignorar ordens','Procurar confrontos'], correta: 1 },
+    { enunciado: 'Em uma ocorrência de alto risco, o Tático deve:', alt: ['Agir sem comunicação','Coordenar a equipe e solicitar apoio','Abandonar a ocorrência','Atuar sem planejamento'], correta: 1 },
+    { enunciado: 'O policial pode usar sua função para benefício próprio?', alt: ['Sim','Apenas fora do serviço','Não','Somente com amigos'], correta: 2 },
+    { enunciado: 'A comunicação pelo rádio durante uma operação serve para:', alt: ['Conversar assuntos pessoais','Coordenar a equipe e solicitar apoio','Distrair os policiais','Evitar contato com outras unidades'], correta: 1 },
+    { enunciado: 'Qual comportamento é esperado de um Tático?', alt: ['Disciplina, respeito às regras e trabalho em equipe','Abuso de autoridade','Desobedecer procedimentos','Agir sempre sozinho'], correta: 0 },
+    { enunciado: 'O Tático deve conhecer:', alt: ['Apenas os armamentos','As regras e procedimentos da unidade','Apenas os veículos','Apenas os códigos de rádio'], correta: 1 },
+    { enunciado: 'Se a ocorrência for muito grande para a equipe presente:', alt: ['Agir sozinho','Solicitar reforço','Ignorar a ocorrência','Sair do servidor'], correta: 1 },
+    { enunciado: 'Um policial deve usar o armamento:', alt: ['Para intimidar jogadores','Somente quando permitido e necessário','Sempre que estiver armado','Em qualquer discussão'], correta: 1 },
+    { enunciado: 'Durante uma perseguição, o policial deve:', alt: ['Ignorar os procedimentos','Priorizar a segurança e seguir as regras','Atirar sempre','Colidir propositalmente'], correta: 1 },
+    { enunciado: 'O trabalho em equipe é importante porque:', alt: ['Facilita a coordenação da operação','Impede a comunicação','Permite agir sem regras','Evita pedir reforço'], correta: 0 },
+    { enunciado: 'Um Tático pode desrespeitar as regras por estar em uma unidade especial?', alt: ['Sim','Não','Apenas em perseguições','Apenas em operações'], correta: 1 },
+    { enunciado: 'Ao receber uma ordem de um superior, o policial deve:', alt: ['Seguir os procedimentos e regras aplicáveis','Ignorar sempre','Fazer o contrário','Sair da ocorrência'], correta: 0 },
+    { enunciado: 'Em uma ocorrência com vários suspeitos, o ideal é:', alt: ['Cada policial agir por conta própria','Coordenar a equipe e pedir apoio quando necessário','Ignorar o rádio','Entrar sem planejamento'], correta: 1 },
+    { enunciado: 'Qual atitude pode prejudicar uma operação?', alt: ['Comunicação','Trabalho em equipe','Agir sem coordenação','Solicitar apoio'], correta: 2 },
+    { enunciado: 'O que um candidato a Tático deve demonstrar?', alt: ['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta: 0 }
   ],
   escrivao: [
-    { enunciado:'Durante uma operação, um superior determina pelo rádio que toda a equipe avance, mas o Delegado percebe que a ordem pode colocar agentes em risco. Qual é a conduta mais adequada?', alt:['Cumprir imediatamente','Ignorar a ordem','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta:2 },
-    { enunciado:'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt:['Informar a localização','Solicitar prioridade','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta:0 },
-    { enunciado:'Um agente comete infração disciplinar e pede ao Delegado que "deixe passar" por ter bons resultados. Qual princípio prevalece?', alt:['Histórico positivo pode justificar dispensa','A amizade deve ser considerada antes da disciplina','A conduta deve ser analisada conforme as regras','O superior pode anular qualquer infração'], correta:2 },
-    { enunciado:'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt:['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal','Apenas falha no uso do rádio'], correta:1 },
-    { enunciado:'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt:['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar a equipe que não confirmou'], correta:1 },
-    { enunciado:'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt:['Manter segredo','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta:2 },
-    { enunciado:'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt:['Executar imediatamente','Questionar de forma profissional e verificar a regra','Desobedecer publicamente','Encerrar a comunicação'], correta:1 },
-    { enunciado:'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt:['Hierarquia','Disciplina','Código Q','Patrulhamento'], correta:1 },
-    { enunciado:'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt:['Permitir','Intervir, orientar e adotar medidas previstas','Ignorar','Autorizar uso de força maior'], correta:1 },
-    { enunciado:'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. Qual decisão demonstra melhor postura?', alt:['Arquivar imediatamente','Punir imediatamente','Preservar evidências e apurar conforme regras','Divulgar publicamente'], correta:2 }
+    { enunciado: 'Durante uma operação, um superior determina pelo rádio que toda a equipe avance, mas o Delegado percebe que a ordem pode colocar agentes em risco. Qual é a conduta mais adequada?', alt: ['Cumprir imediatamente','Ignorar a ordem','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta: 2 },
+    { enunciado: 'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt: ['Informar a localização','Solicitar prioridade','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta: 0 },
+    { enunciado: 'Um agente comete infração disciplinar e pede ao Delegado que "deixe passar" por ter bons resultados. Qual princípio prevalece?', alt: ['Histórico positivo pode justificar dispensa','A amizade deve ser considerada antes da disciplina','A conduta deve ser analisada conforme as regras','O superior pode anular qualquer infração'], correta: 2 },
+    { enunciado: 'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt: ['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal','Apenas falha no uso do rádio'], correta: 1 },
+    { enunciado: 'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt: ['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar a equipe que não confirmou'], correta: 1 },
+    { enunciado: 'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt: ['Manter segredo','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta: 2 },
+    { enunciado: 'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt: ['Executar imediatamente','Questionar de forma profissional e verificar a regra','Desobedecer publicamente','Encerrar a comunicação'], correta: 1 },
+    { enunciado: 'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt: ['Hierarquia','Disciplina','Código Q','Patrulhamento'], correta: 1 },
+    { enunciado: 'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt: ['Permitir','Intervir, orientar e adotar medidas previstas','Ignorar','Autorizar uso de força maior'], correta: 1 },
+    { enunciado: 'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. Qual decisão demonstra melhor postura?', alt: ['Arquivar imediatamente','Punir imediatamente','Preservar evidências e apurar conforme regras','Divulgar publicamente'], correta: 2 }
   ]
 };
 
@@ -105,12 +127,19 @@ const PRISOES_QUESTOES = [
   'O que é insubordinação?'
 ];
 
-function isMaster(u){ return !!u && u.user === 'master'; }
-function findUserByRef(ref){
+// ══════════════════════════════════════════════════════════════
+// ══ HELPERS DE USUÁRIOS ═══════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+function isMaster(u) { return !!u && u.user === 'master'; }
+
+function findUserByRef(ref) {
   if (!ref) return null;
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
 }
 
+// ══════════════════════════════════════════════════════════════
+// ══ BANCO DE DADOS (arquivo JSON em /tmp) ═══════════════════
+// ══════════════════════════════════════════════════════════════
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
 const SEED_FILE = path.join(__dirname, 'data.json');
 
@@ -122,7 +151,8 @@ function getDefaultData() {
       { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null },
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null }
     ],
-    ocs: [], puns: [], pontos: [], provas: [], audit: [], feedbacks: [], chats: []
+    ocs: [], puns: [], pontos: [], provas: [], audit: [],
+    feedbacks: [], chats: []
   };
 }
 
@@ -131,39 +161,17 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user:'master', pass:'masterx512', cargo:'admin', nome:'Master', ativo:true, criadoPor:'sistema', criadoEm:Date.now(), cicloDias:[], folgaDia:null });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
-}
-
-function loadData() {
-  try {
-    if (fs.existsSync(TMP_FILE)) {
-      const p = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
-      if (p && Array.isArray(p.users) && p.users.length > 0) { console.log('[DB] Carregado de /tmp'); return migrate(sanitize(p)); }
-    }
-  } catch (e) { console.warn('[DB] /tmp ilegível:', e.message); }
-  try {
-    if (fs.existsSync(SEED_FILE)) {
-      const p = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
-      if (p && Array.isArray(p.users)) {
-        console.log('[DB] Carregado de seed');
-        const data = migrate(sanitize(p));
-        try { fs.writeFileSync(TMP_FILE, JSON.stringify(data, null, 2)); } catch (_) {}
-        return data;
-      }
-    }
-  } catch (e) { console.warn('[DB] Seed ilegível:', e.message); }
-  console.log('[DB] Usando dados padrão.');
-  const def = migrate(getDefaultData());
-  try { fs.writeFileSync(TMP_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
-  return def;
 }
 
 function sanitize(p) {
   const def = getDefaultData();
   const users = (Array.isArray(p.users) ? p.users : def.users).map(u => ({
-    ...u, cicloDias: Array.isArray(u.cicloDias) ? u.cicloDias : [], folgaDia: u.folgaDia || null
+    ...u,
+    cicloDias: Array.isArray(u.cicloDias) ? u.cicloDias : [],
+    folgaDia:  u.folgaDia || null
   }));
   return {
     users,
@@ -177,6 +185,35 @@ function sanitize(p) {
   };
 }
 
+function loadData() {
+  try {
+    if (fs.existsSync(TMP_FILE)) {
+      const p = JSON.parse(fs.readFileSync(TMP_FILE, 'utf8'));
+      if (p && Array.isArray(p.users) && p.users.length > 0) {
+        console.log('[DB] Carregado de /tmp');
+        return migrate(sanitize(p));
+      }
+    }
+  } catch (e) { console.warn('[DB] /tmp ilegível:', e.message); }
+
+  try {
+    if (fs.existsSync(SEED_FILE)) {
+      const p = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'));
+      if (p && Array.isArray(p.users)) {
+        console.log('[DB] Carregado de seed');
+        const data = migrate(sanitize(p));
+        try { fs.writeFileSync(TMP_FILE, JSON.stringify(data, null, 2)); } catch (_) {}
+        return data;
+      }
+    }
+  } catch (e) { console.warn('[DB] Seed ilegível:', e.message); }
+
+  console.log('[DB] Usando dados padrão.');
+  const def = migrate(getDefaultData());
+  try { fs.writeFileSync(TMP_FILE, JSON.stringify(def, null, 2)); } catch (_) {}
+  return def;
+}
+
 let _saveTimer = null;
 function saveData() {
   clearTimeout(_saveTimer);
@@ -185,15 +222,21 @@ function saveData() {
     catch (e) { console.error('[DB] Erro ao salvar:', e.message); }
   }, 150);
 }
+
 function saveDataSync() {
   try { fs.writeFileSync(TMP_FILE, JSON.stringify(DB, null, 2)); }
   catch (e) { console.error('[DB] Erro sync:', e.message); }
 }
 
+// Carrega o banco ao iniciar
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} mensagens de chat`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.puns.length} punições | ${DB.provas.length} provas | ${DB.feedbacks.length} feedbacks | ${DB.chats.length} mensagens de chat`);
 
+// ══════════════════════════════════════════════════════════════
+// ══ WEBSOCKET SERVER ════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 const wsClients = new Set();
+
 function wsHandshake(req, socket) {
   const key = req.headers['sec-websocket-key'];
   if (!key) { socket.destroy(); return false; }
@@ -201,37 +244,63 @@ function wsHandshake(req, socket) {
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
   return true;
 }
+
 function wsParseFrame(buf) {
   if (buf.length < 2) return null;
   const opcode = buf[0] & 0x0f;
   const masked = (buf[1] & 0x80) !== 0;
   let len = buf[1] & 0x7f, offset = 2;
-  if (len === 126) { if (buf.length < 4) return null; len = buf.readUInt16BE(2); offset = 4; }
+  if (len === 126)      { if (buf.length < 4)  return null; len = buf.readUInt16BE(2);  offset = 4;  }
   else if (len === 127) { if (buf.length < 10) return null; len = Number(buf.readBigUInt64BE(2)); offset = 10; }
   if (buf.length < offset + (masked ? 4 : 0) + len) return null;
+
   let payload;
   if (masked) {
     const mask = buf.slice(offset, offset + 4); offset += 4;
     payload = Buffer.alloc(len);
     for (let i = 0; i < len; i++) payload[i] = buf[offset + i] ^ mask[i % 4];
-  } else { payload = buf.slice(offset, offset + len); }
+  } else {
+    payload = buf.slice(offset, offset + len);
+  }
   return { opcode, payload, frameLen: offset + len };
 }
+
 function wsBuildFrame(data, opcode = 1) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
   const len = payload.length;
   let header;
-  if (len < 126)        { header = Buffer.alloc(2);  header[0] = 0x80 | opcode; header[1] = len; }
-  else if (len < 65536) { header = Buffer.alloc(4);  header[0] = 0x80 | opcode; header[1] = 126; header.writeUInt16BE(len, 2); }
-  else                  { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
+  if      (len < 126)        { header = Buffer.alloc(2);  header[0] = 0x80 | opcode; header[1] = len; }
+  else if (len < 65536)      { header = Buffer.alloc(4);  header[0] = 0x80 | opcode; header[1] = 126; header.writeUInt16BE(len, 2); }
+  else                       { header = Buffer.alloc(10); header[0] = 0x80 | opcode; header[1] = 127; header.writeBigUInt64BE(BigInt(len), 2); }
   return Buffer.concat([header, payload]);
 }
-function wsSend(socket, obj) { try { if (socket.writable) socket.write(wsBuildFrame(JSON.stringify(obj))); } catch (_) {} }
+
+function wsSend(socket, obj) {
+  try { if (socket.writable) socket.write(wsBuildFrame(JSON.stringify(obj))); } catch (_) {}
+}
+
 function broadcast(type, payload) {
   const frame = wsBuildFrame(JSON.stringify({ type, payload }));
-  wsClients.forEach(s => { try { if (s.writable) s.write(frame); } catch (_) { wsClients.delete(s); } });
+  wsClients.forEach(s => {
+    try { if (s.writable) s.write(frame); } catch (_) { wsClients.delete(s); }
+  });
 }
+
+function wsSendPong(socket, payload) {
+  try { if (socket.writable) socket.write(wsBuildFrame(payload || Buffer.alloc(0), 0x0a)); } catch (_) {}
+}
+
+function wsClose(socket) {
+  try { if (socket.writable) socket.write(wsBuildFrame(Buffer.alloc(0), 0x08)); } catch (_) {}
+  wsClients.delete(socket);
+  try { socket.destroy(); } catch (_) {}
+}
+
+// ══════════════════════════════════════════════════════════════
+// ══ HELPERS GERAIS ══════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 function pub(u) { const { pass, ...r } = u; return r; }
+
 function audit(msg, icon = '📋') {
   DB.audit.unshift({ msg, icon, ts: Date.now() });
   DB.audit = DB.audit.slice(0, 300);
@@ -239,24 +308,81 @@ function audit(msg, icon = '📋') {
   broadcast('AUDIT_NEW', DB.audit[0]);
 }
 
-const MIME = { '.html':'text/html; charset=utf-8', '.css':'text/css', '.js':'application/javascript', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.ico':'image/x-icon', '.svg':'image/svg+xml' };
+// ══════════════════════════════════════════════════════════════
+// ══ SERVIR ARQUIVOS ESTÁTICOS + PWA ASSETS ═════════════════
+// ══════════════════════════════════════════════════════════════
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.css':  'text/css',
+  '.js':   'application/javascript',
+  '.json': 'application/json',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.ico':  'image/x-icon',
+  '.svg':  'image/svg+xml'
+};
+
 function serveStatic(req, res) {
-  let urlPath = req.url.split('?')[0];
-  if (urlPath === '/') urlPath = '/index.html';
-  const filePath = path.join(__dirname, 'public', urlPath);
-  if (!filePath.startsWith(path.join(__dirname, 'public'))) { res.writeHead(403); res.end('Forbidden'); return; }
-  fs.readFile(filePath, (err, data) => {
+  const urlPath = req.url.split('?')[0];
+
+  // ══ PWA: serve logo.png da raiz do projeto ══
+  if (urlPath === '/logo.png') {
+    const logoPath = path.join(__dirname, 'logo.png');
+    fs.readFile(logoPath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Logo não encontrado'); return; }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=31536000' });
+      res.end(data);
+    });
+    return;
+  }
+
+  // ══ PWA: serve manifest.json do public/ ══
+  if (urlPath === '/manifest.json') {
+    const filePath = path.join(__dirname, 'public', 'manifest.json');
+    fs.readFile(filePath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Manifest não encontrado'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' });
+      res.end(data);
+    });
+    return;
+  }
+
+  // ══ PWA: serve service worker (NUNCA cachear) ══
+  if (urlPath === '/sw.js') {
+    const filePath = path.join(__dirname, 'public', 'sw.js');
+    fs.readFile(filePath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Service worker não encontrado'); return; }
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Service-Worker-Allowed': '/'
+      });
+      res.end(data);
+    });
+    return;
+  }
+
+  // ══ Arquivos estáticos normais ══
+  let filePath = urlPath === '/' ? '/index.html' : urlPath;
+  const fullPath = path.join(__dirname, 'public', filePath);
+  if (!fullPath.startsWith(path.join(__dirname, 'public'))) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
+
+  fs.readFile(fullPath, (err, data) => {
     if (err) {
       fs.readFile(path.join(__dirname, 'public', 'index.html'), (e2, d2) => {
         if (e2) { res.writeHead(404); res.end('Not found'); return; }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(d2);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(d2);
       });
       return;
     }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(fullPath)] || 'application/octet-stream' });
     res.end(data);
   });
 }
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -265,6 +391,7 @@ function readBody(req) {
     req.on('error', reject);
   });
 }
+
 function jsonRes(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
@@ -277,12 +404,20 @@ function jsonRes(res, status, data) {
   res.end(body);
 }
 
+// ══════════════════════════════════════════════════════════════
+// ══ API — TODAS AS ROTAS ════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 async function handleAPI(req, res) {
   const method = req.method;
   const url    = req.url.split('?')[0];
 
+  // CORS preflight
   if (method === 'OPTIONS') {
-    res.writeHead(204, { 'Access-Control-Allow-Origin':'*', 'Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers':'Content-Type' });
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type'
+    });
     return res.end();
   }
 
@@ -291,72 +426,48 @@ async function handleAPI(req, res) {
     try { body = await readBody(req); } catch (e) { return jsonRes(res, 400, { error: 'Body inválido.' }); }
   }
 
+  // ══ Health check (mantém Render ativo) ══
   if (method === 'GET' && url === '/health') {
-    return jsonRes(res, 200, { ok: true, uptime: Math.floor(process.uptime()), clientes: wsClients.size, usuarios: DB.users.length, ocs: DB.ocs.length, chats: DB.chats.length });
-  }
-  if (method === 'GET' && url === '/api/state') {
-    return jsonRes(res, 200, { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats });
+    return jsonRes(res, 200, {
+      ok: true,
+      uptime: Math.floor(process.uptime()),
+      clientes: wsClients.size,
+      usuarios: DB.users.length,
+      ocs: DB.ocs.length,
+      puns: DB.puns.length,
+      pontos: DB.pontos.length,
+      provas: DB.provas.length,
+      feedbacks: DB.feedbacks.length,
+      chats: DB.chats.length
+    });
   }
 
+  // ══ State completo ══
+  if (method === 'GET' && url === '/api/state') {
+    return jsonRes(res, 200, {
+      ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
+      users: DB.users.map(pub), audit: DB.audit,
+      feedbacks: DB.feedbacks, chats: DB.chats
+    });
+  }
+
+  // ══ LOGIN ══
   if (method === 'POST' && url === '/api/login') {
     const { user, pass } = body;
     if (!user || !pass) return jsonRes(res, 400, { error: 'Preencha usuário e senha.' });
     const u = DB.users.find(u => u.user === String(user).trim().toLowerCase() && u.pass === String(pass) && u.ativo);
     if (!u) return jsonRes(res, 401, { error: 'Credenciais inválidas ou conta desativada.' });
     if (u.banExpires && u.banExpires > Date.now()) {
-      return jsonRes(res, 403, { banned: true, expiresAt: u.banExpires, reason: u.banReason || 'Suspensão temporária.', banBy: u.banBy || 'Sistema' });
+      return jsonRes(res, 403, {
+        banned: true, expiresAt: u.banExpires,
+        reason: u.banReason || 'Suspensão temporária.',
+        banBy: u.banBy || 'Sistema'
+      });
     }
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
-  // ══════════ CHAT ══════════
-  if (method === 'GET' && url === '/api/chats') {
-    const userLogin = body.userLogin || (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('user') : null);
-    if (!userLogin) return jsonRes(res, 200, []);
-    const minhas = DB.chats.filter(c => c.from === userLogin || c.to === userLogin);
-    return jsonRes(res, 200, minhas);
-  }
-
-  if (method === 'POST' && url === '/api/chats') {
-    const { from, to, texto } = body;
-    if (!from || !to || !texto || texto.trim().length === 0) {
-      return jsonRes(res, 400, { error: 'Dados inválidos.' });
-    }
-    if (from === to) return jsonRes(res, 400, { error: 'Você não pode enviar mensagem para si mesmo.' });
-    const uFrom = DB.users.find(u => u.user === from);
-    const uTo   = DB.users.find(u => u.user === to);
-    if (!uFrom || !uTo) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
-
-    const msg = {
-      id: 'MSG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-      from,
-      to,
-      fromNome: uFrom.nome,
-      toNome: uTo.nome,
-      texto: String(texto).trim().slice(0, 2000),
-      ts: Date.now()
-    };
-    DB.chats.push(msg);
-    DB.chats = DB.chats.slice(-5000);
-    saveData();
-    broadcast('NEW_CHAT_MSG', msg);
-    return jsonRes(res, 200, { ok: true, msg });
-  }
-
-  if (method === 'DELETE' && url.match(/^\/api\/chats\/[^/]+$/)) {
-    const msgId = url.split('/').pop();
-    const executor = findUserByRef(body.feitorPor);
-    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) {
-      return jsonRes(res, 403, { error: 'Apenas Chefes e Admin podem excluir mensagens.' });
-    }
-    const i = DB.chats.findIndex(m => m.id === msgId);
-    if (i === -1) return jsonRes(res, 404, { error: 'Mensagem não encontrada.' });
-    DB.chats.splice(i, 1);
-    saveData();
-    broadcast('CHAT_MSG_DELETED', { id: msgId });
-    return jsonRes(res, 200, { ok: true });
-  }
-
+  // ══ USUÁRIOS ══
   if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
@@ -368,23 +479,28 @@ async function handleAPI(req, res) {
     const criador = findUserByRef(criadoPor);
     if (!criador) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const master = isMaster(criador);
-    if (!master && (CARGO_PERM_SRV[criador.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
-    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[criador.cargo]||0)) return jsonRes(res, 403, { error: 'Não pode criar usuários com cargo igual ou superior ao seu.' });
+    if (!master && (CARGO_PERM_SRV[criador.cargo] || 0) < 6)
+      return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
+    if (!master && (CARGO_PERM_SRV[cargo] || 0) >= (CARGO_PERM_SRV[criador.cargo] || 0))
+      return jsonRes(res, 403, { error: 'Não pode criar usuários com cargo igual ou superior ao seu.' });
     DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null });
     saveData();
-    audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo]||cargo})`, '👤');
+    audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
   }
 
+  // Ban check
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
   if (method === 'GET' && mBanCheck) {
     const u = DB.users.find(u => u.user === mBanCheck[1]);
     if (!u) return jsonRes(res, 200, { banned: false });
-    if (u.banExpires && u.banExpires > Date.now()) return jsonRes(res, 200, { banned: true, expiresAt: u.banExpires, reason: u.banReason, banBy: u.banBy });
+    if (u.banExpires && u.banExpires > Date.now())
+      return jsonRes(res, 200, { banned: true, expiresAt: u.banExpires, reason: u.banReason, banBy: u.banBy });
     return jsonRes(res, 200, { banned: false });
   }
 
+  // Redefinir senha
   const mSenha = url.match(/^\/api\/users\/([^/]+)\/senha$/);
   if (method === 'PUT' && mSenha) {
     const i = DB.users.findIndex(u => u.user === mSenha[1]);
@@ -395,7 +511,7 @@ async function handleAPI(req, res) {
     const master = isMaster(executor);
     const self = executor && executor.user === DB.users[i].user;
     if (!master && !self) {
-      if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
+      if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) <= (CARGO_PERM_SRV[DB.users[i].cargo] || 0))
         return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     }
     DB.users[i].pass = novaSenha;
@@ -405,6 +521,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // Ativar/desativar
   const mStatus = url.match(/^\/api\/users\/([^/]+)\/status$/);
   if (method === 'PUT' && mStatus) {
     const i = DB.users.findIndex(u => u.user === mStatus[1]);
@@ -414,7 +531,7 @@ async function handleAPI(req, res) {
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     if (executor.user === mStatus[1]) return jsonRes(res, 403, { error: 'Você não pode ativar/desativar a si mesmo.' });
     const master = isMaster(executor);
-    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
+    if (!master && (CARGO_PERM_SRV[executor.cargo] || 0) <= (CARGO_PERM_SRV[DB.users[i].cargo] || 0))
       return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     DB.users[i].ativo = Boolean(ativo);
     saveData();
@@ -423,6 +540,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // Alterar cargo
   const mCargo = url.match(/^\/api\/users\/([^/]+)\/cargo$/);
   if (method === 'PUT' && mCargo) {
     const i = DB.users.findIndex(u => u.user === mCargo[1]);
@@ -433,9 +551,12 @@ async function handleAPI(req, res) {
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const master = isMaster(executor);
     if (targetUser.user === executor.user) return jsonRes(res, 403, { error: 'Você não pode alterar o próprio cargo.' });
-    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) < 6) return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
-    if (!master && (CARGO_PERM_SRV[cargo]||0) >= (CARGO_PERM_SRV[executor.cargo]||0)) return jsonRes(res, 403, { error: 'Não pode atribuir cargo igual ou superior ao seu.' });
-    if (!master && targetUser.cargo === 'admin') return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
+    if (!master && (CARGO_PERM_SRV[executor.cargo] || 0) < 6)
+      return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem alterar cargos.' });
+    if (!master && (CARGO_PERM_SRV[cargo] || 0) >= (CARGO_PERM_SRV[executor.cargo] || 0))
+      return jsonRes(res, 403, { error: 'Não pode atribuir cargo igual ou superior ao seu.' });
+    if (!master && targetUser.cargo === 'admin')
+      return jsonRes(res, 403, { error: 'O Admin Master não pode ser rebaixado.' });
     const oldPerm = CARGO_PERM_SRV[targetUser.cargo] || 0, newPerm = CARGO_PERM_SRV[cargo] || 0;
     const isRebaixamento = newPerm < oldPerm;
     if (isRebaixamento && !motivo) return jsonRes(res, 400, { error: 'Motivo obrigatório para rebaixamento.' });
@@ -443,14 +564,19 @@ async function handleAPI(req, res) {
     DB.users[i].cargo = cargo;
     saveData();
     const logMsg = isRebaixamento
-      ? `<b>${executor.nome}</b> rebaixou <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo} — motivo: ${motivo}`
-      : `<b>${executor.nome}</b> promoveu <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo]||oldCargo} para ${CARGO_LABEL_SRV[cargo]||cargo}`;
+      ? `<b>${executor.nome}</b> rebaixou <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo] || oldCargo} para ${CARGO_LABEL_SRV[cargo] || cargo} — motivo: ${motivo}`
+      : `<b>${executor.nome}</b> promoveu <b>${DB.users[i].nome}</b> de ${CARGO_LABEL_SRV[oldCargo] || oldCargo} para ${CARGO_LABEL_SRV[cargo] || cargo}`;
     audit(logMsg, isRebaixamento ? '📉' : '📈');
     broadcast('USERS_UPDATED', DB.users.map(pub));
-    broadcast('CARGO_CHANGED', { userLogin: DB.users[i].user, oldCargo, newCargo: cargo, tipo: isRebaixamento ? 'rebaixado' : 'promovido', motivo: motivo || null, feitorPorNome: executor.nome });
+    broadcast('CARGO_CHANGED', {
+      userLogin: DB.users[i].user, oldCargo, newCargo: cargo,
+      tipo: isRebaixamento ? 'rebaixado' : 'promovido',
+      motivo: motivo || null, feitorPorNome: executor.nome
+    });
     return jsonRes(res, 200, { ok: true });
   }
 
+  // Suspender / remover suspensão
   const mBan = url.match(/^\/api\/users\/([^/]+)\/ban$/);
   if (mBan) {
     if (method === 'POST') {
@@ -464,15 +590,19 @@ async function handleAPI(req, res) {
       if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
       if (DB.users[i].user === executor.user) return jsonRes(res, 403, { error: 'Você não pode suspender a si mesmo.' });
       const master = isMaster(executor);
-      const execPerm = CARGO_PERM_SRV[executor.cargo]||0;
-      const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo]||0;
-      if (!master && (execPerm <= tgtPerm || execPerm < 3)) return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
+      const execPerm = CARGO_PERM_SRV[executor.cargo] || 0;
+      const tgtPerm  = CARGO_PERM_SRV[DB.users[i].cargo] || 0;
+      if (!master && (execPerm <= tgtPerm || execPerm < 3))
+        return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
       const expiresAt = Date.now() + mins * 60 * 1000;
       DB.users[i].banExpires = expiresAt; DB.users[i].banReason = motivo; DB.users[i].banBy = executor.nome;
       saveData();
       audit(`<b>${executor.nome}</b> suspendeu <b>${DB.users[i].nome}</b> por ${mins} min(s) — motivo: ${motivo}`, '⛔');
       broadcast('USERS_UPDATED', DB.users.map(pub));
-      broadcast('USER_BANNED', { userLogin: DB.users[i].user, expiresAt, reason: motivo, banBy: executor.nome, duracao: mins });
+      broadcast('USER_BANNED', {
+        userLogin: DB.users[i].user, expiresAt, reason: motivo,
+        banBy: executor.nome, duracao: mins
+      });
       return jsonRes(res, 200, { ok: true });
     }
     if (method === 'DELETE') {
@@ -490,6 +620,7 @@ async function handleAPI(req, res) {
     }
   }
 
+  // Deletar usuário
   const mDelUser = url.match(/^\/api\/users\/([^/]+)$/);
   if (method === 'DELETE' && mDelUser) {
     const i = DB.users.findIndex(u => u.user === mDelUser[1]);
@@ -499,7 +630,7 @@ async function handleAPI(req, res) {
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     if (mDelUser[1] === executor.user) return jsonRes(res, 403, { error: 'Você não pode excluir a si mesmo.' });
     const master = isMaster(executor);
-    if (!master && (CARGO_PERM_SRV[executor.cargo]||0) <= (CARGO_PERM_SRV[DB.users[i].cargo]||0))
+    if (!master && (CARGO_PERM_SRV[executor.cargo] || 0) <= (CARGO_PERM_SRV[DB.users[i].cargo] || 0))
       return jsonRes(res, 403, { error: 'Permissão insuficiente.' });
     const nome = DB.users[i].nome;
     DB.users.splice(i, 1);
@@ -509,7 +640,8 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  if (method === 'GET'  && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
+  // ══ OCORRÊNCIAS ══
+  if (method === 'GET' && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
     if (!oc || !oc.id) return jsonRes(res, 400, { error: 'Dados inválidos.' });
@@ -541,11 +673,15 @@ async function handleAPI(req, res) {
     }
   }
 
-  if (method === 'GET'  && url === '/api/puns') return jsonRes(res, 200, DB.puns);
+  // ══ PUNIÇÕES ══
+  if (method === 'GET' && url === '/api/puns') return jsonRes(res, 200, DB.puns);
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
     if (!pun || !pun.nome) return jsonRes(res, 400, { error: 'Dados inválidos.' });
-    const dup = DB.puns.find(p => p.nome === pun.nome && p.motivo === pun.motivo && p.nivel === pun.nivel && p.autor === pun.autor && (Date.now() - (p.ts||0)) < 3000);
+    const dup = DB.puns.find(p =>
+      p.nome === pun.nome && p.motivo === pun.motivo && p.nivel === pun.nivel &&
+      p.autor === pun.autor && (Date.now() - (p.ts || 0)) < 3000
+    );
     if (dup) return jsonRes(res, 200, { ok: true, pun: dup, dup: true });
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
@@ -575,7 +711,8 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  if (method === 'GET'  && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
+  // ══ PONTOS (com cálculo de horas extras) ══
+  if (method === 'GET' && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
     if (!ponto || !ponto.userLogin || !ponto.type) return jsonRes(res, 400, { error: 'Dados inválidos.' });
@@ -596,8 +733,9 @@ async function handleAPI(req, res) {
     ponto.hora = brTimeStrSec(ponto.ts);
     ponto.data = dBr;
     DB.pontos.push(ponto);
+
     if (ponto.type === 'saida') {
-      const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a,b) => b.ts - a.ts);
+      const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a, b) => b.ts - a.ts);
       if (entradas.length > 0) {
         const entrada  = entradas[0];
         const diffMins = Math.round((ponto.ts - entrada.ts) / 60000);
@@ -612,7 +750,11 @@ async function handleAPI(req, res) {
       if (u.cicloDias.length >= 6) {
         const fd = nextBrDateStr(dBr);
         u.folgaDia = fd; u.cicloDias = [];
-        const folgaRec = { id:'FOL-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), userLogin:u.user, nome:u.nome, cargo:u.cargo, type:'folga', hora:'FOLGA', data:fd, ts:ponto.ts + 86400000 };
+        const folgaRec = {
+          id: 'FOL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+          userLogin: u.user, nome: u.nome, cargo: u.cargo,
+          type: 'folga', hora: 'FOLGA', data: fd, ts: ponto.ts + 86400000
+        };
         DB.pontos.push(folgaRec);
         audit(`<b>${u.nome}</b> completou 6 dias — 🌴 FOLGA concedida para ${fd}`, '🌴');
         broadcast('NEW_PONTO', folgaRec);
@@ -627,7 +769,7 @@ async function handleAPI(req, res) {
       const h = Math.floor(ponto.trabalhado / 60), m = ponto.trabalhado % 60;
       auditMsg += ` — ${h}h${m > 0 ? m + 'min' : ''} trabalhadas.`;
       if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
-      if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins/60)}h${(ponto.debtMins%60).toString().padStart(2,'0')})</b>`;
+      if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins / 60)}h${(ponto.debtMins % 60).toString().padStart(2, '0')})</b>`;
     }
     audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
@@ -635,8 +777,8 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, ponto });
   }
 
+  // ══ PROVAS ══
   if (method === 'GET' && url === '/api/provas') return jsonRes(res, 200, DB.provas);
-
   if (method === 'GET' && url === '/api/prova/questionario') {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
     if (params.get('tipo') === 'prisoes') {
@@ -684,8 +826,7 @@ async function handleAPI(req, res) {
       const r = respMap[i];
       const escolha = (r && r.escolha !== undefined && r.escolha !== null) ? r.escolha : null;
       return {
-        q: i,
-        escolha,
+        q: i, escolha,
         justificativa: (r && r.justificativa) ? String(r.justificativa) : '',
         correta: escolha === q.correta,
         corretaIdx: q.correta,
@@ -702,24 +843,30 @@ async function handleAPI(req, res) {
       ts: Date.now(), decisao: null, decididoPor: null, decididoEm: null
     };
     DB.provas.push(prova); saveData();
-    audit(`<b>${u.nome}</b> concluiu a prova para <b>${CARGO_LABEL_SRV[cargoAlvo]||cargoAlvo}</b> — nota ${nota}${perdidaPorTempo ? ' (tempo esgotado)' : ''}`, '📝');
+    audit(`<b>${u.nome}</b> concluiu a prova para <b>${CARGO_LABEL_SRV[cargoAlvo] || cargoAlvo}</b> — nota ${nota}${perdidaPorTempo ? ' (tempo esgotado)' : ''}`, '📝');
     broadcast('NEW_PROVA', prova);
     return jsonRes(res, 200, { ok: true, prova });
   }
 
+  // Decidir prova
   const mProvaDec = url.match(/^\/api\/provas\/([^/]+)\/decisao$/);
   if (method === 'PUT' && mProvaDec) {
     const i = DB.provas.findIndex(p => p.id === mProvaDec[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Prova não encontrada.' });
     const { decisao, feitorPor } = body;
-    if (!['promovido','reprovado','aprovado'].includes(decisao)) return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    if (!['promovido', 'reprovado', 'aprovado'].includes(decisao))
+      return jsonRes(res, 400, { error: 'Decisão inválida.' });
     const executor = findUserByRef(feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
-    if ((CARGO_PERM_SRV[executor.cargo]||0) < 5) return jsonRes(res, 403, { error: 'Apenas Master, Chefe e Delegado podem avaliar provas.' });
-    if (executor.user === DB.provas[i].userLogin) return jsonRes(res, 403, { error: 'Você não pode avaliar a própria prova.' });
+    if ((CARGO_PERM_SRV[executor.cargo] || 0) < 5)
+      return jsonRes(res, 403, { error: 'Apenas Master, Chefe e Delegado podem avaliar provas.' });
+    if (executor.user === DB.provas[i].userLogin)
+      return jsonRes(res, 403, { error: 'Você não pode avaliar a própria prova.' });
     const prova = DB.provas[i];
-    if (decisao === 'promovido' && !prova.cargoAlvo) return jsonRes(res, 400, { error: 'Avaliação pessoal não gera promoção. Use APROVAR.' });
-    if (decisao === 'aprovado' && prova.cargoAlvo) return jsonRes(res, 400, { error: 'APROVAR só é válido para avaliação pessoal (prisões).' });
+    if (decisao === 'promovido' && !prova.cargoAlvo)
+      return jsonRes(res, 400, { error: 'Avaliação pessoal não gera promoção. Use APROVAR.' });
+    if (decisao === 'aprovado' && prova.cargoAlvo)
+      return jsonRes(res, 400, { error: 'APROVAR só é válido para avaliação pessoal (prisões).' });
 
     prova.decisao = decisao;
     prova.decididoPor = executor.nome;
@@ -731,42 +878,42 @@ async function handleAPI(req, res) {
       const oldCargo = alvo.cargo;
       alvo.cargo = prova.cargoAlvo;
       saveData();
-      audit(`<b>${executor.nome}</b> APROVOU e PROMOVEU <b>${prova.nome}</b> para <b>${CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo}</b>`, '🎓');
+      audit(`<b>${executor.nome}</b> APROVOU e PROMOVEU <b>${prova.nome}</b> para <b>${CARGO_LABEL_SRV[prova.cargoAlvo] || prova.cargoAlvo}</b>`, '🎓');
       broadcast('USERS_UPDATED', DB.users.map(pub));
-      broadcast('CARGO_CHANGED', { userLogin: alvo.user, oldCargo, newCargo: alvo.cargo, tipo: 'promovido', motivo: 'Aprovado na prova por ' + executor.nome, feitorPorNome: executor.nome });
+      broadcast('CARGO_CHANGED', {
+        userLogin: alvo.user, oldCargo, newCargo: alvo.cargo,
+        tipo: 'promovido',
+        motivo: 'Aprovado na prova por ' + executor.nome,
+        feitorPorNome: executor.nome
+      });
     } else if (decisao === 'aprovado') {
       saveData();
       audit(`<b>${executor.nome}</b> APROVOU a avaliação pessoal (prisões) de <b>${prova.nome}</b>`, '✅');
     } else {
       saveData();
-      audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b>${prova.cargoAlvo ? ' para <b>' + (CARGO_LABEL_SRV[prova.cargoAlvo]||prova.cargoAlvo) + '</b>' : ' (avaliação pessoal)'}`, '❌');
+      audit(`<b>${executor.nome}</b> REPROVOU a prova de <b>${prova.nome}</b>${prova.cargoAlvo ? ' para <b>' + (CARGO_LABEL_SRV[prova.cargoAlvo] || prova.cargoAlvo) + '</b>' : ' (avaliação pessoal)'}`, '❌');
     }
-    broadcast('PROVA_DECIDIDA', { id: prova.id, userLogin: prova.userLogin, decisao, cargoAlvo: prova.cargoAlvo, feitorNome: executor.nome, nota: prova.nota });
+    broadcast('PROVA_DECIDIDA', {
+      id: prova.id, userLogin: prova.userLogin, decisao,
+      cargoAlvo: prova.cargoAlvo, feitorNome: executor.nome, nota: prova.nota
+    });
     broadcast('PROVAS_UPDATED', DB.provas);
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  if (method === 'GET' && url === '/api/feedbacks') {
-    return jsonRes(res, 200, DB.feedbacks);
-  }
-
+  // ══ FEEDBACKS (avaliação do sistema) ══
+  if (method === 'GET' && url === '/api/feedbacks') return jsonRes(res, 200, DB.feedbacks);
   if (method === 'POST' && url === '/api/feedbacks') {
     const { userLogin, nome, nota, texto } = body;
-    if (!userLogin || !nome || typeof nota !== 'number' || nota < 1 || nota > 5) {
+    if (!userLogin || !nome || typeof nota !== 'number' || nota < 1 || nota > 5)
       return jsonRes(res, 400, { error: 'Dados inválidos. Nota deve ser 1–5.' });
-    }
     const textoLimpo = String(texto || '').trim().slice(0, 800);
-    if (textoLimpo.length < 3) {
-      return jsonRes(res, 400, { error: 'Escreva pelo menos 3 caracteres nas sugestões.' });
-    }
+    if (textoLimpo.length < 3) return jsonRes(res, 400, { error: 'Escreva pelo menos 3 caracteres nas sugestões.' });
     const fb = {
       id: 'FB-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
-      userLogin,
-      nome,
+      userLogin, nome,
       cargo: (DB.users.find(u => u.user === userLogin) || {}).cargo || 'gm',
-      nota,
-      texto: textoLimpo,
-      ts: Date.now()
+      nota, texto: textoLimpo, ts: Date.now()
     };
     DB.feedbacks.unshift(fb);
     DB.feedbacks = DB.feedbacks.slice(0, 500);
@@ -775,13 +922,11 @@ async function handleAPI(req, res) {
     broadcast('NEW_FEEDBACK', fb);
     return jsonRes(res, 200, { ok: true, feedback: fb });
   }
-
   const mDelFb = url.match(/^\/api\/feedbacks\/([^/]+)$/);
   if (method === 'DELETE' && mDelFb) {
     const executor = findUserByRef(body.feitorPor);
-    if (!executor || (CARGO_PERM_SRV[executor.cargo]||0) < 6) {
+    if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) < 6)
       return jsonRes(res, 403, { error: 'Apenas Chefe e Admin podem excluir feedbacks.' });
-    }
     const i = DB.feedbacks.findIndex(f => f.id === mDelFb[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Feedback não encontrado.' });
     DB.feedbacks.splice(i, 1);
@@ -790,7 +935,50 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  if (method === 'GET'    && url === '/api/audit') return jsonRes(res, 200, DB.audit);
+  // ══ CHAT PRIVADO ══
+  if (method === 'GET' && url === '/api/chats') {
+    const userLogin = body.userLogin || (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('user') : null);
+    if (!userLogin) return jsonRes(res, 200, []);
+    const minhas = DB.chats.filter(c => c.from === userLogin || c.to === userLogin);
+    return jsonRes(res, 200, minhas);
+  }
+  if (method === 'POST' && url === '/api/chats') {
+    const { from, to, texto } = body;
+    if (!from || !to || !texto || texto.trim().length === 0)
+      return jsonRes(res, 400, { error: 'Dados inválidos.' });
+    if (from === to) return jsonRes(res, 400, { error: 'Você não pode enviar mensagem para si mesmo.' });
+    const uFrom = DB.users.find(u => u.user === from);
+    const uTo   = DB.users.find(u => u.user === to);
+    if (!uFrom || !uTo) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const msg = {
+      id: 'MSG-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      from, to,
+      fromNome: uFrom.nome, toNome: uTo.nome,
+      texto: String(texto).trim().slice(0, 2000),
+      ts: Date.now()
+    };
+    DB.chats.push(msg);
+    DB.chats = DB.chats.slice(-5000);
+    saveData();
+    broadcast('NEW_CHAT_MSG', msg);
+    return jsonRes(res, 200, { ok: true, msg });
+  }
+  const mDelChat = url.match(/^\/api\/chats\/([^/]+)$/);
+  if (method === 'DELETE' && mDelChat) {
+    const msgId = mDelChat[1];
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) < 6)
+      return jsonRes(res, 403, { error: 'Apenas Chefes e Admin podem excluir mensagens.' });
+    const i = DB.chats.findIndex(m => m.id === msgId);
+    if (i === -1) return jsonRes(res, 404, { error: 'Mensagem não encontrada.' });
+    DB.chats.splice(i, 1);
+    saveData();
+    broadcast('CHAT_MSG_DELETED', { id: msgId });
+    return jsonRes(res, 200, { ok: true });
+  }
+
+  // ══ AUDITORIA ══
+  if (method === 'GET' && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = []; saveData();
     broadcast('AUDIT_CLEARED', {});
@@ -800,12 +988,16 @@ async function handleAPI(req, res) {
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
+// ══════════════════════════════════════════════════════════════
+// ══ HTTP SERVER ═════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/api') || req.url === '/health') return handleAPI(req, res);
   serveStatic(req, res);
 });
 
+// WebSocket upgrade
 httpServer.on('upgrade', (req, socket, head) => {
   if (req.url !== '/ws') { socket.destroy(); return; }
   if (!wsHandshake(req, socket)) return;
@@ -814,7 +1006,17 @@ httpServer.on('upgrade', (req, socket, head) => {
   wsClients.add(socket);
   const ip = req.headers['x-forwarded-for'] || socket.remoteAddress || '?';
   console.log(`[WS] + ${ip} | Total: ${wsClients.size}`);
-  wsSend(socket, { type: 'INIT', payload: { ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas, users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats } });
+
+  // Envia estado completo ao conectar
+  wsSend(socket, {
+    type: 'INIT',
+    payload: {
+      ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
+      users: DB.users.map(pub), audit: DB.audit,
+      feedbacks: DB.feedbacks, chats: DB.chats
+    }
+  });
+
   socket.on('data', (chunk) => {
     socket._buffer = Buffer.concat([socket._buffer, chunk]);
     while (socket._buffer.length >= 2) {
@@ -825,21 +1027,26 @@ httpServer.on('upgrade', (req, socket, head) => {
       if (frame.opcode === 0x09) { wsSendPong(socket, frame.payload); continue; }
       if (frame.opcode === 0x0a) { socket.isAlive = true; continue; }
       if (frame.opcode === 0x01 || frame.opcode === 0x02) {
-        try { const msg = JSON.parse(frame.payload.toString('utf8')); if (msg.type === 'PING') wsSend(socket, { type: 'PONG', ts: Date.now() }); } catch (_) {}
+        try {
+          const msg = JSON.parse(frame.payload.toString('utf8'));
+          if (msg.type === 'PING') wsSend(socket, { type: 'PONG', ts: Date.now() });
+        } catch (_) {}
       }
     }
   });
-  socket.on('close', () => { wsClients.delete(socket); console.log(`[WS] - ${ip} | Total: ${wsClients.size}`); });
-  socket.on('error', (e) => { wsClients.delete(socket); console.error(`[WS] Erro (${ip}):`, e.message); });
+
+  socket.on('close', () => {
+    wsClients.delete(socket);
+    console.log(`[WS] - ${ip} | Total: ${wsClients.size}`);
+  });
+
+  socket.on('error', (e) => {
+    wsClients.delete(socket);
+    console.error(`[WS] Erro (${ip}):`, e.message);
+  });
 });
 
-function wsSendPong(socket, payload) { try { if (socket.writable) socket.write(wsBuildFrame(payload || Buffer.alloc(0), 0x0a)); } catch (_) {} }
-function wsClose(socket) {
-  try { if (socket.writable) socket.write(wsBuildFrame(Buffer.alloc(0), 0x08)); } catch (_) {}
-  wsClients.delete(socket);
-  try { socket.destroy(); } catch (_) {}
-}
-
+// Ping periódico para manter conexões vivas
 setInterval(() => {
   wsClients.forEach(s => {
     if (!s.isAlive) { wsClose(s); return; }
@@ -848,22 +1055,34 @@ setInterval(() => {
   });
 }, 25000);
 
+// ══════════════════════════════════════════════════════════════
+// ══ START ═══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.8         ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.9         ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('║   chefe     / chefe123                   ║');
   console.log('║   gm        / gm123                      ║');
+  console.log('╠═══════════════════════════════════════════╣');
+  console.log('║   📱 PWA pronto — instale pelo celular   ║');
+  console.log('║   💬 Chat • ⭐ Feedbacks • 💼 Banco hrs  ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
+// ══════════════════════════════════════════════════════════════
+// ══ SHUTDOWN GRACIOSO ═══════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 process.on('SIGTERM', () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('SIGINT',  () => { saveDataSync(); httpServer.close(() => process.exit(0)); });
 process.on('uncaughtException', (e) => { console.error('[FATAL]', e); saveDataSync(); });
 
+// ══════════════════════════════════════════════════════════════
+// ══ KEEP-ALIVE (Render) ═══════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 const RENDER_URL = process.env.RENDER_EXTERNAL_URL || null;
 if (RENDER_URL) {
   const keepAliveUrl = RENDER_URL.replace(/\/$/, '') + '/health';
@@ -874,4 +1093,4 @@ if (RENDER_URL) {
     req.end();
   }, 14 * 60 * 1000);
   console.log(`[KeepAlive] Auto-ping → ${keepAliveUrl}`);
-                                                                                                  }
+                                                                        }
