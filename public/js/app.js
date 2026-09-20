@@ -11,7 +11,7 @@ function brDateOf(ts){return new Date(ts).toLocaleDateString('pt-BR',{timeZone:'
 function brDateLong(){return new Date().toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'long',day:'2-digit',month:'long',year:'numeric'}).toUpperCase();}
 
 let me=null,activeTab=0;
-let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[]};
+let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[]};
 let _pendingCargoChange=null,_pendingBan=null,_banTimer=null,_clockInterval;
 let _busyPonto=false,_busyPun=false,_keepIv=null;
 let QUESTIONARIO=null,QUESTIONARIO_PRISOES=null,_provaAtiva=null;
@@ -64,6 +64,12 @@ function handleSocketMessage(data){
       if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos'))renderTab(activeTab);break;
     case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
     case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
+    // ══ FEEDBACKS (NOVO) ══
+    case 'NEW_FEEDBACK':
+      if(activeTab===getTabIdx('home'))renderTab(activeTab);
+      if(me&&payload.userLogin!==me.user&&(CARGO_PERM[me.cargo]||0)>=5)toast('⭐ '+payload.nome+' avaliou o sistema com '+payload.nota+'★','i');
+      break;
+    case 'FEEDBACKS_UPDATED':if(activeTab===getTabIdx('home'))renderTab(activeTab);break;
     case 'USER_BANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:payload.expiresAt,banReason:payload.reason,banBy:payload.banBy}:u);
       if(activeTab===getTabIdx('users'))renderTab(activeTab);
@@ -97,11 +103,11 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;}}catch(_){}
   showPanel();
 }
 
-function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;}
+function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;}
 
 async function apiLoginRetry(u,p,btn){let lastErr=null;for(let i=0;i<3;i++){try{return await API.login(u,p);}catch(e){lastErr=e;const msg=e.message||'';const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);if(!retryable)throw e;if(btn)btn.textContent='▸ ACORDANDO… ('+(i+2)+'/3)';await new Promise(r=>setTimeout(r,1200*(i+1)));}}throw lastErr;}
 
@@ -133,7 +139,6 @@ function toggleNavDrawer(){const d=document.getElementById('nav-drawer');if(!d)r
 function openNavDrawer(){buildMobileDrawer();document.getElementById('nav-drawer')?.classList.add('open');document.getElementById('nav-overlay')?.classList.add('open');}
 function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remove('open');document.getElementById('nav-overlay')?.classList.remove('open');}
 
-// ══ RENDER TAB ACEITA SÍNCRONO E ASSÍNCRONO ══
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
   const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria};
@@ -215,7 +220,6 @@ async function enviarProvaPrisoes(){
 }
 function cancelarProvaPrisoes(){_provaAtiva=null;renderTab(activeTab);}
 
-// ══ ANÁLISE DE PROVAS — COM APROVAR PARA AVALIAÇÃO PESSOAL ══
 async function vAnaliseProvas(){
   if((CARGO_PERM[me.cargo]||0)<5)return empty('🔒','Acesso restrito a Master, Chefe de Polícia e Delegado.');
   const provas=[...STATE.provas].reverse();
@@ -241,7 +245,6 @@ async function vAnaliseProvas(){
     let botoes='';
     if(!p.decisao){
       if(p.tipo==='prisoes'){
-        // AVALIAÇÃO PESSOAL: APROVAR (sem promoção) + REPROVAR
         botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'aprovado\')">✅ APROVAR AVALIAÇÃO</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR AVALIAÇÃO</button>';
       }else{
         botoes='<button class="btn btn-success btn-sm" onclick="decidirProva(\''+p.id+'\',\'promovido\')">🎓 PROMOVER</button><button class="btn btn-danger btn-sm" onclick="decidirProva(\''+p.id+'\',\'reprovado\')">❌ REPROVAR</button>';
@@ -264,11 +267,159 @@ async function decidirProva(id,decisao){
   try{await API.decidirProva(id,decisao,me.user);toast(decisao==='promovido'?'🎓 '+p.nome+' promovido(a)!':decisao==='aprovado'?'✅ Avaliação de '+p.nome+' aprovada!':'❌ '+p.nome+' reprovado(a).',decisao==='reprovado'?'w':'s');}catch(e){toast(e.message||'Erro.','d');}
 }
 
+// ══════════════════════════════════════════════════════════════
+// ══ INÍCIO — COM AVALIAÇÃO DO APP (NOVO) ═════════════════════
+// ══════════════════════════════════════════════════════════════
 function vInicio(){
-  const p=CARGO_PERM[me.cargo]||0;const pend=STATE.ocs.filter(o=>o.status==='pendente').length;const ace=STATE.ocs.filter(o=>o.status==='aceita').length;const rec=STATE.ocs.filter(o=>o.status==='recusada').length;const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
+  const p=CARGO_PERM[me.cargo]||0;
+  const pend=STATE.ocs.filter(o=>o.status==='pendente').length;
+  const ace=STATE.ocs.filter(o=>o.status==='aceita').length;
+  const rec=STATE.ocs.filter(o=>o.status==='recusada').length;
+  const can=STATE.ocs.filter(o=>o.status==='cancelada').length;
+
+  // ── MÉTRICAS DE FEEDBACK ──
+  const fbs=STATE.feedbacks||[];
+  const totalFbs=fbs.length;
+  const mediaFb=totalFbs>0?(fbs.reduce((a,f)=>a+(f.nota||0),0)/totalFbs):0;
+  const mediaStr=mediaFb>0?mediaFb.toFixed(1):'—';
+  const estrelasMedia=mediaFb>0?renderEstrelasHtml(Math.round(mediaFb)):'<span style="color:var(--text-dim);font-size:.8rem;">sem avaliações</span>';
+
+  // ── MEU ÚLTIMO FEEDBACK (cooldown 24h) ──
+  const meuUltimoFb=fbs.find(f=>f.userLogin===me.user);
+  const cooldownMs=24*60*60*1000;
+  const podeAvaliar=!meuUltimoFb||(Date.now()-meuUltimoFb.ts)>=cooldownMs;
+  const horasRestantes=meuUltimoFb?Math.max(0,Math.ceil((cooldownMs-(Date.now()-meuUltimoFb.ts))/3600000)):0;
+
+  // ── CARD DE AVALIAÇÃO DO APP ──
+  const cardAvaliacao=`
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;">⭐ AVALIE O SISTEMA</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">MÉDIA GERAL: <b style="color:var(--warn);font-size:.75rem;">${mediaStr}★</b> (${totalFbs} aval.)</div>
+      </div>
+      <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">${estrelasMedia}</div>
+      ${podeAvaliar?`
+        <p style="color:var(--text-mid);font-size:.85rem;margin-bottom:12px;line-height:1.5;">Sua opinião ajuda a melhorar o GMPOL. <b>De uma nota de 1 a 5 estrelas</b> e deixe suas sugestões.</p>
+        <div id="fb-estrelas" style="display:flex;gap:6px;margin-bottom:12px;user-select:none;">
+          <span class="fb-star" data-n="1" onclick="setEstrela(1)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
+          <span class="fb-star" data-n="2" onclick="setEstrela(2)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
+          <span class="fb-star" data-n="3" onclick="setEstrela(3)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
+          <span class="fb-star" data-n="4" onclick="setEstrela(4)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
+          <span class="fb-star" data-n="5" onclick="setEstrela(5)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span>
+          <span id="fb-nota-txt" style="margin-left:10px;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text-mid);">(clique para avaliar)</span>
+        </div>
+        <div class="fg"><label>Sugestões e melhorias</label>
+          <textarea id="fb-texto" placeholder="O que podemos melhorar? Tem alguma ideia nova? Conte aqui…" style="min-height:80px;"></textarea>
+        </div>
+        <button class="btn btn-warn" id="btn-fb-enviar" onclick="enviarFeedback()" style="max-width:280px;">📤 ENVIAR AVALIAÇÃO</button>
+      `:`
+        <div style="padding:12px 14px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);border-radius:4px;margin-bottom:10px;">
+          <div style="font-size:.85rem;color:var(--warn);margin-bottom:4px;">✅ Você já avaliou recentemente!</div>
+          <div style="font-size:.72rem;color:var(--text-dim);font-family:'Share Tech Mono',monospace;">Sua nota: <b style="color:var(--warn);">${meuUltimoFb.nota}★</b> • poderá avaliar novamente em <b>${horasRestantes}h</b></div>
+        </div>
+        <div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;margin-bottom:6px;"><b>Sua sugestão foi:</b></div>
+        <div class="dep-box" style="margin-bottom:0;">${(meuUltimoFb.texto||'').replace(/</g,'&lt;')}</div>
+      `}
+    </div>`;
+
+  // ── HISTÓRICO DE AVALIAÇÕES (só pra superiores) ──
+  let histFbHtml='';
+  if((CARGO_PERM[me.cargo]||0)>=5&&totalFbs>0){
+    const ultimos=fbs.slice(0,10);
+    histFbHtml=`
+      <div class="card" style="margin-bottom:20px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">📊 ÚLTIMAS AVALIAÇÕES RECEBIDAS</div>
+        ${ultimos.map(f=>{
+          const dt=new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+          const stars=renderEstrelasHtml(f.nota);
+          const podeDel=(CARGO_PERM[me.cargo]||0)>=6;
+          return `<div style="padding:10px 0;border-bottom:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:180px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <b style="font-size:.9rem;">${f.nome}</b>
+                  <span class="cargo-badge ${CARGO_BADGE_CLASS[f.cargo]||''}" style="font-size:.55rem;">${CARGO_LABEL[f.cargo]||f.cargo}</span>
+                </div>
+                <div style="margin-bottom:4px;">${stars}</div>
+                <div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;">${(f.texto||'').replace(/</g,'&lt;')}</div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-top:4px;">${dt}</div>
+              </div>
+              ${podeDel?`<button class="btn btn-danger btn-xs" onclick="excluirFeedback('${f.id}')">🗑</button>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // ── RESTO DO PAINEL INICIAL ──
   const msgs={admin:isMaster()?'ACESSO TOTAL ABSOLUTO.':'Acesso total.',chefe:'Você pode alterar cargos, gerenciar usuários, avaliar provas e supervisionar a corporação.',delegado:'Você pode aceitar ou recusar ocorrências, avaliar provas e supervisionar os Escrivãos.',escrivao:'Você pode aceitar ou recusar ocorrências e fazer a Prova de Delegado.',tatico:'Você pode solicitar rebaixamento ou punição e fazer a Prova de Tático.',agente:'Você pode registrar ocorrências, bater ponto e fazer a Prova de Agente.',gm:'Você pode registrar ocorrências, bater seu ponto e fazer a Prova de Guarda.'};
   const today=brDateLong();
-  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:''}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>'}</div>`;
+
+  const statsCards=p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:'';
+
+  const auditRecent=STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>';
+
+  return `<div class="stitle">▸ PAINEL INICIAL</div>
+    <div class="card" style="margin-bottom:20px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div>
+      <p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p>
+    </div>
+    ${cardAvaliacao}
+    ${histFbHtml}
+    ${statsCards}
+    <div class="card" style="margin-top:20px;">
+      <div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>
+      ${auditRecent}
+    </div>`;
+}
+
+// helpers de feedback
+function renderEstrelasHtml(n){
+  let s='';
+  for(let i=1;i<=5;i++){
+    s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;
+  }
+  return s;
+}
+let _fbNotaAtual=0;
+function setEstrela(n){
+  _fbNotaAtual=n;
+  document.querySelectorAll('#fb-estrelas .fb-star').forEach((el,idx)=>{
+    const ativa=idx+1<=n;
+    el.style.color=ativa?'var(--warn)':'var(--text-dim)';
+    el.style.transform=ativa?'scale(1.12)':'scale(1)';
+    el.style.textShadow=ativa?'0 0 8px rgba(224,192,96,.5)':'none';
+  });
+  const labels=['','Péssimo','Ruim','Regular','Bom','Excelente'];
+  const txt=document.getElementById('fb-nota-txt');
+  if(txt)txt.innerHTML=`<b style="color:var(--warn);">${n}★ ${labels[n]}</b>`;
+}
+async function enviarFeedback(){
+  const nota=_fbNotaAtual;
+  const texto=(document.getElementById('fb-texto')?.value||'').trim();
+  if(!nota||nota<1||nota>5){toast('Selecione uma nota de 1 a 5 estrelas.','d');return;}
+  if(texto.length<3){toast('Escreva pelo menos 3 caracteres nas sugestões.','w');return;}
+  const btn=document.getElementById('btn-fb-enviar');
+  if(btn){btn.disabled=true;btn.textContent='▸ ENVIANDO...';}
+  try{
+    await API.createFeedback({userLogin:me.user,nome:me.nome,nota,texto});
+    toast('✅ Avaliação enviada! Obrigado pelo seu feedback.','s',7000);
+    _fbNotaAtual=0;
+    renderTab(activeTab);
+  }catch(e){
+    toast(e.message||'Erro ao enviar avaliação.','d');
+    if(btn){btn.disabled=false;btn.textContent='📤 ENVIAR AVALIAÇÃO';}
+  }
+}
+async function excluirFeedback(id){
+  if(!confirm('Excluir esta avaliação?'))return;
+  try{
+    await API.deleteFeedback(id,me.user);
+    toast('Avaliação excluída.','w');
+    renderTab(activeTab);
+  }catch(e){toast(e.message||'Erro ao excluir.','d');}
 }
 
 function vRegistrar(){return `<div class="stitle">▸ REGISTRAR OCORRÊNCIA / DENÚNCIA</div><div class="card"><p style="color:var(--text-mid);font-size:.88rem;margin-bottom:18px;line-height:1.6;">Qualquer membro pode registrar.</p><div class="g2"><div class="fg"><label>Tipo</label><select id="oc-tipo"><option value="Ocorrência">Ocorrência</option><option value="Denúncia">Denúncia</option></select></div><div class="fg"><label>Nome do Envolvido</label><input id="oc-nome" placeholder="Nome completo"></div><div class="fg"><label>Cargo do Envolvido</label><select id="oc-cargo"><option>Guarda municipal</option><option>Agente oficial</option><option>Tático</option><option>Escrivão</option><option>Delegado</option><option>Chefe de polícia</option><option>Admin master</option><option>Civil</option><option>Outro</option></select></div><div class="fg g-full"><label>Depoimento / Relato</label><textarea id="oc-dep" placeholder="Descreva…"></textarea></div></div><button class="btn btn-primary" style="margin-top:8px;max-width:260px;" onclick="registrarOc()">▸ ENVIAR REGISTRO</button></div>`;}
@@ -310,22 +461,209 @@ function vPunicoes(){const myP=CARGO_PERM[me.cargo]||0,canEdit=myP>=3;const nc=n
 async function addPun(){if(_busyPun)return;_busyPun=true;const btn=document.getElementById('btn-addpun');if(btn){btn.disabled=true;btn.textContent='▸ REGISTRANDO…';}try{const nome=document.getElementById('pn-nome')?.value.trim(),motivo=document.getElementById('pn-motivo')?.value.trim(),nivel=document.getElementById('pn-nivel')?.value;if(!nome||!motivo){toast('Preencha nome e motivo.','d');return;}await API.createPun({nome,motivo,nivel,autor:me.nome,ts:Date.now()});toast('Punição registrada.','s');const n=document.getElementById('pn-nome'),m=document.getElementById('pn-motivo');if(n)n.value='';if(m)m.value='';}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPun=false;const b=document.getElementById('btn-addpun');if(b){b.disabled=false;b.textContent='▸ REGISTRAR';}},1200);}}
 async function delPun(idx){try{const p=STATE.puns[idx];if(p&&p.id)await API.deletePunById(p.id,me.nome);else await API.deletePun(idx,me.nome);toast('Removida.','w');}catch(e){toast(e.message||'Erro.','d');}}
 
-function vPontos(){const myP=CARGO_PERM[me.cargo]||0,isSuperv=myP>=3;const mine=STATE.pontos.filter(p=>p.userLogin===me.user);const lastPonto=mine.length?mine[mine.length-1]:null;const isClockedIn=lastPonto&&lastPonto.type==='entrada';const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});const hojeBr=brDate();const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);const FM="font-family:'Share Tech Mono',monospace;";const FO="font-family:'Orbitron',sans-serif;";const uMe=STATE.users.find(u=>u.user===me.user);const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;let folgaHtml='';if(folgaDia===hojeBr)folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">🌴 HOJE É FOLGA!</div>';else if(folgaDia)folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">🌴 Próxima folga: '+folgaDia+'</div>';const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO: '+cicloLen+'/6 dias</div>';const minhaTab=mine.length?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'+[...mine].reverse().slice(0,20).map(function(p){let det='';let tipoLbl,tipoCor;if(p.type==='entrada'){tipoLbl='▶ ENTRADA';tipoCor='color:#4ade80;';}else if(p.type==='folga'){tipoLbl='🌴 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Folga</span>';}else{tipoLbl='⏹ SAÍDA';tipoCor='color:#f87171;';}if(p.type==='saida'&&p.trabalhado!==undefined){const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}}return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';const botaoPonto=isClockedIn?'<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">⏹ ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>':'<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">▶ BATER ENTRADA</button>';var supervHtml='';if(isSuperv){const tabelaHoje=hoje2.length?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'+hoje2.map(function(p){const lbl=p.type==='folga'?'🌴':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';}return '<div class="stitle">▸ BATER PONTO</div><div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div><div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;}
+// ════════════════════════════════════════════════════════════
+// ══ PONTO — COM BANCO DE HORAS (NOVO) ══════════════════════
+// ════════════════════════════════════════════════════════════
+
+// helper: formata minutos como "Xh Ymin"
+function fmtHM(mins){
+  if(!mins||mins<=0)return '0h';
+  const h=Math.floor(mins/60),m=mins%60;
+  return h+'h'+(m>0?m.toString().padStart(2,'0'):'');
+}
+
+// helper: soma totais do banco de horas de um usuário
+function somarBancoHoras(userLogin){
+  const pontosUser=STATE.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);
+  let totalTrab=0, totalExtra=0, totalDebt=0, totalReais=0, turnos=0;
+  pontosUser.forEach(p=>{
+    totalTrab  += (p.trabalhado  || 0);
+    totalExtra += (p.extraMins   || 0);
+    totalDebt  += (p.debtMins    || 0);
+    totalReais += (p.extraReais  || 0);
+    turnos++;
+  });
+  return { totalTrab, totalExtra, totalDebt, totalReais, turnos };
+}
+
+function vPontos(){
+  const myP=CARGO_PERM[me.cargo]||0, isSuperv=myP>=3;
+  const mine=STATE.pontos.filter(p=>p.userLogin===me.user);
+  const lastPonto = mine.length ? mine[mine.length - 1] : null;
+  const isClockedIn = lastPonto && lastPonto.type === 'entrada';
+  const porUser={};STATE.pontos.forEach(p=>{if(!porUser[p.userLogin])porUser[p.userLogin]=[];porUser[p.userLogin].push(p);});
+  const hojeBr=brDate();
+  const hoje2=STATE.pontos.filter(p=>brDateOf(p.ts)===hojeBr);
+  const FM="font-family:'Share Tech Mono',monospace;";
+  const FO="font-family:'Orbitron',sans-serif;";
+  const uMe=STATE.users.find(u=>u.user===me.user);
+  const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
+  const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
+  let folgaHtml='';
+  if(folgaDia===hojeBr) folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">\ud83c\udf34 HOJE \u00c9 SEU DIA DE FOLGA! Ponto bloqueado pelo sistema.</div>';
+  else if(folgaDia) folgaHtml='<div style="margin-top:14px;'+FM+'font-size:.66rem;color:var(--warn);">\ud83c\udf34 Pr\u00f3xima folga concedida: '+folgaDia+'</div>';
+  const cicloHtml='<div style="margin-top:10px;'+FM+'font-size:.66rem;color:var(--text-mid);">CICLO DE FOLGA: '+cicloLen+'/6 dias trabalhados \u2014 a cada 6 dias, 1 dia de folga.</div>';
+
+  // ══ BANCO DE HORAS (NOVO) ══
+  const bh=somarBancoHoras(me.user);
+  const saldoMin=bh.totalExtra-bh.totalDebt;
+  const saldoStr=saldoMin>=0?'+'+fmtHM(saldoMin):'-'+fmtHM(Math.abs(saldoMin));
+  const saldoColor=saldoMin>=0?'#4ade80':'#f87171';
+
+  const bancoHorasHtml=`
+    <div class="card" style="margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;">💼 MEU BANCO DE HORAS</div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">${bh.turnos} turno(s) encerrado(s)</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+        <div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;text-align:center;">
+          <div style="${FO}font-size:1.5rem;color:var(--text);font-weight:800;margin-bottom:2px;">${fmtHM(bh.totalTrab)}</div>
+          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">TRABALHADAS</div>
+        </div>
+        <div style="padding:14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);border-radius:12px;text-align:center;">
+          <div style="${FO}font-size:1.5rem;color:#4ade80;font-weight:800;margin-bottom:2px;">+${fmtHM(bh.totalExtra)}</div>
+          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS EXTRAS</div>
+          <div style="${FM}font-size:.68rem;color:#4ade80;margin-top:4px;">R$ ${bh.totalReais.toFixed(2).replace('.',',')}</div>
+        </div>
+        <div style="padding:14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;text-align:center;">
+          <div style="${FO}font-size:1.5rem;color:#f87171;font-weight:800;margin-bottom:2px;">-${fmtHM(bh.totalDebt)}</div>
+          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">HORAS DEVIDAS</div>
+        </div>
+        <div style="padding:14px;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:12px;text-align:center;">
+          <div style="${FO}font-size:1.5rem;color:${saldoColor};font-weight:800;margin-bottom:2px;">${saldoStr}</div>
+          <div style="${FM}font-size:.6rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;">SALDO</div>
+        </div>
+      </div>
+
+      <div style="${FM}font-size:.64rem;color:var(--text-dim);line-height:1.5;padding:10px 12px;background:rgba(255,255,255,.02);border-radius:8px;">
+        💡 <b style="color:var(--text-mid);">Como funciona:</b> cada cargo tem uma carga diária (${CARGO_BASE_MINUTES[me.cargo]||0} min). Trabalhar <b style="color:#4ade80;">acima</b> gera horas extras (+R$ 20 a cada 30min). Trabalhar <b style="color:#f87171;">abaixo</b> gera horas devidas.
+      </div>
+    </div>`;
+
+  const minhaTab=mine.length
+    ?'<table class="tbl"><thead><tr><th>DATA</th><th>TIPO</th><th>HORA</th><th>DETALHES</th></tr></thead><tbody>'
+      +[...mine].reverse().slice(0,20).map(function(p){
+        let det='';let tipoLbl,tipoCor;
+        if(p.type==='entrada'){tipoLbl='\u25b6 ENTRADA';tipoCor='color:#4ade80;';}
+        else if(p.type==='folga'){tipoLbl='\ud83c\udf34 FOLGA';tipoCor='color:var(--warn);';det='<span style="color:var(--warn);font-size:.65rem;">Dia de folga concedido</span>';}
+        else{tipoLbl='\u23f9 SAÍDA';tipoCor='color:#f87171;';}
+        if(p.type==='saida'&&p.trabalhado!==undefined){
+          const h=Math.floor(p.trabalhado/60),m=p.trabalhado%60;
+          det='<b style="color:var(--accent);">'+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+'</b>';
+          if(p.extraReais>0)det+='<br><span style="color:#4ade80;font-size:.65rem;">+ R$ '+p.extraReais+'</span>';
+          if(p.debtMins>0){const dh=Math.floor(p.debtMins/60),dm=p.debtMins%60;det+='<br><span style="color:#f87171;font-size:.65rem;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</span>';}
+        }
+        return('<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+tipoCor+'">'+tipoLbl+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="font-size:.75rem;line-height:1.2;">'+det+'</td></tr>');
+      }).join('')+'</tbody></table>'
+    :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum ponto.</p>';
+  const botaoPonto = isClockedIn
+    ? '<button class="btn btn-danger" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'saida\')">\u23f9 ENCERRAR TURNO</button><div style="margin-top:10px;'+FM+'font-size:.68rem;color:var(--accent);">Entrada: '+lastPonto.hora+'</div>'
+    : '<button class="btn btn-primary" id="btn-ponto" style="font-size:.85rem;padding:12px 32px;" onclick="baterPonto(\'entrada\')">\u25b6 BATER ENTRADA</button>';
+  var supervHtml='';
+  if(isSuperv){
+    const tabelaHoje=hoje2.length
+      ?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'
+        +hoje2.map(function(p){const lbl=p.type==='folga'?'\ud83c\udf34':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>'
+      :'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
+    const tabelaAgentes=Object.entries(porUser).map(function(kv){
+      const login=kv[0],pts=kv[1];
+      const u=STATE.users.find(function(u){return u.user===login;});
+      const nm=u?u.nome:login;const cg=u?u.cargo:'';
+      const rows=[...pts].reverse().map(function(p){
+        return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type.toUpperCase())+'</td></tr>';
+      }).join('');
+      return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. \u25be</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    }).join('');
+    supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 HIST\u00d3RICO POR AGENTE</div>'+tabelaAgentes+'</div>';
+  }
+  return '<div class="stitle">\u25b8 BATER PONTO</div>'
+    +'<div class="card" style="margin-bottom:20px;text-align:center;">'
+      +'<div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">\u25b8 REGISTRO DE PONTO</div>'
+      +'<div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div>'
+      +'<div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'
+      +botaoPonto+folgaHtml+cicloHtml
+    +'</div>'
+    +bancoHorasHtml
+    +'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">\u25b8 MEUS REGISTROS</div>'+minhaTab+'</div>'
+    +supervHtml;
+}
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
-function startClock(){clearInterval(_clockInterval);_clockInterval=setInterval(()=>{const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');if(!ce){clearInterval(_clockInterval);return;}ce.textContent=brTimeSec();if(de)de.textContent=brDateLong();},1000);}
-async function baterPonto(type){if(_busyPonto)return;_busyPonto=true;try{const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};const res=await API.createPonto(p);if(res&&res.error){toast(res.error,'d');return;}if(type==='entrada'){toast('✅ Entrada registrada às '+p.hora+'!','s');}else{const rp=(res&&res.ponto)?res.ponto:{};if(rp.trabalhado!==undefined){const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;let msg='✅ Turno encerrado às '+p.hora+'! Total: '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00');if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Extras: R$ '+rp.extraReais+'</b>';if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou '+dh+'h'+dm.toString().padStart(2,'0')+'</b>';}if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga: '+rp.folgaDia+'</b>';toast(msg,'s',9000);}else toast('✅ Saída registrada às '+p.hora+'!','s');}renderTab(activeTab);}catch(e){toast(e.message||'Erro.','d');}finally{setTimeout(()=>{_busyPonto=false;},1500);}}
+function startClock(){
+  clearInterval(_clockInterval);
+  _clockInterval=setInterval(()=>{
+    const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');
+    if(!ce){clearInterval(_clockInterval);return;}
+    ce.textContent=brTimeSec();
+    if(de)de.textContent=brDateLong();
+  },1000);
+}
+async function baterPonto(type){
+  if(_busyPonto)return; _busyPonto=true;
+  try{
+    const p={userLogin:me.user,nome:me.nome,cargo:me.cargo,type:type,hora:brTimeSec(),data:brDate(),ts:Date.now()};
+    const res=await API.createPonto(p);
+    if(res&&res.error){toast(res.error,'d');return;}
+    if(type==='entrada'){ toast('✅ Entrada registrada às '+p.hora+' (horário de Brasília)!','s'); }
+    else{
+      const rp=(res&&res.ponto)?res.ponto:{};
+      if(rp.trabalhado!==undefined){
+        const h=Math.floor(rp.trabalhado/60),m=rp.trabalhado%60;
+        let msg='✅ Turno encerrado às '+p.hora+'!<br>Total de '+h+'h'+(m>0?m.toString().padStart(2,'0'):'00')+' trabalhadas.';
+        if(rp.extraReais>0)msg+='<br><b style="color:#4ade80;">Horas extras: R$ '+rp.extraReais+',00</b>';
+        if(rp.debtMins>0){const dh=Math.floor(rp.debtMins/60),dm=rp.debtMins%60;msg+='<br><b style="color:#f87171;">Faltou: '+dh+'h'+dm.toString().padStart(2,'0')+' (Horas negativas)</b>';}
+        if(rp.folgaDia)msg+='<br><b style="color:var(--warn);">🌴 Folga concedida para '+rp.folgaDia+'!</b>';
+        toast(msg,'s',9000);
+      } else toast('✅ Saída registrada às '+p.hora+'!','s');
+    }
+    renderTab(activeTab);
+  }catch(e){toast(e.message||'Erro.','d');}
+  finally{ setTimeout(()=>{_busyPonto=false;},1500); }
+}
 
-function vAuditoria(){const logs=STATE.audit;if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';}
-async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}}
+function vAuditoria(){
+  const logs=STATE.audit;
+  if(!logs.length)return'<div class="stitle">▸ AUDITORIA</div>'+empty('🔍','Nenhum evento.');
+  return'<div class="stitle">▸ AUDITORIA DO SISTEMA</div><div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-danger btn-sm" onclick="limparAuditoria()">🗑 LIMPAR LOG</button></div><div class="card c-none" style="max-height:580px;overflow-y:auto;">'+logs.map(l=>'<div class="log-entry"><div class="log-time">'+new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div><div class="log-icon">'+(l.icon||'📋')+'</div><div class="log-txt">'+l.msg+'</div></div>').join('')+'</div><div style="margin-top:10px;" class="hint">'+logs.length+' evento(s).</div>';
+}
+async function limparAuditoria(){
+  if(!confirm('Limpar auditoria?'))return;
+  try{await API.clearAudit();toast('Auditoria limpa.','w');}catch(e){toast(e.message,'d');}
+}
 
-async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
+async function alterarSenhaPropria(){
+  const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;
+  if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}
+  if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}
+  if(nv!==cf){toast('Confirmação de senha não confere.','d');return;}
+  try{
+    const check=await API.login(me.user,at);
+    if(!check||check.banned){toast('Senha atual incorreta.','d');return;}
+    if(!check.user){toast('Senha atual incorreta.','d');return;}
+  }catch(e){toast('Senha atual incorreta.','d');return;}
+  try{
+    await API.resetSenha(me.user,nv,me.nome);
+    toast('Senha alterada com sucesso!','s');
+    closeModal('m-senha');
+    ['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  }catch(e){toast(e.message||'Erro ao alterar senha.','d');}
+}
 
 function openModal(id){document.getElementById(id)?.classList.add('open');}
 function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 function toggleSettings(){document.getElementById('settings-menu')?.classList.toggle('open');}
 function closeSettings(){document.getElementById('settings-menu')?.classList.remove('open');}
-document.addEventListener('click',e=>{const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');});
-function toast(txt,type='i',duration=3800){const c=document.getElementById('toast-container'),t=document.createElement('div');t.className='toast '+type;t.innerHTML='<span>'+txt+'</span>';c.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);}
+document.addEventListener('click',e=>{
+  const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');
+  if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();
+  if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');
+});
+function toast(txt,type='i',duration=3800){
+  const c=document.getElementById('toast-container'),t=document.createElement('div');
+  t.className='toast '+type; t.innerHTML='<span>'+txt+'</span>'; c.appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);
+}
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
 window.onload=()=>{initWebSocket();checkSession();};
