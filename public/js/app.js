@@ -149,6 +149,7 @@ function showCargoNotif(html,type){const n=document.createElement('div');n.class
 function showLogin(){document.getElementById('s-panel').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-login').classList.add('active');setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);}
 function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);updateNotif();}
 
+// ══ TABS — ADICIONADO "▸ ROLETA" ══
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
   const base=[{label:'▸ INÍCIO',key:'home',notif:false}];
@@ -158,7 +159,8 @@ function tabDefs(c){
     {label:'▸ PUNIÇÕES',key:'puns',notif:false},
     {label:'▸ PONTO',key:'pontos',notif:false},
     {label:'▸ PROVAS',key:'provas',notif:false},
-    {label:'▸ CHAT',key:'chat',notif:true}
+    {label:'▸ CHAT',key:'chat',notif:true},
+    {label:'▸ ROLETA',key:'roleta',notif:false}
   ];
   if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ AUDITORIA',key:'audit',notif:false}];
   if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
@@ -175,10 +177,9 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat};
+  const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const fn=views[def.key]||vInicio;
   const contentEl=document.getElementById('content');
-  // modo chat: trava scroll e preenche a tela no mobile
   if(contentEl)contentEl.classList.toggle('chat-mode',def.key==='chat');
   document.body.classList.toggle('chat-mode',def.key==='chat');
   const aplicar=(html)=>{if(activeTab!==idx)return;contentEl.innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);if(def.key==='chat')setTimeout(()=>{renderChatListaContatos();renderChatMensagens();startChatPolling();},60);else stopChatPolling();};
@@ -440,7 +441,163 @@ async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{awa
 async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
 
 // ════════════════════════════════════════════════════════════
-// ══ CHAT PRIVADO 1:1 — SEM ESPAÇO SOBRANDO NO MOBILE ═══════
+// ══ ROLETA — 1 GIRO A CADA 24H ═══════════════════════════
+// ════════════════════════════════════════════════════════════
+const ROLETA_LS_KEY='gmpol_roleta_ultimo_giro';
+const ROLETA_CARGOS_PERMITIDOS=['gm','agente','tatico','escrivao'];
+
+function vRoleta(){
+  const cargoPermitido=ROLETA_CARGOS_PERMITIDOS.includes(me.cargo);
+  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY);
+  const agora=Date.now();
+  const cooldownMs=24*60*60*1000;
+  const podeGirar=!ultimoGiro||(agora-parseInt(ultimoGiro))>=cooldownMs;
+  const horasRestantes=ultimoGiro?Math.max(0,Math.ceil((cooldownMs-(agora-parseInt(ultimoGiro)))/3600000)):0;
+
+  if(!cargoPermitido){
+    return `<div class="stitle">▸ ROLETA DA SORTE</div>
+      <div class="card" style="text-align:center;padding:40px 20px;">
+        <div style="font-size:3rem;margin-bottom:16px;">🔒</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:8px;">Acesso Restrito</div>
+        <div style="color:var(--text-mid);font-size:.88rem;line-height:1.6;">
+          A roleta está disponível apenas para:<br>
+          <b>Guarda municipal, Agente oficial, Tático e Escrivão</b>
+        </div>
+      </div>`;
+  }
+
+  const cardCooldown=podeGirar?'':`<div class="card" style="margin-bottom:20px;text-align:center;padding:30px 20px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);">
+    <div style="font-size:2rem;margin-bottom:12px;">⏰</div>
+    <div style="font-size:.95rem;font-weight:700;color:var(--warn);margin-bottom:6px;">Você já girou hoje!</div>
+    <div style="color:var(--text-mid);font-size:.82rem;line-height:1.5;">
+      Próximo giro disponível em <b style="color:var(--warn);">${horasRestantes}h</b>
+    </div>
+  </div>`;
+
+  return `<div class="stitle">▸ ROLETA DA SORTE</div>
+    ${cardCooldown}
+    <div class="card" style="margin-bottom:20px;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--accent);letter-spacing:.14em;margin-bottom:8px;">🎰 PRÊMIOS DISPONÍVEIS</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:16px;">
+          <div style="padding:14px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#4ade80;font-weight:800;margin-bottom:4px;">R$ 100</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">49.8% de chance</div>
+          </div>
+          <div style="padding:14px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#60a5fa;font-weight:800;margin-bottom:4px;">R$ 500</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">14.2% de chance</div>
+          </div>
+          <div style="padding:14px;background:rgba(224,192,96,.08);border:1px solid rgba(224,192,96,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:var(--warn);font-weight:800;margin-bottom:4px;">R$ 2.000</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">28.5% de chance</div>
+          </div>
+          <div style="padding:14px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#f87171;font-weight:800;margin-bottom:4px;">R$ 3.000</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">3.6% de chance</div>
+          </div>
+          <div style="padding:14px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#a78bfa;font-weight:800;margin-bottom:4px;">R$ 4.000</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">3.6% de chance</div>
+          </div>
+          <div style="padding:14px;background:rgba(236,72,153,.08);border:1px solid rgba(236,72,153,.25);border-radius:12px;text-align:center;">
+            <div style="font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#ec4899;font-weight:800;margin-bottom:4px;">R$ 10.000</div>
+            <div style="font-size:.62rem;color:var(--text-dim);">0.35% de chance</div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;">
+        <button class="btn btn-primary" id="btn-girar-roleta" onclick="girarRoleta()" style="max-width:280px;font-size:1rem;padding:14px 24px;" ${podeGirar?'':'disabled'}>
+          ${podeGirar?'🎰 GIRAR ROLETA':'⏰ AGUARDE '+horasRestantes+'H'}
+        </button>
+      </div>
+    </div>
+    <div class="card" style="padding:16px;background:rgba(255,255,255,.02);">
+      <div style="font-size:.78rem;color:var(--text-mid);line-height:1.6;">
+        <b style="color:var(--text);">Como funciona:</b><br>
+        • Você tem direito a <b>1 giro a cada 24 horas</b><br>
+        • Ao ganhar, tire um print do resultado e envie no <b>Chat</b> para o superior responsável<br>
+        • O prêmio será creditado após validação
+      </div>
+    </div>
+    <style>
+      .roleta-modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(8px);}
+      .roleta-wheel{width:280px;height:280px;border-radius:50%;border:8px solid var(--accent);position:relative;transition:transform 4s cubic-bezier(0.17,0.67,0.12,0.99);background:conic-gradient(from 0deg,#4ade80 0deg 179.28deg,#60a5fa 179.28deg 230.4deg,#e0c060 230.4deg 333deg,#f87171 333deg 345.96deg,#a78bfa 345.96deg 358.92deg,#ec4899 358.92deg 360deg);box-shadow:0 0 60px rgba(255,255,255,.3);}
+      .roleta-pointer{position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-top:30px solid var(--accent);z-index:10;}
+      .roleta-result{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(14,14,16,.95);border:2px solid var(--accent);border-radius:16px;padding:20px 30px;text-align:center;}
+      .roleta-result-text{font-family:'Orbitron',sans-serif;font-size:2rem;font-weight:800;color:var(--accent);margin-bottom:8px;}
+      .roleta-result-sub{font-size:.78rem;color:var(--text-mid);}
+    </style>`;
+}
+
+function girarRoleta(){
+  const ultimoGiro=localStorage.getItem(ROLETA_LS_KEY);
+  const agora=Date.now();
+  const cooldownMs=24*60*60*1000;
+  if(ultimoGiro&&(agora-parseInt(ultimoGiro))<cooldownMs){
+    toast('Você já girou hoje. Aguarde o cooldown.','w');
+    return;
+  }
+
+  // Pesos dos prêmios (normalizados para somar ~140.5)
+  const premios=[
+    {valor:100,peso:70},
+    {valor:500,peso:20},
+    {valor:2000,peso:40},
+    {valor:3000,peso:5},
+    {valor:4000,peso:5},
+    {valor:10000,peso:0.5}
+  ];
+  const totalPeso=premios.reduce((s,p)=>s+p.peso,0);
+  let random=Math.random()*totalPeso;
+  let premioSelecionado=premios[0];
+  for(const p of premios){
+    random-=p.peso;
+    if(random<=0){premioSelecionado=p;break;}
+  }
+
+  // Salva timestamp
+  localStorage.setItem(ROLETA_LS_KEY,agora.toString());
+
+  // Cria modal de roleta
+  const modal=document.createElement('div');
+  modal.className='roleta-modal';
+  modal.innerHTML=`
+    <div style="position:relative;">
+      <div class="roleta-pointer"></div>
+      <div class="roleta-wheel" id="roleta-wheel"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Anima roleta (giro de 5 a 8 voltas completas)
+  const wheel=document.getElementById('roleta-wheel');
+  const voltas=5+Math.floor(Math.random()*3);
+  const anguloFinal=voltas*360+Math.floor(Math.random()*360);
+  setTimeout(()=>{wheel.style.transform=`rotate(${anguloFinal}deg)`;},100);
+
+  // Após 4 segundos, mostra resultado
+  setTimeout(()=>{
+    const resultDiv=document.createElement('div');
+    resultDiv.className='roleta-result';
+    resultDiv.innerHTML=`
+      <div class="roleta-result-text">R$ ${premioSelecionado.valor.toLocaleString('pt-BR')}</div>
+      <div class="roleta-result-sub">Parabéns! Tire um print e envie no Chat</div>
+      <button class="btn btn-primary" onclick="fecharRoletaModal()" style="margin-top:16px;max-width:200px;">✓ ENTENDI</button>
+    `;
+    modal.appendChild(resultDiv);
+    toast('🎉 Você ganhou R$ '+premioSelecionado.valor.toLocaleString('pt-BR')+'! Envie o print no chat.','s',8000);
+  },4200);
+}
+
+function fecharRoletaModal(){
+  const modal=document.querySelector('.roleta-modal');
+  if(modal)modal.remove();
+  renderTab(activeTab);
+}
+
+// ════════════════════════════════════════════════════════════
+// ══ CHAT PRIVADO 1:1 ═══════════════════════════════════
 // ════════════════════════════════════════════════════════════
 const CHAT_LS_KEY='gmpol_chat_lidos_v1';
 function _lerLidos(){try{return JSON.parse(localStorage.getItem(CHAT_LS_KEY)||'{}');}catch(_){return{};}}
@@ -494,48 +651,18 @@ function vChat(){
       </div>
     </div>
     <style>
-      /* ══ BASE (desktop) ══ */
-      .chat-container{
-        position:relative;
-        display:grid;
-        grid-template-columns:300px 1fr;
-        gap:14px;
-        height:calc(100vh - 215px);
-        min-height:460px;
-      }
-      @supports (height:100dvh){ .chat-container{height:calc(100dvh - 215px);} }
-
-      .chat-card{
-        height:100%;
-        display:flex;flex-direction:column;
-        background:var(--surface);
-        border:1px solid var(--border);
-        border-radius:14px;
-        overflow:hidden;
-        min-height:0;
-      }
-      .chat-card-head{
-        flex:0 0 auto;
-        padding:12px 14px;
-        border-bottom:1px solid var(--border);
-        background:rgba(255,255,255,.02);
-        display:flex;align-items:center;gap:8px;
-        min-height:52px;
-      }
+      .chat-container{position:relative;display:grid;grid-template-columns:300px 1fr;gap:14px;height:calc(100vh - 215px);min-height:460px;}
+      @supports (height:100dvh){.chat-container{height:calc(100dvh - 215px);}}
+      .chat-card{height:100%;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;min-height:0;}
+      .chat-card-head{flex:0 0 auto;padding:12px 14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.02);display:flex;align-items:center;gap:8px;min-height:52px;}
       .chat-busca-wrap{flex:0 0 auto;padding:8px 10px;border-bottom:1px solid var(--border);}
       .chat-busca-wrap input{width:100%;font-size:.82rem;padding:8px 10px;}
       .chat-scroll{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;}
       .chat-msgs-area{padding:14px;background:rgba(0,0,0,.22);}
-      .chat-input-wrap{
-        flex:0 0 auto;display:none;gap:8px;align-items:flex-end;
-        padding:10px;border-top:1px solid var(--border);
-        background:rgba(255,255,255,.02);
-        padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
-      }
+      .chat-input-wrap{flex:0 0 auto;display:none;gap:8px;align-items:flex-end;padding:10px;border-top:1px solid var(--border);background:rgba(255,255,255,.02);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));}
       .chat-input-wrap textarea{flex:1;min-height:42px;max-height:110px;resize:none;font-size:.9rem;padding:10px 12px;line-height:1.4;}
       .chat-send{flex:0 0 auto;padding:10px 16px;font-size:1rem;}
       .chat-voltar{background:none;border:none;color:var(--accent);font-size:1.6rem;line-height:1;cursor:pointer;padding:2px 10px 2px 4px;margin-left:-6px;}
-
       .chat-item{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--border);}
       .chat-item:hover{background:rgba(255,255,255,.04);}
       .chat-item.ativo{background:rgba(255,255,255,.08);box-shadow:inset 3px 0 0 var(--accent);}
@@ -545,7 +672,6 @@ function vChat(){
       .chat-item-nome{font-size:.88rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .chat-item-prev{font-size:.72rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
       .chat-nao-lido{min-width:18px;height:18px;padding:0 5px;background:var(--danger);color:#fff;border-radius:9px;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
-
       .chat-msg-wrap{display:flex;margin-bottom:8px;}
       .chat-msg-wrap.enviada{justify-content:flex-end;}
       .chat-msg-wrap.recebida{justify-content:flex-start;}
@@ -554,24 +680,12 @@ function vChat(){
       .chat-msg.enviada{background:rgba(74,222,128,.16);border:1px solid rgba(74,222,128,.28);border-bottom-right-radius:4px;}
       .chat-msg.recebida{background:rgba(255,255,255,.06);border:1px solid var(--border2);border-bottom-left-radius:4px;}
       .chat-msg-time{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-top:2px;text-align:right;}
-
-      /* ══ MOBILE: chat preenche EXATAMENTE a tela, SEM scroll da página ══ */
       @media (max-width:768px){
         body.chat-mode{overflow:hidden !important;}
         body.chat-mode #s-panel{height:100vh;height:100dvh;min-height:0;overflow:hidden !important;}
-        .content.chat-mode{
-          flex:1 1 auto;min-height:0;
-          display:flex;flex-direction:column;
-          overflow:hidden;
-          padding:8px 8px 10px !important;
-          max-width:100%;
-        }
+        .content.chat-mode{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:8px 8px 10px !important;max-width:100%;}
         .content.chat-mode .stitle{flex:0 0 auto;margin-bottom:8px;}
-        .chat-container{
-          display:block;position:relative;
-          flex:1 1 auto;min-height:0;
-          height:auto !important;
-        }
+        .chat-container{display:block;position:relative;flex:1 1 auto;min-height:0;height:auto !important;}
         .chat-view{position:absolute;top:0;left:0;right:0;bottom:0;display:none;}
         .chat-view-lista{display:block;}
         .chat-view-lista.escondido{display:none;}
@@ -580,7 +694,6 @@ function vChat(){
         .chat-msg-col{max-width:86%;}
         .chat-voltar{display:inline-block;}
       }
-      /* ══ DESKTOP ══ */
       @media (min-width:769px){
         .chat-view{position:static;display:block !important;}
         .chat-view-lista.escondido{display:block !important;}
