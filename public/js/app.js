@@ -139,7 +139,7 @@ async function login(){
 function toggleSenhaVisivel(){const i=document.getElementById('l-pass'),b=document.getElementById('eye-btn');if(!i)return;if(i.type==='password'){i.type='text';if(b){b.textContent='🙈';b.title='Ocultar senha';}}else{i.type='password';if(b){b.textContent='👁';b.title='Mostrar senha';}}}
 document.addEventListener('keydown',e=>{if(e.key==='Enter'){const s=document.getElementById('s-login');if(s&&s.classList.contains('active'))login();}});
 
-function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
+function logout(){me=null;activeTab=0;clearSession();stopKeepAlive();clearInterval(_clockInterval);clearInterval(_banTimer);if(_provaAtiva){clearInterval(_provaAtiva.timer);_provaAtiva=null;}document.body.classList.remove('chat-mode');if(typeof LSCache!=='undefined')LSCache.clear();location.reload();}
 
 function showBanScreen(info){document.getElementById('s-login').classList.remove('active');document.getElementById('s-panel').classList.remove('active');const s=document.getElementById('s-ban');if(!s)return;s.classList.add('active');document.getElementById('ban-by').textContent=info.banBy||'Sistema';document.getElementById('ban-reason').textContent=info.reason||'Suspensão temporária.';document.getElementById('ban-expires').textContent=new Date(info.expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});startBanCountdown(info.expiresAt);}
 function startBanCountdown(expiresAt){clearInterval(_banTimer);function update(){const rem=expiresAt-Date.now();const el=document.getElementById('ban-timer');if(!el){clearInterval(_banTimer);return;}if(rem<=0){clearInterval(_banTimer);el.textContent='00:00:00';const m=document.getElementById('ban-status-msg');if(m){m.textContent='✅ Suspensão encerrada.';m.style.color='#4ade80';}setTimeout(()=>{clearSession();location.reload();},3000);return;}const h=Math.floor(rem/3600000),mn=Math.floor((rem%3600000)/60000),s=Math.floor((rem%60000)/1000);el.textContent=`${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}update();_banTimer=setInterval(update,1000);}
@@ -149,7 +149,6 @@ function showCargoNotif(html,type){const n=document.createElement('div');n.class
 function showLogin(){document.getElementById('s-panel').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-login').classList.add('active');setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);}
 function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);updateNotif();}
 
-// ══ TABS — CHAT sem emoji, igual aos outros ══
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
   const base=[{label:'▸ INÍCIO',key:'home',notif:false}];
@@ -179,9 +178,10 @@ function renderTab(idx){
   const views={home:vInicio,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat};
   const fn=views[def.key]||vInicio;
   const contentEl=document.getElementById('content');
-  // modo chat: reduz padding no mobile p/ aproveitar a tela
+  // modo chat: trava scroll e preenche a tela no mobile
   if(contentEl)contentEl.classList.toggle('chat-mode',def.key==='chat');
-  const aplicar=(html)=>{if(activeTab!==idx)return;contentEl.innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);if(def.key==='chat')setTimeout(()=>{renderChatListaContatos();renderChatMensagens();startChatPolling();ajustarAlturaChat();},60);else stopChatPolling();};
+  document.body.classList.toggle('chat-mode',def.key==='chat');
+  const aplicar=(html)=>{if(activeTab!==idx)return;contentEl.innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);if(def.key==='chat')setTimeout(()=>{renderChatListaContatos();renderChatMensagens();startChatPolling();},60);else stopChatPolling();};
   try{
     const result=fn();
     if(result&&typeof result.then==='function'){
@@ -440,7 +440,7 @@ async function limparAuditoria(){if(!confirm('Limpar auditoria?'))return;try{awa
 async function alterarSenhaPropria(){const at=document.getElementById('s-atual').value,nv=document.getElementById('s-nova').value,cf=document.getElementById('s-conf').value;if(!at||!nv||!cf){toast('Preencha todos os campos.','d');return;}if(nv.length<6){toast('Nova senha: mínimo 6 caracteres.','w');return;}if(nv!==cf){toast('Confirmação não confere.','d');return;}try{const check=await API.login(me.user,at);if(!check||check.banned){toast('Senha atual incorreta.','d');return;}if(!check.user){toast('Senha atual incorreta.','d');return;}}catch(e){toast('Senha atual incorreta.','d');return;}try{await API.resetSenha(me.user,nv,me.nome);toast('Senha alterada!','s');closeModal('m-senha');['s-atual','s-nova','s-conf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}catch(e){toast(e.message||'Erro.','d');}}
 
 // ════════════════════════════════════════════════════════════
-// ══ CHAT PRIVADO 1:1 — MOBILE-FIRST ROBUSTO ═══════════════
+// ══ CHAT PRIVADO 1:1 — SEM ESPAÇO SOBRANDO NO MOBILE ═══════
 // ════════════════════════════════════════════════════════════
 const CHAT_LS_KEY='gmpol_chat_lidos_v1';
 function _lerLidos(){try{return JSON.parse(localStorage.getItem(CHAT_LS_KEY)||'{}');}catch(_){return{};}}
@@ -468,7 +468,6 @@ function _marcarConversaComoLida(outroUser){
 function vChat(){
   return `<div class="stitle">▸ CHAT PRIVADO</div>
     <div id="chat-container" class="chat-container">
-      <!-- VIEW LISTA -->
       <div id="chat-view-lista" class="chat-view chat-view-lista">
         <div class="chat-card">
           <div class="chat-card-head">
@@ -480,10 +479,9 @@ function vChat(){
           <div id="chat-lista" class="chat-scroll"></div>
         </div>
       </div>
-      <!-- VIEW CONVERSA -->
       <div id="chat-view-conversa" class="chat-view chat-view-conversa">
         <div class="chat-card">
-          <div id="chat-header" class="chat-card-head chat-head-conversa">
+          <div id="chat-header" class="chat-card-head">
             <button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button>
             <span style="color:var(--text-dim);font-size:.85rem;">Selecione um contato</span>
           </div>
@@ -496,21 +494,20 @@ function vChat(){
       </div>
     </div>
     <style>
-      /* ══ CONTAINER ══ */
+      /* ══ BASE (desktop) ══ */
       .chat-container{
         position:relative;
         display:grid;
         grid-template-columns:300px 1fr;
         gap:14px;
-        height:calc(100vh - 200px);
+        height:calc(100vh - 215px);
         min-height:460px;
       }
-      @supports (height:100dvh){ .chat-container{height:calc(100dvh - 200px);} }
+      @supports (height:100dvh){ .chat-container{height:calc(100dvh - 215px);} }
 
       .chat-card{
         height:100%;
-        display:flex;
-        flex-direction:column;
+        display:flex;flex-direction:column;
         background:var(--surface);
         border:1px solid var(--border);
         border-radius:14px;
@@ -530,26 +527,15 @@ function vChat(){
       .chat-scroll{flex:1 1 auto;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;}
       .chat-msgs-area{padding:14px;background:rgba(0,0,0,.22);}
       .chat-input-wrap{
-        flex:0 0 auto;
-        display:none;
-        gap:8px;align-items:flex-end;
-        padding:10px;
-        border-top:1px solid var(--border);
+        flex:0 0 auto;display:none;gap:8px;align-items:flex-end;
+        padding:10px;border-top:1px solid var(--border);
         background:rgba(255,255,255,.02);
         padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
       }
-      .chat-input-wrap textarea{
-        flex:1;min-height:42px;max-height:110px;resize:none;
-        font-size:.9rem;padding:10px 12px;line-height:1.4;
-      }
+      .chat-input-wrap textarea{flex:1;min-height:42px;max-height:110px;resize:none;font-size:.9rem;padding:10px 12px;line-height:1.4;}
       .chat-send{flex:0 0 auto;padding:10px 16px;font-size:1rem;}
-      .chat-voltar{
-        background:none;border:none;color:var(--accent);
-        font-size:1.6rem;line-height:1;cursor:pointer;
-        padding:2px 10px 2px 4px;margin-left:-6px;
-      }
+      .chat-voltar{background:none;border:none;color:var(--accent);font-size:1.6rem;line-height:1;cursor:pointer;padding:2px 10px 2px 4px;margin-left:-6px;}
 
-      /* ══ ITENS DA LISTA ══ */
       .chat-item{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--border);}
       .chat-item:hover{background:rgba(255,255,255,.04);}
       .chat-item.ativo{background:rgba(255,255,255,.08);box-shadow:inset 3px 0 0 var(--accent);}
@@ -560,7 +546,6 @@ function vChat(){
       .chat-item-prev{font-size:.72rem;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
       .chat-nao-lido{min-width:18px;height:18px;padding:0 5px;background:var(--danger);color:#fff;border-radius:9px;font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
 
-      /* ══ BALÕES ══ */
       .chat-msg-wrap{display:flex;margin-bottom:8px;}
       .chat-msg-wrap.enviada{justify-content:flex-end;}
       .chat-msg-wrap.recebida{justify-content:flex-start;}
@@ -570,15 +555,23 @@ function vChat(){
       .chat-msg.recebida{background:rgba(255,255,255,.06);border:1px solid var(--border2);border-bottom-left-radius:4px;}
       .chat-msg-time{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:var(--text-dim);margin-top:2px;text-align:right;}
 
-      /* ══ MOBILE: uma view por vez, tela cheia ══ */
+      /* ══ MOBILE: chat preenche EXATAMENTE a tela, SEM scroll da página ══ */
       @media (max-width:768px){
-        .content.chat-mode{padding:10px 8px !important;}
-        .chat-container{
-          display:block;
-          height:calc(100vh - 165px);
-          min-height:400px;
+        body.chat-mode{overflow:hidden !important;}
+        body.chat-mode #s-panel{height:100vh;height:100dvh;min-height:0;overflow:hidden !important;}
+        .content.chat-mode{
+          flex:1 1 auto;min-height:0;
+          display:flex;flex-direction:column;
+          overflow:hidden;
+          padding:8px 8px 10px !important;
+          max-width:100%;
         }
-        @supports (height:100dvh){ .chat-container{height:calc(100dvh - 165px);} }
+        .content.chat-mode .stitle{flex:0 0 auto;margin-bottom:8px;}
+        .chat-container{
+          display:block;position:relative;
+          flex:1 1 auto;min-height:0;
+          height:auto !important;
+        }
         .chat-view{position:absolute;top:0;left:0;right:0;bottom:0;display:none;}
         .chat-view-lista{display:block;}
         .chat-view-lista.escondido{display:none;}
@@ -587,7 +580,7 @@ function vChat(){
         .chat-msg-col{max-width:86%;}
         .chat-voltar{display:inline-block;}
       }
-      /* ══ DESKTOP: duas colunas, sem botão voltar ══ */
+      /* ══ DESKTOP ══ */
       @media (min-width:769px){
         .chat-view{position:static;display:block !important;}
         .chat-view-lista.escondido{display:block !important;}
@@ -705,12 +698,6 @@ function renderChatMensagens(){
 function scrollChatBottom(){
   const area=document.getElementById('chat-msgs');
   if(area)area.scrollTop=area.scrollHeight;
-}
-
-function ajustarAlturaChat(){
-  // força recálculo de altura em mobile (teclado / rotação)
-  const cont=document.getElementById('chat-container');
-  if(cont){cont.style.height='';}
 }
 
 function chatInputKeydown(ev){
