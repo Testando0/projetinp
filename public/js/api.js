@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.8 (+ chat) ══
+// ══ API CLIENT — GMPOL v5.10 (+ chat + roleta) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -63,6 +63,10 @@ const API = {
                       API.request('POST', `/users/${username}/ban`, { duracao, motivo, feitorPor, feitorPorNome }),
   removeBan:        (username, feitorPor)                     => API.request('DELETE', `/users/${username}/ban`, { feitorPor }),
 
+  // ══ ROLETA (NOVO) ══
+  girarRoleta:      (userLogin)                               => API.request('POST',   '/roleta/girar', { userLogin }),
+  liberarGiros:     (userLogin, quantidade, feitorPor)        => API.request('POST',   `/users/${userLogin}/giros`, { quantidade, feitorPor }),
+
   getOcs:    ()              => API.request('GET',    '/ocs'),
   createOc:  (oc)            => API.request('POST',   '/ocs', oc),
   updateOc:  (id, data)      => API.request('PUT',    `/ocs/${id}`, data),
@@ -85,7 +89,7 @@ const API = {
   createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
   deleteFeedback:  (id, feitorPor)         => API.request('DELETE', `/feedbacks/${id}`, { feitorPor }),
 
-  // ══ CHAT (NOVO) ══
+  // ══ CHAT ══
   getChats:       (userLogin)             => API.request('GET',    `/chats?user=${userLogin}`),
   sendChatMsg:    (from, to, texto)       => API.request('POST',   '/chats', { from, to, texto }),
   deleteChatMsg:  (id, feitorPor)         => API.request('DELETE', `/chats/${id}`, { feitorPor }),
@@ -220,7 +224,6 @@ function _handleServerMsg(msg) {
   if (type === 'FEEDBACKS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.feedbacks = payload; LSCache.merge('feedbacks', STATE.feedbacks);
   }
-  // ══ CHAT (NOVO) ══
   if (type === 'NEW_CHAT_MSG' && typeof STATE !== 'undefined') {
     if (!STATE.chats.find(x => x.id === payload.id)) {
       STATE.chats.push(payload);
