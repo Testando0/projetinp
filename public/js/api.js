@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.4 (provas + retry + WS único) ══
+// ══ API CLIENT — GMPOL v5.7 (+ feedbacks + WS único) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -82,11 +82,16 @@ const API = {
   createProva:    (p)                 => API.request('POST', '/provas', p),
   decidirProva:   (id, decisao, feitorPor) => API.request('PUT', `/provas/${id}/decisao`, { decisao, feitorPor }),
 
+  // ══ FEEDBACKS (novo) ══
+  getFeedbacks:    ()                      => API.request('GET',    '/feedbacks'),
+  createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
+  deleteFeedback:  (id, feitorPor)         => API.request('DELETE', `/feedbacks/${id}`, { feitorPor }),
+
   getAudit:   () => API.request('GET',    '/audit'),
   clearAudit: () => API.request('DELETE', '/audit'),
 };
 
-// ══ WEBSOCKET ROBUSTO — CONEXÃO ÚNICA ══
+// ══ WEBSOCKET ROBUSTO ══
 let _ws = null, _wsConnected = false, _wsAttempts = 0, _wsTimer = null, _pingIv = null, _pollIv = null;
 
 function initWebSocket() {
@@ -142,17 +147,19 @@ function _stopPolling() { clearInterval(_pollIv); _pollIv = null; }
 function _applyServerState(payload) {
   if (!payload) return;
   if (typeof STATE !== 'undefined') {
-    if (Array.isArray(payload.ocs))    STATE.ocs    = payload.ocs;
-    if (Array.isArray(payload.puns))   STATE.puns   = payload.puns;
-    if (Array.isArray(payload.pontos)) STATE.pontos = payload.pontos;
-    if (Array.isArray(payload.provas)) STATE.provas = payload.provas;
-    if (Array.isArray(payload.users))  STATE.users  = payload.users;
-    if (Array.isArray(payload.audit))  STATE.audit  = payload.audit;
+    if (Array.isArray(payload.ocs))       STATE.ocs       = payload.ocs;
+    if (Array.isArray(payload.puns))      STATE.puns      = payload.puns;
+    if (Array.isArray(payload.pontos))    STATE.pontos    = payload.pontos;
+    if (Array.isArray(payload.provas))    STATE.provas    = payload.provas;
+    if (Array.isArray(payload.users))     STATE.users     = payload.users;
+    if (Array.isArray(payload.audit))     STATE.audit     = payload.audit;
+    if (Array.isArray(payload.feedbacks)) STATE.feedbacks = payload.feedbacks;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
-    users: payload.users||[], audit: payload.audit||[]
+    users: payload.users||[], audit: payload.audit||[],
+    feedbacks: payload.feedbacks||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
   if (typeof me !== 'undefined' && me && typeof renderTab === 'function' && typeof activeTab !== 'undefined') {
@@ -199,6 +206,17 @@ function _handleServerMsg(msg) {
   }
   if (type === 'AUDIT_CLEARED' && typeof STATE !== 'undefined') {
     STATE.audit = []; LSCache.merge('audit', []);
+  }
+  // ══ FEEDBACKS (novo) ══
+  if (type === 'NEW_FEEDBACK' && typeof STATE !== 'undefined') {
+    if (!STATE.feedbacks.find(x => x.id === payload.id)) {
+      STATE.feedbacks.unshift(payload);
+      STATE.feedbacks = STATE.feedbacks.slice(0, 500);
+      LSCache.merge('feedbacks', STATE.feedbacks);
+    }
+  }
+  if (type === 'FEEDBACKS_UPDATED' && typeof STATE !== 'undefined') {
+    STATE.feedbacks = payload; LSCache.merge('feedbacks', STATE.feedbacks);
   }
 
   if (typeof handleSocketMessage === 'function') {
