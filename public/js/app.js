@@ -1092,7 +1092,7 @@ function vChat(){
           </div>
           <div id="chat-msgs" class="chat-scroll chat-msgs-area"></div>
           <div id="chat-input-wrap" class="chat-input-wrap">
-            <textarea id="chat-input" placeholder="Digite uma mensagem… (Enter envia)" onkeydown="chatInputKeydown(event)"></textarea>
+            <textarea id="chat-input" placeholder="Digite uma mensagem…" onkeydown="chatInputKeydown(event)"></textarea>
             <button type="button" class="btn btn-primary chat-send" onclick="enviarMsgChat()">➤</button>
           </div>
         </div>
