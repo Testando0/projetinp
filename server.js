@@ -685,12 +685,28 @@ async function handleAPI(req, res) {
     if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
-    if (ponto.type === 'entrada' && u.folgaDia === dBr) {
+    if ((ponto.type === 'entrada' || ponto.type === 'pausa_retomar') && u.folgaDia === dBr) {
       return jsonRes(res, 403, { error: '🌴 Hoje (' + dBr + ') é seu dia de FOLGA! Descanse.' });
     }
     const last = [...DB.pontos].reverse().find(p => p.userLogin === ponto.userLogin);
     if (last && last.type === ponto.type && (ponto.ts - last.ts) < 3000) {
       return jsonRes(res, 200, { ok: true, ponto: last, dup: true });
+    }
+    // ═══ VALIDAÇÕES DE FLUXO DE PAUSA ═══
+    if (ponto.type === 'pausa_inicio') {
+      if (!last || last.type !== 'entrada' && last.type !== 'pausa_retomar') {
+        return jsonRes(res, 403, { error: 'Você só pode pausar se estiver em turno ativo.' });
+      }
+    }
+    if (ponto.type === 'pausa_fim') {
+      if (!last || last.type !== 'pausa_inicio') {
+        return jsonRes(res, 403, { error: 'Você só pode retomar se estiver em pausa.' });
+      }
+    }
+    if (ponto.type === 'saida') {
+      if (!last || (last.type !== 'entrada' && last.type !== 'pausa_retomar')) {
+        return jsonRes(res, 403, { error: 'Você só pode encerrar se estiver em turno ativo (não em pausa).' });
+      }
     }
     ponto.id   = 'PON-' + ponto.ts + '-' + Math.random().toString(36).slice(2, 7);
     ponto.hora = brTimeStrSec(ponto.ts);
@@ -702,14 +718,25 @@ async function handleAPI(req, res) {
     if (ponto.type === 'saida') {
       const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a, b) => b.ts - a.ts);
       if (entradas.length > 0) {
-        const entrada  = entradas[0];
-        const diffMins = Math.round((ponto.ts - entrada.ts) / 60000);
-        const baseMins = CARGO_BASE_MINUTES[ponto.cargo] || 0;
-        const extraMins  = Math.max(0, diffMins - baseMins);
+        const entrada = entradas[0];
+        // ═══ CÁLCULO DE TEMPO LÍQUIDO (descontando pausas) ═══
+        const pausasInicio = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'pausa_inicio' && p.ts > entrada.ts && p.ts < ponto.ts);
+        const pausasFim    = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'pausa_fim'    && p.ts > entrada.ts && p.ts < ponto.ts);
+        pausasInicio.sort((a, b) => a.ts - b.ts);
+        pausasFim.sort((a, b) => a.ts - b.ts);
+        let totalPausaMs = 0;
+        const numPausasCompletas = Math.min(pausasInicio.length, pausasFim.length);
+        for (let i = 0; i < numPausasCompletas; i++) {
+          totalPausaMs += (pausasFim[i].ts - pausasInicio[i].ts);
+        }
+        const diffMins  = Math.round((ponto.ts - entrada.ts - totalPausaMs) / 60000);
+        const baseMins  = CARGO_BASE_MINUTES[ponto.cargo] || 0;
+        const extraMins = Math.max(0, diffMins - baseMins);
         ponto.trabalhado = diffMins;
         ponto.extraMins  = extraMins;
         ponto.extraReais = Math.floor(extraMins / 30) * 20;
         ponto.debtMins   = Math.max(0, baseMins - diffMins);
+        ponto.pausaMins  = Math.round(totalPausaMs / 60000);
         
         // ═══ BÔNUS: +1 giro por hora extra (60min) ═══
         girosGanhos = Math.floor(extraMins / 60);
@@ -735,10 +762,15 @@ async function handleAPI(req, res) {
     }
     saveData();
     const hora = brTimeStr(ponto.ts);
-    let auditMsg = `<b>${ponto.nome}</b> ${ponto.type === 'entrada' ? 'bateu ponto às ' + hora : 'encerrou o turno às ' + hora}`;
+    let auditMsg = `<b>${ponto.nome}</b> `;
+    if (ponto.type === 'entrada')       auditMsg += `bateu ponto às ${hora}`;
+    else if (ponto.type === 'pausa_inicio') auditMsg += `⏸️ iniciou pausa às ${hora}`;
+    else if (ponto.type === 'pausa_fim')    auditMsg += `▶️ retomou o turno às ${hora}`;
+    else if (ponto.type === 'saida')        auditMsg += `encerrou o turno às ${hora}`;
     if (ponto.type === 'saida' && ponto.trabalhado !== undefined) {
       const h = Math.floor(ponto.trabalhado / 60), m = ponto.trabalhado % 60;
       auditMsg += ` — ${h}h${m > 0 ? m + 'min' : ''} trabalhadas.`;
+      if (ponto.pausaMins > 0) auditMsg += ` <b style="color:var(--warn);">(⏸️ ${ponto.pausaMins}min de pausa)</b>`;
       if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
       if (girosGanhos > 0)      auditMsg += ` <b style="color:#a78bfa;">(+${girosGanhos} 🎰 giro${girosGanhos>1?'s':''})</b>`;
       if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins / 60)}h${(ponto.debtMins % 60).toString().padStart(2, '0')})</b>`;
