@@ -693,8 +693,12 @@ async function handleAPI(req, res) {
       return jsonRes(res, 200, { ok: true, ponto: last, dup: true });
     }
     // ═══ VALIDAÇÕES DE FLUXO DE PAUSA ═══
+    // Estados válidos para pausar ou encerrar: entrada, pausa_retomar, pausa_fim
+    // Estado válido para retomar: apenas pausa_inicio
+    const podePausarOuEncerrar = last && (last.type === 'entrada' || last.type === 'pausa_retomar' || last.type === 'pausa_fim');
+    
     if (ponto.type === 'pausa_inicio') {
-      if (!last || last.type !== 'entrada' && last.type !== 'pausa_retomar') {
+      if (!podePausarOuEncerrar) {
         return jsonRes(res, 403, { error: 'Você só pode pausar se estiver em turno ativo.' });
       }
     }
@@ -704,7 +708,7 @@ async function handleAPI(req, res) {
       }
     }
     if (ponto.type === 'saida') {
-      if (!last || (last.type !== 'entrada' && last.type !== 'pausa_retomar')) {
+      if (!podePausarOuEncerrar) {
         return jsonRes(res, 403, { error: 'Você só pode encerrar se estiver em turno ativo (não em pausa).' });
       }
     }
