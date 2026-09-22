@@ -66,6 +66,13 @@ const API = {
   // ═══ MASTER: HORAS + VIP ═══
   ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
   toggleVip:        (username, ativo, feitorPor)              => API.request('PUT',    `/users/${username}/vip`, { ativo, feitorPor }),
+  getVipInfo:       (username)                                => API.request('GET',    `/users/${username}/vip`),
+  addMedalha:       (username, medalha, motivo, feitorPor)    => API.request('POST',   `/users/${username}/medalhas`, { medalha, motivo, feitorPor }),
+  removeMedalha:    (username, idx, feitorPor)                => API.request('DELETE', `/users/${username}/medalhas`, { idx, feitorPor }),
+  getHall:          ()                                        => API.request('GET',    '/hall-da-fama'),
+  getPrisoes:       ()                                        => API.request('GET',    '/prisoes'),
+  createPrisao:     (data)                                    => API.request('POST',   '/prisoes', data),
+  deletePrisao:     (id, feitorPor)                           => API.request('DELETE', `/prisoes/${id}`, { feitorPor }),
 
   // ═══ USUÁRIO: RECADO + FOTO ═══
   atualizarRecado:  (texto, feitorPor)                        => API.request('PUT',    '/users/me/recado', { texto, feitorPor }),
@@ -170,13 +177,14 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.audit))     STATE.audit     = payload.audit;
     if (Array.isArray(payload.feedbacks)) STATE.feedbacks = payload.feedbacks;
     if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
+    if (Array.isArray(payload.prisoes))   STATE.prisoes   = payload.prisoes;
     if (Array.isArray(payload.roletaPremios)) STATE.roletaPremios = payload.roletaPremios;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[], chats: payload.chats||[],
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[],
     roletaPremios: payload.roletaPremios||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
@@ -245,6 +253,12 @@ function _handleServerMsg(msg) {
   if (type === 'CHAT_MSG_DELETED' && typeof STATE !== 'undefined') {
     STATE.chats = STATE.chats.filter(x => x.id !== payload.id);
     LSCache.merge('chats', STATE.chats);
+  }
+  if (type === 'NEW_PRISAO' && typeof STATE !== 'undefined') {
+    if (!STATE.prisoes.find(x => x.id === payload.id)) { STATE.prisoes.unshift(payload); LSCache.merge('prisoes', STATE.prisoes); }
+  }
+  if (type === 'PRISOES_UPDATED' && typeof STATE !== 'undefined') {
+    STATE.prisoes = payload; LSCache.merge('prisoes', STATE.prisoes);
   }
   if (type === 'ROLETA_PREMIOS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.roletaPremios = payload;
