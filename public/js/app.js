@@ -21,11 +21,11 @@
     .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
     .vip-led::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:rgba(14,14,16,.98);z-index:1;}
     .vip-led>*{position:relative;z-index:2;}
-    /* ══ LED RGB (foto/avatar) — foto recortada certinho ══ */
+    /* ══ LED RGB (foto/avatar) — foto recortada CERTINHO dentro da bolha ══ */
     .vip-led-avatar{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 2.6s ease-in-out infinite !important;}
     .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
     .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:#17171a;z-index:1;}
-    .vip-led-avatar>img{inset:5px !important;border-radius:12px !important;z-index:2 !important;object-fit:cover !important;display:block !important;}
+    .vip-led-avatar>img{inset:5px !important;width:auto !important;height:auto !important;border-radius:12px !important;object-fit:cover !important;display:block !important;}
     .vip-letter{position:relative;z-index:2;display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
     /* ══ MODAL GIGANTE com contorno VERMELHO correndo ══ */
     .vip-led-red{animation:vipPulseRed 2.6s ease-in-out infinite !important;}
@@ -462,10 +462,21 @@ function abrirModalPerfil(){
   const av=document.getElementById('pf-avatar');
   const cardBox=av?av.parentElement:null;
   const userBox=document.getElementById('pf-user')?document.getElementById('pf-user').parentElement:null;
-  const recadoBox=document.getElementById('pf-recado')?document.getElementById('pf-recado').closest('.fg'):null;
   const modalBox=document.querySelector('#m-perfil .modal');
 
-  // ══ Foto/avatar com LED RGB (recorte corrigido) ══
+  // ══ Wrapper dinâmico arredondado SÓ ao redor do textarea do recado ══
+  const recadoInput0=document.getElementById('pf-recado');
+  let recadoWrap=document.getElementById('pf-recado-wrap');
+  if(recadoInput0&&!recadoWrap){
+    recadoWrap=document.createElement('div');
+    recadoWrap.id='pf-recado-wrap';
+    recadoWrap.style.borderRadius='16px';
+    recadoWrap.style.padding='4px';
+    recadoInput0.parentNode.insertBefore(recadoWrap,recadoInput0);
+    recadoWrap.appendChild(recadoInput0);
+  }
+
+  // ══ Foto/avatar com LED RGB (recorte CERTINHO dentro da bolha) ══
   if(av){
     if(isVip&&!u.foto){
       av.innerHTML=`<span class="vip-letter">${avatarLetraDe(u)}</span>`;
@@ -474,10 +485,10 @@ function abrirModalPerfil(){
     }
     av.classList.toggle('vip-led-avatar',isVip);
   }
-  // ══ LED RGB nas bolhas (nome, @usuário e descrição/recado) ══
+  // ══ LED RGB nas bolhas (nome, @usuário) e no wrapper do recado ══
   if(cardBox)cardBox.classList.toggle('vip-led',isVip);
   if(userBox)userBox.classList.toggle('vip-led',isVip);
-  if(recadoBox)recadoBox.classList.toggle('vip-led',isVip);
+  if(recadoWrap)recadoWrap.classList.toggle('vip-led',isVip);
   // ══ Contorno VERMELHO correndo no modal gigante ══
   if(modalBox){
     modalBox.classList.toggle('vip-led',isVip);
