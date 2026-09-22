@@ -1,3 +1,30 @@
+// ════════════════════════════════════════════════════════════
+// ══ VIP LED RGB — contorno giratório injetado globalmente ══
+// ════════════════════════════════════════════════════════════
+(function(){
+  if(document.getElementById('vip-led-css'))return;
+  const st=document.createElement('style');
+  st.id='vip-led-css';
+  st.textContent=`
+    @keyframes vipRot{to{transform:translate(-50%,-50%) rotate(360deg);}}
+    @keyframes vipPulse{
+      0%,100%{box-shadow:0 0 14px rgba(255,0,76,.40),0 0 30px rgba(0,213,255,.25);}
+      33%{box-shadow:0 0 14px rgba(0,255,133,.40),0 0 30px rgba(255,230,0,.25);}
+      66%{box-shadow:0 0 14px rgba(123,0,255,.40),0 0 30px rgba(255,0,212,.25);}
+    }
+    .vip-led{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 3s ease-in-out infinite !important;}
+    .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
+    .vip-led::after{content:'';position:absolute;inset:3px;border-radius:12px;background:rgba(14,14,16,.98);z-index:1;}
+    .vip-led>*{position:relative;z-index:2;}
+    .vip-led-avatar{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 2.6s ease-in-out infinite !important;}
+    .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
+    .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:12px;background:#17171a;z-index:1;}
+    .vip-led-avatar>img{inset:4px !important;border-radius:11px !important;z-index:2 !important;}
+    .vip-letter{position:relative;z-index:2;display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
+  `;
+  document.head.appendChild(st);
+})();
+
 // ══ CONFIG ══
 const CARGO_LABEL={admin:'Admin master',chefe:'Chefe de polícia',delegado:'Delegado',escrivao:'Escrivão',tatico:'Tático',agente:'Agente oficial',gm:'Guarda municipal'};
 const CARGO_BADGE_CLASS={admin:'cb-master',chefe:'cb-chefe',delegado:'cb-delegado',escrivao:'cb-escrivao',tatico:'cb-tatico',agente:'cb-agente',gm:'cb-guarda'};
@@ -417,12 +444,28 @@ async function toggleVipUsuario(username,nome,ativo){
   }catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ MEU PERFIL (FOTO + RECAD0) ══
+// ══ MEU PERFIL (FOTO + RECAD0 + LED RGB VIP) ══
 function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
+  const isVip=!!u.vip;
   const av=document.getElementById('pf-avatar');
-  if(av){av.innerHTML=avatarContent(u);}
+  const cardBox=av?av.parentElement:null;
+  const userBox=document.getElementById('pf-user')?document.getElementById('pf-user').parentElement:null;
+
+  // ══ Foto/avatar com LED RGB se VIP ══
+  if(av){
+    if(isVip&&!u.foto){
+      av.innerHTML=`<span class="vip-letter">${avatarLetraDe(u)}</span>`;
+    }else{
+      av.innerHTML=avatarContent(u);
+    }
+    av.classList.toggle('vip-led-avatar',isVip);
+  }
+  // ══ Bolhas com LED RGB se VIP ══
+  if(cardBox)cardBox.classList.toggle('vip-led',isVip);
+  if(userBox)userBox.classList.toggle('vip-led',isVip);
+
   document.getElementById('pf-nome').textContent=u.nome||'—';
   document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo||'—';
   document.getElementById('pf-cargo').className='cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'');
@@ -437,7 +480,7 @@ function abrirModalPerfil(){
   const recadoLock=document.getElementById('pf-recado-lock');
   const recadoInput=document.getElementById('pf-recado');
   const saveBtn=document.getElementById('pf-save-btn');
-  if(u.vip){
+  if(isVip){
     vipBadge.style.display='inline-block';
     recadoLock.style.display='none';
     recadoInput.disabled=false;
