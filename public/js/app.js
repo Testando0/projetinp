@@ -59,9 +59,9 @@ function handleSocketMessage(data){
       }
       break;
     case 'USERS_UPDATED':
-      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,recado:mu.recado||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
+      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,recado:mu.recado||'',foto:mu.foto||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
       if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('vips'))renderTab(activeTab);
-      if(activeTab===getTabIdx('chat'))renderChatListaContatos();
+      if(activeTab===getTabIdx('chat')){renderChatListaContatos();renderChatMensagens();}
       if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
       break;
     case 'VIP_CHANGED':
@@ -118,7 +118,7 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,recado:su.recado||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
   showPanel();
 }
 function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;}
@@ -208,6 +208,16 @@ function updateNotif(){
 }
 
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ══ AVATAR HELPERS (FOTO DE PERFIL) ══
+function avatarBg(u){
+  if(u&&u.foto)return `background-image:url('${String(u.foto).replace(/'/g,"%27")}');background-size:cover;background-position:center;`;
+  return '';
+}
+function avatarLetra(u){
+  if(u&&u.foto)return '';
+  return (u&&u.nome?u.nome:'?').charAt(0).toUpperCase();
+}
 
 // ══ INTRODUÇÃO ══
 const INTRO_REGRAS = `Aqui estão disponibilizados os seus estudos diários.
@@ -357,25 +367,22 @@ function vVips(){
   const users=STATE.users.filter(u=>u.user!==me.user);
   const vips=users.filter(u=>u.vip);
   const naoVips=users.filter(u=>!u.vip);
-  
   const vipRows=vips.map(u=>`
     <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar">${u.nome.charAt(0).toUpperCase()}</div><div><div style="font-weight:600;">${u.nome} <span style="padding:2px 8px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.62rem;font-weight:700;margin-left:6px;">🌟 VIP</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div><div style="font-weight:600;">${u.nome} <span style="padding:2px 8px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.62rem;font-weight:700;margin-left:6px;">🌟 VIP</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
       <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
       <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-mid);">${u.recado||'<i>sem recado</i>'}</td>
       <td><button class="btn btn-danger btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',false)">❌ REMOVER VIP</button></td>
     </tr>
   `).join('');
-  
   const naoVipRows=naoVips.map(u=>`
     <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar">${u.nome.charAt(0).toUpperCase()}</div><div><div style="font-weight:600;">${u.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div><div style="font-weight:600;">${u.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
       <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
       <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-dim);">—</td>
       <td><button class="btn btn-success btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',true)">🌟 DAR VIP</button></td>
     </tr>
   `).join('');
-  
   return `<div class="stitle">▸ GERENCIAR VIPS</div>
     <div class="card" style="margin-bottom:20px;">
       <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;margin-bottom:12px;">🌟 USUÁRIOS VIP (${vips.length})</div>
@@ -386,33 +393,45 @@ function vVips(){
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>RECAD0</th><th>AÇÃO</th></tr></thead><tbody>${naoVipRows}</tbody></table></div>
     </div>`;
 }
-
 async function toggleVipUsuario(username,nome,ativo){
   if(!confirm(`${ativo?'Dar VIP para':'Remover VIP de'} ${nome}?`))return;
   try{
     const res=await API.toggleVip(username,ativo,me.user);
-    if(res&&res.ok){
-      toast(ativo?`🌟 ${nome} agora é VIP!`:`❌ VIP de ${nome} removido.`,ativo?'s':'w');
-    }else toast(res?.error||'Erro.','d');
+    if(res&&res.ok){toast(ativo?`🌟 ${nome} agora é VIP!`:`❌ VIP de ${nome} removido.`,ativo?'s':'w');}
+    else toast(res?.error||'Erro.','d');
   }catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ MEU PERFIL (RECAD0 VIP) ══
+// ══ MEU PERFIL (FOTO + RECAD0) ══
 function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
-  
-  document.getElementById('pf-avatar').textContent=(u.nome||'?').charAt(0).toUpperCase();
+  const av=document.getElementById('pf-avatar');
+  if(av){
+    if(u.foto){
+      av.style.backgroundImage=`url('${String(u.foto).replace(/'/g,"%27")}')`;
+      av.style.backgroundSize='cover';
+      av.style.backgroundPosition='center';
+      av.textContent='';
+    }else{
+      av.style.backgroundImage='';
+      av.textContent=avatarLetra(u);
+    }
+  }
   document.getElementById('pf-nome').textContent=u.nome||'—';
   document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo||'—';
   document.getElementById('pf-cargo').className='cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'');
   document.getElementById('pf-user').textContent='@'+(u.user||me.user);
-  
+  const rm=document.getElementById('pf-foto-remove');
+  if(rm)rm.style.display=u.foto?'inline-flex':'none';
+  const st=document.getElementById('pf-foto-status');
+  if(st)st.textContent='';
+  const inp=document.getElementById('pf-foto-input');
+  if(inp)inp.value='';
   const vipBadge=document.getElementById('pf-vip-badge');
   const recadoLock=document.getElementById('pf-recado-lock');
   const recadoInput=document.getElementById('pf-recado');
   const saveBtn=document.getElementById('pf-save-btn');
-  
   if(u.vip){
     vipBadge.style.display='inline-block';
     recadoLock.style.display='none';
@@ -426,9 +445,56 @@ function abrirModalPerfil(){
     recadoInput.value='';
     saveBtn.style.display='none';
   }
-  
   atualizarContadorRecado();
   openModal('m-perfil');
+}
+
+const IMGBB_KEY='599411b1c02c7129d1b0da9bd4634c09';
+async function uploadFotoPerfil(){
+  const input=document.getElementById('pf-foto-input');
+  const status=document.getElementById('pf-foto-status');
+  if(!input||!input.files||!input.files.length){toast('Selecione uma imagem primeiro.','w');return;}
+  const file=input.files[0];
+  if(!file.type.startsWith('image/')){toast('Selecione um arquivo de imagem válido.','d');return;}
+  if(file.size>32*1024*1024){toast('A imagem deve ter no máximo 32MB.','d');return;}
+  if(status)status.textContent='⏫ Enviando imagem…';
+  const fd=new FormData();
+  fd.append('image',file);
+  try{
+    const resp=await fetch('https://api.imgbb.com/1/upload?key='+IMGBB_KEY,{method:'POST',body:fd});
+    if(!resp.ok)throw new Error('Erro HTTP: '+resp.status);
+    const data=await resp.json();
+    if(!(data&&data.success&&data.data&&data.data.url))throw new Error((data.error&&data.error.message)||'Resposta inválida da API');
+    const url=data.data.url;
+    const res=await API.salvarFotoPerfil(url,me.user);
+    if(res&&res.ok){
+      me.foto=url;
+      const su=STATE.users.find(x=>x.user===me.user);if(su)su.foto=url;
+      saveSession();
+      toast('✅ Foto de perfil atualizada!','s');
+      abrirModalPerfil();
+    }else{
+      if(status)status.textContent='';
+      toast((res&&res.error)||'Erro ao salvar foto.','d');
+    }
+  }catch(e){
+    if(status)status.textContent='';
+    toast('Erro ao enviar imagem: '+e.message,'d');
+  }finally{
+    input.value='';
+  }
+}
+async function removerFotoPerfil(){
+  try{
+    const res=await API.salvarFotoPerfil('',me.user);
+    if(res&&res.ok){
+      me.foto='';
+      const su=STATE.users.find(x=>x.user===me.user);if(su)su.foto='';
+      saveSession();
+      toast('Foto removida.','s');
+      abrirModalPerfil();
+    }else toast((res&&res.error)||'Erro.','d');
+  }catch(e){toast(e.message||'Erro.','d');}
 }
 
 function atualizarContadorRecado(){
@@ -443,10 +509,8 @@ function atualizarContadorRecado(){
 async function salvarRecado(){
   const texto=document.getElementById('pf-recado').value.trim();
   if(texto.length>200){toast('Recado muito longo (máx 200 caracteres).','w');return;}
-  
   const btn=document.getElementById('pf-save-btn');
   if(btn){btn.disabled=true;btn.textContent='▸ SALVANDO...';}
-  
   try{
     const res=await API.atualizarRecado(texto,me.user);
     if(res&&res.ok){
@@ -455,7 +519,7 @@ async function salvarRecado(){
       saveSession();
       toast('✅ Recado salvo!','s');
       closeModal('m-perfil');
-    }else toast(res?.error||'Erro ao salvar.','d');
+    }else toast((res&&res.error)||'Erro ao salvar.','d');
   }catch(e){toast(e.message||'Erro.','d');}
   finally{
     if(btn){btn.disabled=false;btn.textContent='💾 SALVAR RECAD0';}
@@ -589,7 +653,7 @@ function vInicio(){
   const today=brDateLong();
   const statsCards=p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:'';
   const auditRecent=STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>';
-  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);margin-bottom:4px;">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
+  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div class="u-avatar" style="width:56px;height:56px;font-size:1.5rem;${avatarBg(me)}">${avatarLetra(me)}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
 }
 function renderEstrelasHtml(n){let s='';for(let i=1;i<=5;i++){s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;}return s;}
 let _fbNotaAtual=0;
@@ -616,7 +680,7 @@ function confirmarDeleteOc(id){const oc=STATE.ocs.find(o=>o.id===id);if(!oc)retu
 async function deleteOc(id){try{await API.deleteOc(id,me.user);toast('Excluída.','w');}catch(e){toast(e.message,'d');}}
 async function cancelarOc(id){const oc=STATE.ocs.find(o=>o.id===id);if(!oc)return;try{await API.updateOc(id,{...oc,status:'cancelada',canceladoPor:me.user,canceladoEm:Date.now()});toast('Cancelada.','w');}catch(e){toast(e.message,'d');}}
 
-// ══ USUÁRIOS (+ AJUSTE DE HORAS PELO MASTER) ══
+// ══ USUÁRIOS (+ AJUSTE DE HORAS) ══
 function vUsuarios(){
   const myP=CARGO_PERM[me.cargo]||0;const master=isMaster();
   const rows=STATE.users.map(u=>{
@@ -631,7 +695,7 @@ function vUsuarios(){
     const horasExtras=u.horasExtrasAjustadas||0;
     const horasDevidas=u.horasDevidasAjustadas||0;
     const horasBadge=(master&&!isMe)?`<div style="display:flex;gap:4px;margin-top:4px;">${horasExtras>0?`<span style="font-size:.58rem;padding:2px 6px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);border-radius:999px;color:#4ade80;">+${horasExtras}min</span>`:''}${horasDevidas>0?`<span style="font-size:.58rem;padding:2px 6px;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);border-radius:999px;color:#f87171;">-${horasDevidas}min</span>`:''}</div>`:'';
-    return '<tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar">'+u.nome.charAt(0).toUpperCase()+'</div><div><div style="font-weight:600;">'+u.nome+' '+bannedBadge+'</div><div style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">@'+u.user+'</div>'+horasBadge+'</div></div></td><td>'+cargoCell+'</td><td><span class="status-chip '+(u.ativo?'sc-a':'sc-r')+'">'+(u.ativo?'✅ Ativo':'❌ Inativo')+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+(u.criadoPor||'padrão')+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+(isMe?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>':'')+(master&&!isMe?'<button class="btn btn-warn btn-xs" onclick="abrirModalHoras(\''+u.user+'\',\''+nn+'\')" title="Ajustar horas">⏱️</button>':'')+(canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+(canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+(canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+(canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+(u.ativo?'🚫':'✅')+'</button>':'')+((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+'</div></td></tr>';
+    return '<tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="'+avatarBg(u)+'">'+avatarLetra(u)+'</div><div><div style="font-weight:600;">'+u.nome+' '+bannedBadge+'</div><div style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">@'+u.user+'</div>'+horasBadge+'</div></div></td><td>'+cargoCell+'</td><td><span class="status-chip '+(u.ativo?'sc-a':'sc-r')+'">'+(u.ativo?'✅ Ativo':'❌ Inativo')+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+(u.criadoPor||'padrão')+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+(isMe?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>':'')+(master&&!isMe?'<button class="btn btn-warn btn-xs" onclick="abrirModalHoras(\''+u.user+'\',\''+nn+'\')" title="Ajustar horas">⏱️</button>':'')+(canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+(canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+(canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+(canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+(u.ativo?'🚫':'✅')+'</button>':'')+((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+'</div></td></tr>';
   }).join('');
   return '<div class="stitle">▸ GERENCIAR USUÁRIOS</div>'+((master||myP>=6)?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+'<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div><div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).'+(master?' • <b style="color:var(--warn);">⏱️ = Ajustar horas do usuário</b>':'')+'</div>';
 }
@@ -805,7 +869,7 @@ function vPontos(){
   var supervHtml='';
   if(isSuperv){
     const tabelaHoje=hoje2.length?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'+hoje2.map(function(p){const lbl=p.type==='folga'?'🌴':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
-    const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type==='pausa_inicio'?'⏸ PAUSA':p.type==='pausa_fim'?'▶ RETOMADA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;">'+nm.charAt(0)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
+    const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type==='pausa_inicio'?'⏸ PAUSA':p.type==='pausa_fim'?'▶ RETOMADA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;'+avatarBg(u)+'">'+avatarLetra(u)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
     supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
   return '<div class="stitle">▸ BATER PONTO</div>'+'<div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div>'+bancoHorasHtml+'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;
@@ -859,11 +923,7 @@ const ROLETA_PREMIOS_DEFAULT=[
   {id:'p5',valor:4000,peso:5,cor:'#8b5cf6',cor2:'#5b21b6',corBorda:'#a78bfa',nome:'Épico',icone:'👑',raridade:'epic2'},
   {id:'p6',valor:10000,peso:0.5,cor:'#ec4899',cor2:'#9d174d',corBorda:'#f9a8d4',nome:'LENDÁRIO',icone:'💠',raridade:'legendary'}
 ];
-
-function getPremiosAtuais(){
-  return (STATE.roletaPremios&&STATE.roletaPremios.length>0)?STATE.roletaPremios:ROLETA_PREMIOS_DEFAULT;
-}
-
+function getPremiosAtuais(){return (STATE.roletaPremios&&STATE.roletaPremios.length>0)?STATE.roletaPremios:ROLETA_PREMIOS_DEFAULT;}
 function _roletaStatus(){
   const master=isMaster();
   const giros=(me&&typeof me.girosBonus==='number')?me.girosBonus:0;
@@ -989,7 +1049,7 @@ function abrirModalBonus(){
   if(!isMaster())return;
   const usuarios=STATE.users.filter(u=>ROLETA_CARGOS_PERMITIDOS.includes(u.cargo)&&u.ativo!==false);
   const modal=document.createElement('div');modal.className='bonus-modal';modal.id='bonus-modal';
-  modal.innerHTML=`<div class="bonus-modal-content"><div class="bonus-modal-title">🎁 LIBERAR GIROS BÔNUS</div><div class="bonus-modal-sub">Selecione um usuário e informe a quantidade</div><div class="bonus-user-list">${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível.</div>':usuarios.map(u=>{const g=(typeof u.girosBonus==='number')?u.girosBonus:0;return `<div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')"><div class="bonus-user-avatar">${u.nome.charAt(0).toUpperCase()}</div><div class="bonus-user-info"><div class="bonus-user-name">${u.nome}</div><div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]||u.cargo}</div>${g>0?`<div class="bonus-user-giros">🎁 ${g} bônus</div>`:''}</div></div>`;}).join('')}</div><button class="bonus-modal-close" onclick="fecharModalBonus()">FECHAR</button></div>`;
+  modal.innerHTML=`<div class="bonus-modal-content"><div class="bonus-modal-title">🎁 LIBERAR GIROS BÔNUS</div><div class="bonus-modal-sub">Selecione um usuário e informe a quantidade</div><div class="bonus-user-list">${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível.</div>':usuarios.map(u=>{const g=(typeof u.girosBonus==='number')?u.girosBonus:0;return `<div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')"><div class="bonus-user-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div class="bonus-user-info"><div class="bonus-user-name">${u.nome}</div><div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]||u.cargo}</div>${g>0?`<div class="bonus-user-giros">🎁 ${g} bônus</div>`:''}</div></div>`;}).join('')}</div><button class="bonus-modal-close" onclick="fecharModalBonus()">FECHAR</button></div>`;
   document.body.appendChild(modal);
 }
 async function selecionarUsuarioBonus(user,nome){
@@ -1003,8 +1063,6 @@ async function selecionarUsuarioBonus(user,nome){
   catch(e){toast('Erro: '+(e.message||'Tente novamente.'),'d');}
 }
 function fecharModalBonus(){const modal=document.getElementById('bonus-modal');if(modal)modal.remove();}
-
-// ══ EDITOR DE PRÊMIOS DA ROLETA (SÓ MASTER) ══
 function abrirEditorPremios(){
   if(!isMaster())return;
   const premios=getPremiosAtuais();
@@ -1214,14 +1272,14 @@ function renderChatListaContatos(){
     const preview=ult?((ult.from===me.user?'Você: ':'')+ult.texto.slice(0,34)+(ult.texto.length>34?'…':'')):'';
     const naoLidas=(STATE.chats||[]).filter(m=>m.from===u.user&&m.to===me.user&&!lidos[m.id]).length;
     const ativo=_chatContatoAtual===u.user?'ativo':'';
-    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar">${(u.nome||'?').charAt(0).toUpperCase()}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome">${u.nome}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
+    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome">${u.nome}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
   }).join('');
 }
 function abrirChatCom(userLogin){
   _chatContatoAtual=userLogin;_marcarConversaComoLida(userLogin);
   const u=STATE.users.find(x=>x.user===userLogin);
   const header=document.getElementById('chat-header');
-  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar" style="width:36px;height:36px;font-size:.85rem;">${u.nome.charAt(0).toUpperCase()}</div><div style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
+  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar" style="width:36px;height:36px;font-size:.85rem;${avatarBg(u)}">${avatarLetra(u)}</div><div style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
   const inputWrap=document.getElementById('chat-input-wrap');if(inputWrap)inputWrap.style.display='flex';
   const viewLista=document.getElementById('chat-view-lista');const viewConversa=document.getElementById('chat-view-conversa');
   if(viewLista&&viewConversa&&window.matchMedia('(max-width:768px)').matches){viewLista.classList.add('escondido');viewConversa.classList.add('ativo');}
