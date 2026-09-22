@@ -408,14 +408,18 @@ function abrirModalPerfil(){
   const u=STATE.users.find(x=>x.user===me.user)||me;
   const av=document.getElementById('pf-avatar');
   if(av){
+    const letra=avatarLetra(u);
     if(u.foto){
-      av.style.backgroundImage=`url('${String(u.foto).replace(/'/g,"%27")}')`;
+      av.textContent='';
       av.style.backgroundSize='cover';
       av.style.backgroundPosition='center';
-      av.textContent='';
+      av.style.backgroundImage=`url('${String(u.foto).replace(/'/g,"%27")}')`;
+      const _img=new Image();
+      _img.onerror=()=>{av.style.backgroundImage='';av.textContent=letra;};
+      _img.src=u.foto;
     }else{
       av.style.backgroundImage='';
-      av.textContent=avatarLetra(u);
+      av.textContent=letra;
     }
   }
   document.getElementById('pf-nome').textContent=u.nome||'—';
