@@ -16,14 +16,14 @@
       0%,100%{box-shadow:0 0 16px rgba(255,0,0,.45),0 0 34px rgba(255,0,0,.22);}
       50%{box-shadow:0 0 24px rgba(255,60,60,.65),0 0 46px rgba(255,0,0,.35);}
     }
-    /* ══ LED RGB (bolhas) ══ */
+    /* ══ LED RGB (bolhas) — anel QUADRADO perfeito cobre todos os lados ══ */
     .vip-led{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 3s ease-in-out infinite !important;}
-    .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
+    .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:300%;height:auto;aspect-ratio:1/1;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
     .vip-led::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:rgba(14,14,16,.98);z-index:1;}
     .vip-led>*{position:relative;z-index:2;}
     /* ══ LED RGB (foto/avatar) — foto recortada CERTINHO dentro da bolha ══ */
     .vip-led-avatar{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 2.6s ease-in-out infinite !important;}
-    .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
+    .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:300%;height:auto;aspect-ratio:1/1;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
     .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:#17171a;z-index:1;}
     .vip-led-avatar>img{inset:5px !important;width:auto !important;height:auto !important;border-radius:12px !important;object-fit:cover !important;display:block !important;}
     .vip-letter{position:relative;z-index:2;display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
