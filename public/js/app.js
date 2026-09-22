@@ -400,14 +400,13 @@ async function toggleVipUsuario(username,nome,ativo){
 // ══ MEU PERFIL (RECAD0 VIP) ══
 function abrirModalPerfil(){
   if(!me)return;
-  const u=STATE.users.find(x=>x.user===me.user);
-  if(!u)return;
+  const u=STATE.users.find(x=>x.user===me.user)||me;
   
-  document.getElementById('pf-avatar').textContent=u.nome.charAt(0).toUpperCase();
-  document.getElementById('pf-nome').textContent=u.nome;
-  document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo;
+  document.getElementById('pf-avatar').textContent=(u.nome||'?').charAt(0).toUpperCase();
+  document.getElementById('pf-nome').textContent=u.nome||'—';
+  document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo||'—';
   document.getElementById('pf-cargo').className='cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'');
-  document.getElementById('pf-user').textContent='@'+u.user;
+  document.getElementById('pf-user').textContent='@'+(u.user||me.user);
   
   const vipBadge=document.getElementById('pf-vip-badge');
   const recadoLock=document.getElementById('pf-recado-lock');
@@ -451,6 +450,9 @@ async function salvarRecado(){
   try{
     const res=await API.atualizarRecado(texto,me.user);
     if(res&&res.ok){
+      me.recado=texto;
+      const su=STATE.users.find(x=>x.user===me.user);if(su)su.recado=texto;
+      saveSession();
       toast('✅ Recado salvo!','s');
       closeModal('m-perfil');
     }else toast(res?.error||'Erro ao salvar.','d');
