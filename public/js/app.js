@@ -1,4 +1,4 @@
-// ══ CONFIG ═
+// ══ CONFIG ══
 const CARGO_LABEL={admin:'Admin master',chefe:'Chefe de polícia',delegado:'Delegado',escrivao:'Escrivão',tatico:'Tático',agente:'Agente oficial',gm:'Guarda municipal'};
 const CARGO_BADGE_CLASS={admin:'cb-master',chefe:'cb-chefe',delegado:'cb-delegado',escrivao:'cb-escrivao',tatico:'cb-tatico',agente:'cb-agente',gm:'cb-guarda'};
 const CARGO_PERM={admin:7,chefe:6,delegado:5,escrivao:4,tatico:3,agente:2,gm:1};
@@ -34,24 +34,33 @@ function stopKeepAlive(){clearInterval(_keepIv);_keepIv=null;}
 async function ensureQuestionario(cargo){QUESTIONARIO=QUESTIONARIO||{};if(QUESTIONARIO[cargo])return QUESTIONARIO[cargo];try{QUESTIONARIO[cargo]=await API.request('GET','/prova/questionario?cargo='+cargo);}catch(e){console.error('[q]',e);QUESTIONARIO[cargo]=[];}return QUESTIONARIO[cargo];}
 async function ensureQuestionarioPrisoes(){if(QUESTIONARIO_PRISOES)return QUESTIONARIO_PRISOES;try{QUESTIONARIO_PRISOES=await API.request('GET','/prova/questionario?tipo=prisoes');}catch(e){console.error('[q]',e);return[];}return QUESTIONARIO_PRISOES;}
 
+// ═══ CORREÇÃO: não re-renderiza aba se há prova ativa ═══
+function renderTabSafe(idx){
+  if(_provaAtiva){
+    if(typeof updateNotif==='function')updateNotif();
+    return;
+  }
+  renderTab(idx);
+}
+
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
-    case 'INIT':updateNotif();if(me)renderTab(activeTab);break;
-    case 'NEW_OC':updateNotif();renderTab(activeTab);if(me&&payload.delegadoUser!==me.user)toast('Nova ocorrência: '+payload.id,'w');break;
-    case 'OC_UPDATED':updateNotif();renderTab(activeTab);break;
-    case 'OC_DELETED':updateNotif();renderTab(activeTab);break;
-    case 'NEW_PUN':renderTab(activeTab);toast('Nova punição para '+payload.nome,'w');break;
-    case 'PUNS_UPDATED':renderTab(activeTab);break;
-    case 'NEW_PONTO':renderTab(activeTab);if(me&&payload.userLogin!==me.user&&payload.type!=='folga')toast(payload.nome+' registrou ponto.','i');break;
-    case 'FOLGA_GRANTED':if(me&&payload.userLogin===me.user)toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);renderTab(activeTab);break;
+    case 'INIT':updateNotif();if(me)renderTabSafe(activeTab);break;
+    case 'NEW_OC':updateNotif();renderTabSafe(activeTab);if(me&&payload.delegadoUser!==me.user)toast('Nova ocorrência: '+payload.id,'w');break;
+    case 'OC_UPDATED':updateNotif();renderTabSafe(activeTab);break;
+    case 'OC_DELETED':updateNotif();renderTabSafe(activeTab);break;
+    case 'NEW_PUN':renderTabSafe(activeTab);toast('Nova punição para '+payload.nome,'w');break;
+    case 'PUNS_UPDATED':renderTabSafe(activeTab);break;
+    case 'NEW_PONTO':renderTabSafe(activeTab);if(me&&payload.userLogin!==me.user&&payload.type!=='folga')toast(payload.nome+' registrou ponto.','i');break;
+    case 'FOLGA_GRANTED':if(me&&payload.userLogin===me.user)toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);renderTabSafe(activeTab);break;
     case 'NEW_PROVA':
-      if(activeTab===getTabIdx('aprovas'))renderTab(activeTab);
+      if(activeTab===getTabIdx('aprovas'))renderTabSafe(activeTab);
       if(me&&(CARGO_PERM[me.cargo]||0)>=5&&payload.userLogin!==me.user)toast('📝 Nova '+(payload.tipo==='prisoes'?'avaliação pessoal':'prova')+' de '+payload.nome+' aguardando avaliação.','w');
       break;
-    case 'PROVAS_UPDATED':if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);break;
+    case 'PROVAS_UPDATED':if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTabSafe(activeTab);break;
     case 'PROVA_DECIDIDA':
-      if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTab(activeTab);
+      if(activeTab===getTabIdx('aprovas')||activeTab===getTabIdx('provas'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user){
         if(payload.decisao==='promovido')toast('🎉 PARABÉNS! Você foi promovido(a) a '+(CARGO_LABEL[payload.cargoAlvo]||payload.cargoAlvo)+'!','s',10000);
         else if(payload.decisao==='aprovado')toast('✅ Sua avaliação pessoal foi APROVADA por '+payload.feitorNome+'!','s',10000);
@@ -60,12 +69,12 @@ function handleSocketMessage(data){
       break;
     case 'USERS_UPDATED':
       if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,recado:mu.recado||'',foto:mu.foto||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
-      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('vips'))renderTab(activeTab);
+      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(activeTab===getTabIdx('chat')){renderChatListaContatos();renderChatMensagens();}
-      if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
+      if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);
       break;
     case 'VIP_CHANGED':
-      if(activeTab===getTabIdx('vips'))renderTab(activeTab);
+      if(activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user){
         me.vip=payload.ativo;
         if(!payload.ativo)me.recado='';
@@ -75,18 +84,18 @@ function handleSocketMessage(data){
       }
       break;
     case 'GIROS_GAINED':
-      if(me&&payload.userLogin===me.user){me.girosBonus=payload.total;saveSession();toast('🎰 +'+payload.giros+' giro(s) bônus! '+payload.motivo,'s',7000);fecharModalSemGiros();if(activeTab===getTabIdx('roleta'))renderTab(activeTab);}
+      if(me&&payload.userLogin===me.user){me.girosBonus=payload.total;saveSession();toast('🎰 +'+payload.giros+' giro(s) bônus! '+payload.motivo,'s',7000);fecharModalSemGiros();if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);}
       break;
     case 'ROLETA_PREMIOS_UPDATED':
-      if(activeTab===getTabIdx('roleta'))renderTab(activeTab);
+      if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);
       break;
-    case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
-    case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTab(activeTab);break;
+    case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
+    case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
     case 'NEW_FEEDBACK':
-      if(activeTab===getTabIdx('home'))renderTab(activeTab);
+      if(activeTab===getTabIdx('home'))renderTabSafe(activeTab);
       if(me&&payload.userLogin!==me.user&&(CARGO_PERM[me.cargo]||0)>=5)toast('⭐ '+payload.nome+' avaliou o sistema com '+payload.nota+'★','i');
       break;
-    case 'FEEDBACKS_UPDATED':if(activeTab===getTabIdx('home'))renderTab(activeTab);break;
+    case 'FEEDBACKS_UPDATED':if(activeTab===getTabIdx('home'))renderTabSafe(activeTab);break;
     case 'NEW_CHAT_MSG':
       if(me&&activeTab===getTabIdx('chat')){const outra=payload.from===me.user?payload.to:payload.from;if(_chatContatoAtual===outra)renderChatMensagens();renderChatListaContatos();if(payload.from!==me.user){toast('💬 '+payload.fromNome+': '+payload.texto.slice(0,40)+(payload.texto.length>40?'…':''),'i',3000);_tocarNotifChat();}}
       updateNotif();
@@ -94,15 +103,15 @@ function handleSocketMessage(data){
     case 'CHAT_MSG_DELETED':if(me&&activeTab===getTabIdx('chat')){renderChatMensagens();renderChatListaContatos();}break;
     case 'USER_BANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:payload.expiresAt,banReason:payload.reason,banBy:payload.banBy}:u);
-      if(activeTab===getTabIdx('users'))renderTab(activeTab);
+      if(activeTab===getTabIdx('users'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user)showBanScreen(payload);else if(me)toast('⛔ '+payload.userLogin+' suspenso.','w');break;
     case 'USER_UNBANNED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,banExpires:null,banReason:null,banBy:null}:u);
-      if(activeTab===getTabIdx('users'))renderTab(activeTab);
+      if(activeTab===getTabIdx('users'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user){clearSession();location.reload();}break;
     case 'CARGO_CHANGED':
       STATE.users=STATE.users.map(u=>u.user===payload.userLogin?{...u,cargo:payload.newCargo}:u);
-      if(activeTab===getTabIdx('users'))renderTab(activeTab);
+      if(activeTab===getTabIdx('users'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user){me.cargo=payload.newCargo;saveSession();const nl=CARGO_LABEL[payload.newCargo]||payload.newCargo;const msg=payload.tipo==='promovido'?`📈 Você foi promovido para <b>${nl}</b>!`:`📉 Você foi rebaixado para <b>${nl}</b>. Motivo: ${payload.motivo||'não informado'}`;showCargoNotif(msg,payload.tipo==='promovido'?'s':'d');const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}activeTab=0;buildTabs();renderTab(0);}break;
   }
 }
@@ -819,7 +828,6 @@ function somarBancoHoras(userLogin){
   });
   const ajE=u?.horasExtrasAjustadas||0;
   const ajD=u?.horasDevidasAjustadas||0;
-  // ═══ CORREÇÃO: nunca exibir saldo negativo após zerar ═══
   const totalExtra=Math.max(0,totalExtraCalc+ajE);
   const totalDebt=Math.max(0,totalDebtCalc+ajD);
   const totalReais=Math.floor(Math.max(0,totalExtra)/30)*20;
