@@ -1,4 +1,4 @@
-// ══ CONFIG ══
+// ══ CONFIG ═
 const CARGO_LABEL={admin:'Admin master',chefe:'Chefe de polícia',delegado:'Delegado',escrivao:'Escrivão',tatico:'Tático',agente:'Agente oficial',gm:'Guarda municipal'};
 const CARGO_BADGE_CLASS={admin:'cb-master',chefe:'cb-chefe',delegado:'cb-delegado',escrivao:'cb-escrivao',tatico:'cb-tatico',agente:'cb-agente',gm:'cb-guarda'};
 const CARGO_PERM={admin:7,chefe:6,delegado:5,escrivao:4,tatico:3,agente:2,gm:1};
@@ -209,15 +209,21 @@ function updateNotif(){
 
 function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
-// ══ AVATAR HELPERS (FOTO DE PERFIL) ══
-function avatarBg(u){
-  if(u&&u.foto)return `background-image:url('${String(u.foto).replace(/'/g,"%27")}');background-size:cover;background-position:center;`;
-  return '';
+// ══ AVATAR (FOTO DE PERFIL ROBUSTA COM FALLBACK) ══
+function avatarLetraDe(u){
+  const n=(u&&u.nome)?String(u.nome).trim():'';
+  const ch=n?n.charAt(0).toUpperCase():'?';
+  return ch||'?';
 }
-function avatarLetra(u){
-  if(u&&u.foto)return '';
-  return (u&&u.nome?u.nome:'?').charAt(0).toUpperCase();
+function avatarContent(u){
+  const letra=avatarLetraDe(u).replace(/'/g,'');
+  if(u&&u.foto){
+    const src=String(u.foto).replace(/"/g,'&quot;').replace(/'/g,'%27');
+    return `<img src="${src}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.remove();this.parentNode.textContent='${letra}';">`;
+  }
+  return letra;
 }
+const AVATAR_POS='position:relative;overflow:hidden;';
 
 // ══ INTRODUÇÃO ══
 const INTRO_REGRAS = `Aqui estão disponibilizados os seus estudos diários.
@@ -369,7 +375,7 @@ function vVips(){
   const naoVips=users.filter(u=>!u.vip);
   const vipRows=vips.map(u=>`
     <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div><div style="font-weight:600;">${u.nome} <span style="padding:2px 8px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.62rem;font-weight:700;margin-left:6px;">🌟 VIP</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div><div style="font-weight:600;">${u.nome} <span style="padding:2px 8px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.62rem;font-weight:700;margin-left:6px;">🌟 VIP</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
       <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
       <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-mid);">${u.recado||'<i>sem recado</i>'}</td>
       <td><button class="btn btn-danger btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',false)">❌ REMOVER VIP</button></td>
@@ -377,7 +383,7 @@ function vVips(){
   `).join('');
   const naoVipRows=naoVips.map(u=>`
     <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div><div style="font-weight:600;">${u.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
+      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div><div style="font-weight:600;">${u.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
       <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
       <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-dim);">—</td>
       <td><button class="btn btn-success btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',true)">🌟 DAR VIP</button></td>
@@ -407,21 +413,7 @@ function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
   const av=document.getElementById('pf-avatar');
-  if(av){
-    const letra=avatarLetra(u);
-    if(u.foto){
-      av.textContent='';
-      av.style.backgroundSize='cover';
-      av.style.backgroundPosition='center';
-      av.style.backgroundImage=`url('${String(u.foto).replace(/'/g,"%27")}')`;
-      const _img=new Image();
-      _img.onerror=()=>{av.style.backgroundImage='';av.textContent=letra;};
-      _img.src=u.foto;
-    }else{
-      av.style.backgroundImage='';
-      av.textContent=letra;
-    }
-  }
+  if(av){av.innerHTML=avatarContent(u);}
   document.getElementById('pf-nome').textContent=u.nome||'—';
   document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo||'—';
   document.getElementById('pf-cargo').className='cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'');
@@ -657,7 +649,7 @@ function vInicio(){
   const today=brDateLong();
   const statsCards=p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:'';
   const auditRecent=STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>';
-  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div class="u-avatar" style="width:56px;height:56px;font-size:1.5rem;${avatarBg(me)}">${avatarLetra(me)}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
+  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div class="u-avatar" style="width:56px;height:56px;font-size:1.5rem;${AVATAR_POS}">${avatarContent(me)}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
 }
 function renderEstrelasHtml(n){let s='';for(let i=1;i<=5;i++){s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;}return s;}
 let _fbNotaAtual=0;
@@ -699,7 +691,7 @@ function vUsuarios(){
     const horasExtras=u.horasExtrasAjustadas||0;
     const horasDevidas=u.horasDevidasAjustadas||0;
     const horasBadge=(master&&!isMe)?`<div style="display:flex;gap:4px;margin-top:4px;">${horasExtras>0?`<span style="font-size:.58rem;padding:2px 6px;background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.4);border-radius:999px;color:#4ade80;">+${horasExtras}min</span>`:''}${horasDevidas>0?`<span style="font-size:.58rem;padding:2px 6px;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);border-radius:999px;color:#f87171;">-${horasDevidas}min</span>`:''}</div>`:'';
-    return '<tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="'+avatarBg(u)+'">'+avatarLetra(u)+'</div><div><div style="font-weight:600;">'+u.nome+' '+bannedBadge+'</div><div style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">@'+u.user+'</div>'+horasBadge+'</div></div></td><td>'+cargoCell+'</td><td><span class="status-chip '+(u.ativo?'sc-a':'sc-r')+'">'+(u.ativo?'✅ Ativo':'❌ Inativo')+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+(u.criadoPor||'padrão')+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+(isMe?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>':'')+(master&&!isMe?'<button class="btn btn-warn btn-xs" onclick="abrirModalHoras(\''+u.user+'\',\''+nn+'\')" title="Ajustar horas">⏱️</button>':'')+(canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+(canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+(canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+(canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+(u.ativo?'🚫':'✅')+'</button>':'')+((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+'</div></td></tr>';
+    return '<tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="'+AVATAR_POS+'">'+avatarContent(u)+'</div><div><div style="font-weight:600;">'+u.nome+' '+bannedBadge+'</div><div style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--text-dim);">@'+u.user+'</div>'+horasBadge+'</div></div></td><td>'+cargoCell+'</td><td><span class="status-chip '+(u.ativo?'sc-a':'sc-r')+'">'+(u.ativo?'✅ Ativo':'❌ Inativo')+'</span></td><td style="font-family:\'Share Tech Mono\',monospace;font-size:.62rem;color:var(--text-dim);">'+(u.criadoPor||'padrão')+'</td><td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+(isMe?'<span style="font-family:\'Share Tech Mono\',monospace;font-size:.6rem;color:var(--accent);">VOCÊ</span>':'')+(master&&!isMe?'<button class="btn btn-warn btn-xs" onclick="abrirModalHoras(\''+u.user+'\',\''+nn+'\')" title="Ajustar horas">⏱️</button>':'')+(canAct?'<button class="btn btn-warn btn-xs" onclick="abrirResetSenha(\''+u.user+'\',\''+nn+'\')">🔑</button>':'')+(canAct&&!isBanned?'<button class="btn btn-danger btn-xs" onclick="abrirBanModal(\''+u.user+'\',\''+nn+'\',\''+u.cargo+'\')">⛔ SUSPENDER</button>':'')+(canAct&&isBanned?'<button class="btn btn-success btn-xs" onclick="removerBan(\''+u.user+'\',\''+nn+'\')">✅ LIBERAR</button>':'')+(canAct&&(master||myP>=6)?'<button class="btn btn-xs '+(u.ativo?'btn-danger':'btn-success')+'" onclick="toggleStatus(\''+u.user+'\','+((!u.ativo))+')">'+(u.ativo?'🚫':'✅')+'</button>':'')+((master||myP>=7)&&!isMe?'<button class="btn btn-danger btn-xs" onclick="confirmarDeleteUser(\''+u.user+'\',\''+nn+'\')">🗑</button>':'')+'</div></td></tr>';
   }).join('');
   return '<div class="stitle">▸ GERENCIAR USUÁRIOS</div>'+((master||myP>=6)?'<div style="display:flex;justify-content:flex-end;margin-bottom:16px;"><button class="btn btn-success btn-sm" onclick="abrirCriarUsuario()">+ CRIAR USUÁRIO</button></div>':'')+'<div class="card c-none" style="padding:0;overflow:hidden;"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>STATUS</th><th>CRIADO POR</th><th>AÇÕES</th></tr></thead><tbody>'+rows+'</tbody></table></div></div><div style="margin-top:10px;" class="hint">Total: <span>'+STATE.users.length+'</span> usuário(s).'+(master?' • <b style="color:var(--warn);">⏱️ = Ajustar horas do usuário</b>':'')+'</div>';
 }
@@ -827,8 +819,9 @@ function somarBancoHoras(userLogin){
   });
   const ajE=u?.horasExtrasAjustadas||0;
   const ajD=u?.horasDevidasAjustadas||0;
-  const totalExtra=totalExtraCalc+ajE;
-  const totalDebt=totalDebtCalc+ajD;
+  // ═══ CORREÇÃO: nunca exibir saldo negativo após zerar ═══
+  const totalExtra=Math.max(0,totalExtraCalc+ajE);
+  const totalDebt=Math.max(0,totalDebtCalc+ajD);
   const totalReais=Math.floor(Math.max(0,totalExtra)/30)*20;
   return{totalTrab,totalExtra,totalDebt,totalReais,turnos,totalPausa,ajE,ajD};
 }
@@ -873,7 +866,7 @@ function vPontos(){
   var supervHtml='';
   if(isSuperv){
     const tabelaHoje=hoje2.length?'<table class="tbl"><thead><tr><th>AGENTE</th><th>HORA</th><th>CARGO</th></tr></thead><tbody>'+hoje2.map(function(p){const lbl=p.type==='folga'?'🌴':p.hora;return('<tr><td><b>'+p.nome+'</b></td><td style="'+FM+'color:var(--accent);font-weight:700;">'+lbl+'</td><td><span class="cargo-badge '+(CARGO_BADGE_CLASS[p.cargo]||'')+'" style="font-size:.55rem;">'+(CARGO_LABEL[p.cargo]||p.cargo)+'</span></td></tr>');}).join('')+'</tbody></table>':'<p style="color:var(--text-dim);'+FM+'font-size:.68rem;">Nenhum hoje.</p>';
-    const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type==='pausa_inicio'?'⏸ PAUSA':p.type==='pausa_fim'?'▶ RETOMADA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;'+avatarBg(u)+'">'+avatarLetra(u)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
+    const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type==='pausa_inicio'?'⏸ PAUSA':p.type==='pausa_fim'?'▶ RETOMADA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;'+AVATAR_POS+'">'+avatarContent(u)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
     supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
   return '<div class="stitle">▸ BATER PONTO</div>'+'<div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div>'+bancoHorasHtml+'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;
@@ -1053,7 +1046,7 @@ function abrirModalBonus(){
   if(!isMaster())return;
   const usuarios=STATE.users.filter(u=>ROLETA_CARGOS_PERMITIDOS.includes(u.cargo)&&u.ativo!==false);
   const modal=document.createElement('div');modal.className='bonus-modal';modal.id='bonus-modal';
-  modal.innerHTML=`<div class="bonus-modal-content"><div class="bonus-modal-title">🎁 LIBERAR GIROS BÔNUS</div><div class="bonus-modal-sub">Selecione um usuário e informe a quantidade</div><div class="bonus-user-list">${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível.</div>':usuarios.map(u=>{const g=(typeof u.girosBonus==='number')?u.girosBonus:0;return `<div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')"><div class="bonus-user-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div class="bonus-user-info"><div class="bonus-user-name">${u.nome}</div><div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]||u.cargo}</div>${g>0?`<div class="bonus-user-giros">🎁 ${g} bônus</div>`:''}</div></div>`;}).join('')}</div><button class="bonus-modal-close" onclick="fecharModalBonus()">FECHAR</button></div>`;
+  modal.innerHTML=`<div class="bonus-modal-content"><div class="bonus-modal-title">🎁 LIBERAR GIROS BÔNUS</div><div class="bonus-modal-sub">Selecione um usuário e informe a quantidade</div><div class="bonus-user-list">${usuarios.length===0?'<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:.85rem;">Nenhum usuário elegível.</div>':usuarios.map(u=>{const g=(typeof u.girosBonus==='number')?u.girosBonus:0;return `<div class="bonus-user-item" onclick="selecionarUsuarioBonus('${u.user}','${u.nome.replace(/'/g,"\\'")}')"><div class="bonus-user-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div class="bonus-user-info"><div class="bonus-user-name">${u.nome}</div><div class="bonus-user-cargo">${CARGO_LABEL[u.cargo]||u.cargo}</div>${g>0?`<div class="bonus-user-giros">🎁 ${g} bônus</div>`:''}</div></div>`;}).join('')}</div><button class="bonus-modal-close" onclick="fecharModalBonus()">FECHAR</button></div>`;
   document.body.appendChild(modal);
 }
 async function selecionarUsuarioBonus(user,nome){
@@ -1276,14 +1269,14 @@ function renderChatListaContatos(){
     const preview=ult?((ult.from===me.user?'Você: ':'')+ult.texto.slice(0,34)+(ult.texto.length>34?'…':'')):'';
     const naoLidas=(STATE.chats||[]).filter(m=>m.from===u.user&&m.to===me.user&&!lidos[m.id]).length;
     const ativo=_chatContatoAtual===u.user?'ativo':'';
-    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar" style="${avatarBg(u)}">${avatarLetra(u)}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome">${u.nome}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
+    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome">${u.nome}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
   }).join('');
 }
 function abrirChatCom(userLogin){
   _chatContatoAtual=userLogin;_marcarConversaComoLida(userLogin);
   const u=STATE.users.find(x=>x.user===userLogin);
   const header=document.getElementById('chat-header');
-  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar" style="width:36px;height:36px;font-size:.85rem;${avatarBg(u)}">${avatarLetra(u)}</div><div style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
+  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar" style="width:36px;height:36px;font-size:.85rem;${AVATAR_POS}">${avatarContent(u)}</div><div style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
   const inputWrap=document.getElementById('chat-input-wrap');if(inputWrap)inputWrap.style.display='flex';
   const viewLista=document.getElementById('chat-view-lista');const viewConversa=document.getElementById('chat-view-conversa');
   if(viewLista&&viewConversa&&window.matchMedia('(max-width:768px)').matches){viewLista.classList.add('escondido');viewConversa.classList.add('ativo');}
