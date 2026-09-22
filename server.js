@@ -1,8 +1,13 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.15 — Servidor Completo (Corrigido)
- *  + VIP + Recados + Foto de Perfil (imgbb) + Master ajusta horas (CORRIGIDO)
- *  + Editar prêmios + Punições na auditoria (CORRIGIDO)
+ *  GMPOL Sistema Central v5.16 — MASTER VIP COMPLETO
+ *  + VIP + Recados + Foto de Perfil (imgbb) + Master ajusta horas
+ *  + Editar prêmios + Punições na auditoria
+ *  + 🌟 MASTER VIP: Sequência de dias/turnos, Score do perfil (0-100)
+ *  + 🏅 Medalhas (Bronze/Prata/Ouro/Diamante) — só Master dá (máx 5)
+ *  + ⏱️ Banco de horas VIP detalhado (normais, extras, operação, semana, recorde)
+ *  + 🏆 Hall da Fama / Funcionário do Mês
+ *  + 🚓 Sistema Prisional (PF, envolvido, hora, motivo)
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -31,6 +36,9 @@ const CARGO_LABEL_SRV = {
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
+const MEDALHAS_VALIDAS = { bronze: '🥉', prata: '🥈', ouro: '🥇', diamante: '💎' };
+const MEDALHAS_MAX_POR_PATENTE = 5;
+
 const DEFAULT_ROLETA_PREMIOS = [
   { id: 'p1', valor: 100,   peso: 70,  cor: '#10b981', cor2: '#059669', corBorda: '#34d399', nome: 'Comum',      icone: '💵', raridade: 'common' },
   { id: 'p2', valor: 500,   peso: 20,  cor: '#3b82f6', cor2: '#1d4ed8', corBorda: '#60a5fa', nome: 'Incomum',    icone: '💰', raridade: 'uncommon' },
@@ -50,7 +58,7 @@ const PROVAS_CARGO = {
     { enunciado: 'Quais patentes da PF podem utilizar a arma de fogo liberada (tipo Desert)?', alt: ['Guardas e Agentes','Escrivão, Tático e Delegado/Chefe','Todos os cargos','Apenas o Chefe'], correta: 1 },
     { enunciado: 'Para o Guarda ser promovido, ele precisa:', alt: ['Apenas de tempo jogado','Fazer paradinhas e passar pela prova','Pagar a administração','Pedir pra chefe diretamente'], correta: 1 },
     { enunciado: 'Qual é a ÚNICA patente da PF em que a promoção é feita APENAS por mérito, sem prova?', alt: ['Agente','Tático','Escrivão','Delegado'], correta: 2 },
-    { enunciado: 'É correto afirmar que o Guarda pode conduzir presos?', alt: ['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só se for autorizado pelo Chefe na hora'], correta: 1 },
+    { enunciado: 'É correto afirmar que o Guarda pode conduzir presos?', alt: ['Sim, sempre','Não, isso é função do Agente ou superior','Sim, mas só a pé','Só quando autorizado pelo Chefe na hora'], correta: 1 },
     { enunciado: 'O que o Guarda DEVE fazer ao encontrar um superior no Barra Amiga ou no interior da DP?', alt: ['Ignorar','Prender','Prestar continência','Pedir hora'], correta: 2 }
   ],
   agente: [
@@ -61,7 +69,7 @@ const PROVAS_CARGO = {
     { enunciado: 'O policial pode usar sua autoridade para conseguir dinheiro de um jogador?', alt: ['Sim','Não','Apenas em ocorrências','Apenas se for pouco dinheiro'], correta: 1 },
     { enunciado: 'Se um policial ameaça prender alguém sem justificativa para conseguir vantagem, isso pode ser:', alt: ['Abuso de poder','Patrulhamento','Procedimento normal','QRR'], correta: 0 },
     { enunciado: 'O que deve ser feito ao receber um QRR?', alt: ['Ignorar','Prestar apoio conforme os procedimentos','Desligar o rádio','Sair da ocorrência'], correta: 1 },
-    { enunciado: 'O uso da força deve ser:', alt: ['Sempre utilizado','Necessário e proporcional à situação','Usado para intimidar','Usado contra qualquer pessoa'], correta: 1 },
+    { enunciado: 'O uso da força deve ser:', alt: ['Sempre utilizado','Necessário e proporcional à situação','Usado para intimidar','Usado contra pessoas'], correta: 1 },
     { enunciado: 'O Agente pode utilizar o armamento apenas para intimidar um cidadão?', alt: ['Sim','Não','Sempre que estiver armado','Durante qualquer discussão'], correta: 1 },
     { enunciado: 'Um policial presencia outro Agente cometendo abuso de poder. O correto é:', alt: ['Ajudar a esconder','Seguir o procedimento correto para comunicar a infração','Ignorar sempre','Fazer o mesmo'], correta: 1 },
     { enunciado: 'O que é considerado uma conduta profissional?', alt: ['Respeito, disciplina e cumprimento das regras','Abuso de autoridade','Provocar suspeitos','Ignorar superiores'], correta: 0 },
@@ -71,7 +79,7 @@ const PROVAS_CARGO = {
     { enunciado: 'O que caracteriza uma ordem legítima?', alt: ['Uma ordem compatível com as regras','Qualquer ordem dada por um superior','Uma ordem para obter dinheiro','Uma ordem para prejudicar alguém'], correta: 0 },
     { enunciado: 'O Agente pode usar informações obtidas no serviço para benefício pessoal?', alt: ['Sim','Não','Apenas fora do expediente','Apenas com autorização de amigos'], correta: 1 },
     { enunciado: 'Qual atitude pode ser considerada abuso de poder?', alt: ['Realizar uma abordagem conforme as regras','Utilizar a autoridade para perseguir sem justificativa','Solicitar reforço','Fazer patrulhamento'], correta: 1 },
-    { enunciado: 'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt: ['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar','Abandonar o rádio'], correta: 0 },
+    { enunciado: 'Se uma situação estiver fora da capacidade da equipe, o Agente deve:', alt: ['Solicitar apoio','Agir sozinho obrigatoriamente','Ignorar a ocorrência','Abandonar o rádio'], correta: 0 },
     { enunciado: 'Qual é a importância do rádio durante o serviço?', alt: ['Comunicação e coordenação','Conversar assuntos pessoais','Provocar outros jogadores','Evitar pedir ajuda'], correta: 0 },
     { enunciado: 'Qual comportamento pode prejudicar a carreira de um Agente?', alt: ['Disciplina e respeito','Abuso de poder, corrupção e descumprimento das regras','Trabalho em equipe','Comunicação pelo rádio'], correta: 1 }
   ],
@@ -85,12 +93,12 @@ const PROVAS_CARGO = {
     { enunciado: 'Em uma ocorrência de alto risco, o Tático deve:', alt: ['Agir sem comunicação','Coordenar a equipe e solicitar apoio','Abandonar a ocorrência','Atuar sem planejamento'], correta: 1 },
     { enunciado: 'O policial pode usar sua função para benefício próprio?', alt: ['Sim','Apenas fora do serviço','Não','Somente com amigos'], correta: 2 },
     { enunciado: 'A comunicação pelo rádio durante uma operação serve para:', alt: ['Conversar assuntos pessoais','Coordenar a equipe e solicitar apoio','Distrair os policiais','Evitar contato com outras unidades'], correta: 1 },
-    { enunciado: 'Qual comportamento é esperado de um Tático?', alt: ['Disciplina, respeito às regras e trabalho em equipe','Abuso de autoridade','Desobedecer procedimentos','Agir sempre sozinho'], correta: 0 },
+    { enunciado: 'Qual comportamento é esperado de um Tático?', alt: ['Disciplina, respeito às regras e trabalho em equipe','Abuso de autoridade','Desobediência a procedimentos','Agir sempre sozinho'], correta: 0 },
     { enunciado: 'O Tático deve conhecer:', alt: ['Apenas os armamentos','As regras e procedimentos da unidade','Apenas os veículos','Apenas os códigos de rádio'], correta: 1 },
     { enunciado: 'Se a ocorrência for muito grande para a equipe presente:', alt: ['Agir sozinho','Solicitar reforço','Ignorar a ocorrência','Sair do servidor'], correta: 1 },
     { enunciado: 'Um policial deve usar o armamento:', alt: ['Para intimidar jogadores','Somente quando permitido e necessário','Sempre que estiver armado','Em qualquer discussão'], correta: 1 },
     { enunciado: 'Durante uma perseguição, o policial deve:', alt: ['Ignorar os procedimentos','Priorizar a segurança e seguir as regras','Atirar sempre','Colidir propositalmente'], correta: 1 },
-    { enunciado: 'O trabalho em equipe é importante porque:', alt: ['Facilita a coordenação da operação','Impede a comunicação','Permite agir sem regras','Evita pedir reforço'], correta: 0 },
+    { enunciado: 'O trabalho em equipe é importante porque:', alt: ['Facilita a coordenação da operação','Impede a comunicação','Permite agir sem regras','Evita pedir ajuda'], correta: 0 },
     { enunciado: 'Um Tático pode desrespeitar as regras por estar em uma unidade especial?', alt: ['Sim','Não','Apenas em perseguições','Apenas em operações'], correta: 1 },
     { enunciado: 'Ao receber uma ordem de um superior, o policial deve:', alt: ['Seguir os procedimentos e regras aplicáveis','Ignorar sempre','Fazer o contrário','Sair da ocorrência'], correta: 0 },
     { enunciado: 'Em uma ocorrência com vários suspeitos, o ideal é:', alt: ['Cada policial agir por conta própria','Coordenar a equipe e pedir apoio quando necessário','Ignorar o rádio','Entrar sem planejamento'], correta: 1 },
@@ -102,8 +110,8 @@ const PROVAS_CARGO = {
     { enunciado: 'Um policial informa pelo rádio "QTH" durante uma ocorrência. Qual é a finalidade?', alt: ['Informar a localização','Solicitar prioridade','Informar que a ocorrência terminou','Solicitar autorização para abandonar'], correta: 0 },
     { enunciado: 'Um agente comete infração disciplinar e pede ao Delegado que "deixe passar" por ter bons resultados. Qual princípio prevalece?', alt: ['Histórico positivo pode justificar dispensa','A amizade deve ser considerada antes da disciplina','A conduta deve ser analisada conforme as regras','O superior pode anular qualquer infração'], correta: 2 },
     { enunciado: 'Durante uma abordagem, um cidadão provoca verbalmente e o agente aplica punição que não corresponde à infração. Qual problema principal existe?', alt: ['Apenas falha de comunicação','Possível abuso de autoridade','Procedimento normal','Apenas falha no uso do rádio'], correta: 1 },
-    { enunciado: 'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt: ['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar a equipe que não confirmou'], correta: 1 },
-    { enunciado: 'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt: ['Manter segredo','Participar apenas se também receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta: 2 },
+    { enunciado: 'Em operação conjunta, um Delegado recebe informações contraditórias de duas equipes. Qual atitude mais adequada?', alt: ['Presumir que todos compreenderam','Organizar a comunicação e confirmar instruções','Retirar todos os agentes','Ignorar as equipes que não confirmaram'], correta: 1 },
+    { enunciado: 'Um policial presencia colega usando recursos da corporação para vantagem pessoal. O colega pede segredo. O policial deve:', alt: ['Manter segredo','Participar apenas se receber vantagem','Comunicar o fato pelos canais disciplinares apropriados','Esperar até que outro descubra'], correta: 2 },
     { enunciado: 'Durante uma ocorrência, um superior transmite ordem incompatível com regra operacional. O Delegado deve:', alt: ['Executar imediatamente','Questionar de forma profissional e verificar a regra','Desobedecer publicamente','Encerrar a comunicação'], correta: 1 },
     { enunciado: 'Um agente está sendo investigado e um superior determina remoção definitiva sem seguir procedimento. Qual princípio está sendo desrespeitado?', alt: ['Hierarquia','Disciplina','Código Q','Patrulhamento'], correta: 1 },
     { enunciado: 'Um Delegado percebe subordinado usando conduta desnecessariamente agressiva com civis sem ameaça. O Delegado deve:', alt: ['Permitir','Intervir, orientar e adotar medidas previstas','Ignorar','Autorizar uso de força maior'], correta: 1 },
@@ -130,12 +138,21 @@ function findUserByRef(ref) {
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
 }
 
-// ═══ CORREÇÃO: Calcula horas reais a partir dos pontos ═══
+// ═══ Calcula horas reais a partir dos pontos ═══
 function calcHorasServidor(userLogin){
   const pts=DB.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);
   let trab=0,extra=0,debt=0,pausa=0,turnos=0;
   pts.forEach(p=>{trab+=(p.trabalhado||0);pausa+=(p.pausaMins||0);extra+=(p.extraMins||0);debt+=(p.debtMins||0);turnos++;});
   return {trab,extra,debt,pausa,turnos};
+}
+
+// ═══ 🌟 VIP: XP do perfil (horas + medalhas + OCs + sequência) ═══
+function calcXP(u){
+  const h = calcHorasServidor(u.user);
+  const ocs = DB.ocs.filter(o => o.delegado === u.nome).length;
+  return Math.floor(h.trab / 60) * 10 + h.extra +
+         (u.medalhas || []).length * 250 +
+         ocs * 100 + (u.sequenciaAtiva || 0) * 50;
 }
 
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
@@ -145,12 +162,12 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [],
+    feedbacks: [], chats: [], prisoes: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS
   };
 }
@@ -160,7 +177,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
 }
@@ -177,7 +194,11 @@ function sanitize(p) {
     horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0,
     vip:                    u.vip === true,
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
-    foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : ''
+    foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
+    medalhas:               Array.isArray(u.medalhas) ? u.medalhas : [],
+    score:                  typeof u.score === 'number' ? u.score : 50,
+    sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
+    recordeHoras:           typeof u.recordeHoras === 'number' ? u.recordeHoras : 0
   }));
   const roletaPremios = Array.isArray(p.roletaPremios) && p.roletaPremios.length > 0
     ? p.roletaPremios.map(pr => ({
@@ -201,6 +222,7 @@ function sanitize(p) {
     audit:       Array.isArray(p.audit)      ? p.audit      : [],
     feedbacks:   Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
     chats:       Array.isArray(p.chats)      ? p.chats      : [],
+    prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
     roletaPremios
   };
 }
@@ -249,7 +271,7 @@ function saveDataSync() {
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios | ${DB.prisoes.length} prisões`);
 
 const wsClients = new Set();
 
@@ -437,6 +459,7 @@ async function handleAPI(req, res) {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
+      prisoes: DB.prisoes,
       roletaPremios: DB.roletaPremios
     });
   }
@@ -472,7 +495,8 @@ async function handleAPI(req, res) {
       criadoPor: criador.user, criadoEm: Date.now(),
       cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
       horasExtrasAjustadas: 0, horasDevidasAjustadas: 0,
-      vip: false, recado: '', foto: ''
+      vip: false, recado: '', foto: '',
+      medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0
     });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
@@ -480,7 +504,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ═══ MASTER: AJUSTAR HORAS (CORRIGIDO) ═══
+  // ═══ MASTER: AJUSTAR HORAS ═══
   const mHoras = url.match(/^\/api\/users\/([^/]+)\/horas$/);
   if (method === 'PUT' && mHoras) {
     const target = DB.users.find(u => u.user === mHoras[1]);
@@ -493,12 +517,10 @@ async function handleAPI(req, res) {
     if (typeof target.horasExtrasAjustadas  !== 'number') target.horasExtrasAjustadas = 0;
     if (typeof target.horasDevidasAjustadas !== 'number') target.horasDevidasAjustadas = 0;
 
-    // Saldo REAL vindo dos pontos registrados
     const calc = calcHorasServidor(target.user);
 
     let logMsg = '';
     if (acao === 'zerar') {
-      // Zera o SALDO TOTAL: compensa exatamente o que vem dos pontos
       target.horasExtrasAjustadas  = -calc.extra;
       target.horasDevidasAjustadas = -calc.debt;
       logMsg = `<b>${executor.nome}</b> ZEROU o saldo de horas de <b>${target.nome}</b> (extras e devidas)`;
@@ -515,7 +537,6 @@ async function handleAPI(req, res) {
       target.horasDevidasAjustadas = Math.max(-100000, Math.min(100000, target.horasDevidasAjustadas + devidas));
       logMsg = `<b>${executor.nome}</b> ajustou horas de <b>${target.nome}</b>: extras ${extras >= 0 ? '+' : ''}${extras}min, devidas ${devidas >= 0 ? '+' : ''}${devidas}min`;
     } else if (acao === 'set') {
-      // Define o TOTAL exibido: ajusta o offset para o total bater com o valor informado
       const extras  = Math.max(0, parseInt(extrasMins)  || 0);
       const devidas = Math.max(0, parseInt(devidasMins) || 0);
       target.horasExtrasAjustadas  = extras  - calc.extra;
@@ -535,7 +556,7 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ═══ MASTER: TOGGLE VIP ═══
+  // ═══ MASTER: TOGGLE VIP + 🌟 VIP INFO (GET) ═══
   const mVip = url.match(/^\/api\/users\/([^/]+)\/vip$/);
   if (method === 'PUT' && mVip) {
     const target = DB.users.find(u => u.user === mVip[1]);
@@ -560,6 +581,97 @@ async function handleAPI(req, res) {
       feitorNome: executor.nome
     });
     return jsonRes(res, 200, { ok: true, vip: target.vip });
+  }
+
+  // ═══ 🌟 VIP INFO: score 0-100 + banco de horas detalhado + sequência + medalhas ═══
+  if (method === 'GET' && mVip) {
+    const u = DB.users.find(x => x.user === mVip[1]);
+    if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    if (!Array.isArray(u.medalhas)) u.medalhas = [];
+
+    const horas = calcHorasServidor(u.user);
+
+    // Horas semanais (últimos 7 dias)
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const horasSemana = DB.pontos
+      .filter(p => p.userLogin === u.user && p.type === 'saida' && p.ts >= sevenDaysAgo)
+      .reduce((s, p) => s + (p.trabalhado || 0), 0);
+
+    // Score do perfil (0 a 100)
+    let score = 50;
+    score += (u.sequenciaAtiva || 0) * 2;                          // sequência de dias
+    score += Math.min(20, (u.medalhas || []).length * 5);          // medalhas
+    score += Math.min(20, Math.floor(horasSemana / 60));           // horas na semana
+    score -= Math.min(20, Math.floor(horas.debt / 60) * 5);        // horas devidas
+    score = Math.max(0, Math.min(100, score));
+    u.score = score;
+    saveData();
+
+    return jsonRes(res, 200, {
+      user: pub(u),
+      vip: u.vip === true,
+      score: score,
+      sequencia: u.sequenciaAtiva || 0,
+      medalhas: u.medalhas,
+      xp: calcXP(u),
+      horas: {
+        normais:  Math.max(0, horas.trab - horas.extra),
+        extras:   Math.max(0, horas.extra + (u.horasExtrasAjustadas || 0)),
+        operacao: horas.trab,
+        semanais: horasSemana,
+        recorde:  u.recordeHoras || 0,
+        pausas:   horas.pausa,
+        devidas:  Math.max(0, horas.debt + (u.horasDevidasAjustadas || 0)),
+        turnos:   horas.turnos
+      }
+    });
+  }
+
+  // ═══ 🏅 MEDALHAS: só o MASTER dá/remove (máx 5 por patente) ═══
+  const mMedalha = url.match(/^\/api\/users\/([^/]+)\/medalhas$/);
+  if (mMedalha) {
+    const target = DB.users.find(u => u.user === mMedalha[1]);
+    if (!target) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    if (!Array.isArray(target.medalhas)) target.medalhas = [];
+
+    if (method === 'POST') {
+      const { medalha, motivo, feitorPor } = body;
+      const executor = findUserByRef(feitorPor);
+      if (!executor || !isMaster(executor))
+        return jsonRes(res, 403, { error: '🔒 Somente o Admin Master pode dar medalhas.' });
+      if (!MEDALHAS_VALIDAS[medalha])
+        return jsonRes(res, 400, { error: 'Medalha inválida. Use: bronze, prata, ouro ou diamante.' });
+      if (target.medalhas.length >= MEDALHAS_MAX_POR_PATENTE)
+        return jsonRes(res, 400, { error: `Limite de ${MEDALHAS_MAX_POR_PATENTE} medalhas por patente atingido.` });
+
+      const med = {
+        tipo: medalha,
+        icone: MEDALHAS_VALIDAS[medalha],
+        motivo: String(motivo || 'Por trabalho').slice(0, 100),
+        dadoPor: executor.nome,
+        ts: Date.now()
+      };
+      target.medalhas.push(med);
+      saveData();
+      audit(`<b>${executor.nome}</b> deu a medalha ${med.icone} <b>${medalha.toUpperCase()}</b> para <b>${target.nome}</b> — ${med.motivo}`, '🏅');
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      broadcast('NEW_MEDALHA', { userLogin: target.user, medalha: med });
+      return jsonRes(res, 200, { ok: true, medalhas: target.medalhas });
+    }
+
+    if (method === 'DELETE') {
+      const executor = findUserByRef(body.feitorPor);
+      if (!executor || !isMaster(executor))
+        return jsonRes(res, 403, { error: '🔒 Somente o Admin Master pode remover medalhas.' });
+      const idx = parseInt(body.idx);
+      if (isNaN(idx) || idx < 0 || idx >= target.medalhas.length)
+        return jsonRes(res, 404, { error: 'Medalha não encontrada.' });
+      const rem = target.medalhas.splice(idx, 1)[0];
+      saveData();
+      audit(`<b>${executor.nome}</b> removeu a medalha ${rem.icone} de <b>${target.nome}</b>`, '🏅');
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      return jsonRes(res, 200, { ok: true, medalhas: target.medalhas });
+    }
   }
 
   // ═══ USUÁRIO: ATUALIZAR RECADO (só VIP) ═══
@@ -792,7 +904,6 @@ async function handleAPI(req, res) {
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
     DB.puns.push(pun); saveData();
-    // ═══ CORREÇÃO: punições na auditoria ═══
     audit(`<b>${pun.autor}</b> registrou punição <b>${pun.nivel}</b> para <b>${pun.nome}</b> — ${pun.motivo}`, '⚠️');
     broadcast('NEW_PUN', pun);
     return jsonRes(res, 200, { ok: true, pun });
@@ -801,7 +912,6 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunId) {
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
-    // ═══ CORREÇÃO: punições na auditoria ═══
     const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
     audit(`<b>${body.feitorPor}</b> removeu a punição de <b>${nome}</b>`, '🗑');
@@ -812,7 +922,6 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunIdx) {
     const i = parseInt(mPunIdx[1]);
     if (isNaN(i) || i < 0 || i >= DB.puns.length) return jsonRes(res, 404, { error: 'Índice inválido.' });
-    // ═══ CORREÇÃO: punições na auditoria ═══
     const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
     audit(`<b>${body.feitorPor}</b> removeu a punição de <b>${nome}</b>`, '🗑');
@@ -831,6 +940,9 @@ async function handleAPI(req, res) {
     if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
     if (typeof u.horasExtrasAjustadas !== 'number') u.horasExtrasAjustadas = 0;
     if (typeof u.horasDevidasAjustadas !== 'number') u.horasDevidasAjustadas = 0;
+    if (!Array.isArray(u.medalhas)) u.medalhas = [];
+    if (typeof u.sequenciaAtiva !== 'number') u.sequenciaAtiva = 0;
+    if (typeof u.recordeHoras !== 'number') u.recordeHoras = 0;
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
     if ((ponto.type === 'entrada' || ponto.type === 'pausa_retomar') && u.folgaDia === dBr) {
@@ -899,6 +1011,26 @@ async function handleAPI(req, res) {
         broadcast('FOLGA_GRANTED', { userLogin: u.user, folgaDia: fd });
       }
       ponto.ciclo = u.cicloDias.length; ponto.folgaDia = u.folgaDia;
+
+      // ═══ 🌟 VIP: SEQUÊNCIA DE DIAS/TURNOS ATIVOS + RECORDE PESSOAL ═══
+      const prevSaida = DB.pontos
+        .filter(p => p.userLogin === u.user && p.type === 'saida' && p.ts < ponto.ts)
+        .sort((a, b) => b.ts - a.ts)[0];
+      if (!prevSaida) {
+        u.sequenciaAtiva = 1;
+      } else {
+        const lastDay = brDateStr(prevSaida.ts);
+        if (lastDay === dBr) {
+          // mesmo dia: sequência não muda
+        } else if (nextBrDateStr(lastDay) === dBr) {
+          u.sequenciaAtiva = (u.sequenciaAtiva || 0) + 1;   // dia seguido! 🔥
+        } else {
+          u.sequenciaAtiva = 1;                             // quebrou a sequência
+        }
+      }
+      if ((ponto.trabalhado || 0) > (u.recordeHoras || 0)) {
+        u.recordeHoras = ponto.trabalhado;                  // novo recorde pessoal! 🏆
+      }
     }
     saveData();
     const hora = brTimeStr(ponto.ts);
@@ -916,6 +1048,7 @@ async function handleAPI(req, res) {
       if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
       if (girosGanhos > 0)      auditMsg += ` <b style="color:#a78bfa;">(+${girosGanhos} 🎰 giro${girosGanhos>1?'s':''})</b>`;
       if (ponto.debtMinsTotal > 0) auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMinsTotal / 60)}h${(ponto.debtMinsTotal % 60).toString().padStart(2, '0')})</b>`;
+      auditMsg += ` <b style="color:#fbbf24;">(🔥 sequência: ${u.sequenciaAtiva} dia(s))</b>`;
     }
     audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
@@ -1180,6 +1313,72 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
+  // ══════════════════════════════════════════════════════════
+  // 🏆 HALL DA FAMA / FUNCIONÁRIO DO MÊS
+  // ══════════════════════════════════════════════════════════
+  if (method === 'GET' && url === '/api/hall-da-fama') {
+    const ocsDe = (nome) => DB.ocs.filter(o => o.delegado === nome).length;
+    const opsDe = (nome) => DB.ocs.filter(o => o.delegado === nome && String(o.tipo || '').toLowerCase().includes('oper')).length;
+    const top5  = (arr) => arr.slice(0, 5);
+    const hall = {
+      maisHoras:        top5([...DB.users].sort((a, b) => calcHorasServidor(b.user).trab - calcHorasServidor(a.user).trab))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: calcHorasServidor(u.user).trab })),
+      maisOcorrencias:  top5([...DB.users].sort((a, b) => ocsDe(b.nome) - ocsDe(a.nome)))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: ocsDe(u.nome) })),
+      maisOperacoes:    top5([...DB.users].sort((a, b) => opsDe(b.nome) - opsDe(a.nome)))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: opsDe(u.nome) })),
+      maiorSequencia:   top5([...DB.users].sort((a, b) => (b.sequenciaAtiva || 0) - (a.sequenciaAtiva || 0)))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: u.sequenciaAtiva || 0 })),
+      maiorXp:          top5([...DB.users].sort((a, b) => calcXP(b) - calcXP(a)))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: calcXP(u) })),
+      maisMedalhas:     top5([...DB.users].sort((a, b) => (b.medalhas || []).length - (a.medalhas || []).length))
+                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: (u.medalhas || []).length }))
+    };
+    hall.funcionarioDoMes = hall.maisHoras[0] || null;
+    return jsonRes(res, 200, hall);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🚓 SISTEMA PRISIONAL
+  // ══════════════════════════════════════════════════════════
+  if (method === 'GET' && url === '/api/prisoes') return jsonRes(res, 200, DB.prisoes);
+
+  if (method === 'POST' && url === '/api/prisoes') {
+    const { nomePF, nomeEnvolvido, motivo } = body;
+    if (!nomePF || !nomeEnvolvido || !motivo)
+      return jsonRes(res, 400, { error: 'Preencha: Nome do PF, Nome do envolvido e Motivo da prisão.' });
+    const prisao = {
+      id: 'PRI-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      nomePF:        String(nomePF).slice(0, 60),
+      nomeEnvolvido: String(nomeEnvolvido).slice(0, 60),
+      motivo:        String(motivo).slice(0, 200),
+      hora: brTimeStrSec(Date.now()),
+      data: brDateStr(Date.now()),
+      ts:   Date.now()
+    };
+    DB.prisoes.unshift(prisao);
+    DB.prisoes = DB.prisoes.slice(0, 500);
+    saveData();
+    audit(`<b>${prisao.nomePF}</b> efetuou prisão de <b>${prisao.nomeEnvolvido}</b> às ${prisao.hora} — motivo: ${prisao.motivo}`, '🚓');
+    broadcast('NEW_PRISAO', prisao);
+    broadcast('PRISOES_UPDATED', DB.prisoes);
+    return jsonRes(res, 200, { ok: true, prisao });
+  }
+
+  const mPrisao = url.match(/^\/api\/prisoes\/([^/]+)$/);
+  if (method === 'DELETE' && mPrisao) {
+    const i = DB.prisoes.findIndex(p => p.id === mPrisao[1]);
+    if (i === -1) return jsonRes(res, 404, { error: 'Prisão não encontrada.' });
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) < 5)
+      return jsonRes(res, 403, { error: 'Apenas Delegado, Chefe ou Master podem excluir prisões.' });
+    const rem = DB.prisoes.splice(i, 1)[0];
+    saveData();
+    audit(`<b>${executor.nome}</b> removeu a prisão de <b>${rem.nomeEnvolvido}</b>`, '🔓');
+    broadcast('PRISOES_UPDATED', DB.prisoes);
+    return jsonRes(res, 200, { ok: true });
+  }
+
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
@@ -1201,6 +1400,7 @@ httpServer.on('upgrade', (req, socket, head) => {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
+      prisoes: DB.prisoes,
       roletaPremios: DB.roletaPremios
     }
   });
@@ -1231,22 +1431,23 @@ setInterval(() => {
   wsClients.forEach(s => {
     if (!s.isAlive) { wsClose(s); return; }
     s.isAlive = false;
-    try { s.write(wsBuildFrame(Buffer.alloc(0), 0x09)); } catch (_) { wsClose(s); }
+    try { s.write(wsBuildFrame(Buffer.alloc(0), 0x09)); } catch (e) { wsClose(s); }
   });
 }, 25000);
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.15        ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.16        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   ✅ Zerar horas CORRIGIDO               ║');
-  console.log('║   ✅ Punições na auditoria CORRIGIDO     ║');
-  console.log('║   🌟 VIP + Recados + Foto imgbb          ║');
-  console.log('║   🎰 Roleta editável pelo Master         ║');
+  console.log('║   🌟 MASTER VIP: score 0-100 + sequência ║');
+  console.log('║   🏅 Medalhas (só Master dá, máx 5)      ║');
+  console.log('║   ⏱️ Banco de horas VIP detalhado        ║');
+  console.log('║   🏆 Hall da Fama / Funcionário do Mês   ║');
+  console.log('║   🚓 Sistema Prisional completo          ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
@@ -1263,4 +1464,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                      }
+   }
