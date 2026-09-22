@@ -12,15 +12,25 @@
       33%{box-shadow:0 0 14px rgba(0,255,133,.40),0 0 30px rgba(255,230,0,.25);}
       66%{box-shadow:0 0 14px rgba(123,0,255,.40),0 0 30px rgba(255,0,212,.25);}
     }
+    @keyframes vipPulseRed{
+      0%,100%{box-shadow:0 0 16px rgba(255,0,0,.45),0 0 34px rgba(255,0,0,.22);}
+      50%{box-shadow:0 0 24px rgba(255,60,60,.65),0 0 46px rgba(255,0,0,.35);}
+    }
+    /* ══ LED RGB (bolhas) ══ */
     .vip-led{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 3s ease-in-out infinite !important;}
     .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
-    .vip-led::after{content:'';position:absolute;inset:3px;border-radius:12px;background:rgba(14,14,16,.98);z-index:1;}
+    .vip-led::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:rgba(14,14,16,.98);z-index:1;}
     .vip-led>*{position:relative;z-index:2;}
+    /* ══ LED RGB (foto/avatar) — foto recortada certinho ══ */
     .vip-led-avatar{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 2.6s ease-in-out infinite !important;}
     .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:250%;height:250%;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
-    .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:12px;background:#17171a;z-index:1;}
-    .vip-led-avatar>img{inset:4px !important;border-radius:11px !important;z-index:2 !important;}
+    .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:#17171a;z-index:1;}
+    .vip-led-avatar>img{inset:5px !important;border-radius:12px !important;z-index:2 !important;object-fit:cover !important;display:block !important;}
     .vip-letter{position:relative;z-index:2;display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
+    /* ══ MODAL GIGANTE com contorno VERMELHO correndo ══ */
+    .vip-led-red{animation:vipPulseRed 2.6s ease-in-out infinite !important;}
+    .vip-led-red::before{background:conic-gradient(#ff0000,#ff5555,#ff0000,#cc0000,#ff2222,#ff0000);animation:vipRot 3.2s linear infinite;}
+    .vip-led-red::after{background:rgba(14,14,16,.98);}
   `;
   document.head.appendChild(st);
 })();
@@ -444,7 +454,7 @@ async function toggleVipUsuario(username,nome,ativo){
   }catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ MEU PERFIL (FOTO + RECAD0 + LED RGB VIP) ══
+// ══ MEU PERFIL (FOTO + RECAD0 + LED RGB + VERMELHO NO MODAL) ══
 function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
@@ -452,8 +462,10 @@ function abrirModalPerfil(){
   const av=document.getElementById('pf-avatar');
   const cardBox=av?av.parentElement:null;
   const userBox=document.getElementById('pf-user')?document.getElementById('pf-user').parentElement:null;
+  const recadoBox=document.getElementById('pf-recado')?document.getElementById('pf-recado').closest('.fg'):null;
+  const modalBox=document.querySelector('#m-perfil .modal');
 
-  // ══ Foto/avatar com LED RGB se VIP ══
+  // ══ Foto/avatar com LED RGB (recorte corrigido) ══
   if(av){
     if(isVip&&!u.foto){
       av.innerHTML=`<span class="vip-letter">${avatarLetraDe(u)}</span>`;
@@ -462,9 +474,15 @@ function abrirModalPerfil(){
     }
     av.classList.toggle('vip-led-avatar',isVip);
   }
-  // ══ Bolhas com LED RGB se VIP ══
+  // ══ LED RGB nas bolhas (nome, @usuário e descrição/recado) ══
   if(cardBox)cardBox.classList.toggle('vip-led',isVip);
   if(userBox)userBox.classList.toggle('vip-led',isVip);
+  if(recadoBox)recadoBox.classList.toggle('vip-led',isVip);
+  // ══ Contorno VERMELHO correndo no modal gigante ══
+  if(modalBox){
+    modalBox.classList.toggle('vip-led',isVip);
+    modalBox.classList.toggle('vip-led-red',isVip);
+  }
 
   document.getElementById('pf-nome').textContent=u.nome||'—';
   document.getElementById('pf-cargo').textContent=CARGO_LABEL[u.cargo]||u.cargo||'—';
