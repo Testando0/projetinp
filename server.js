@@ -1,8 +1,8 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.10 — Servidor Completo
- *  + Roleta com giros ilimitados para Master
- *  + Giros bônus automáticos por hora extra trabalhada
+ *  GMPOL Sistema Central v5.12 — Servidor Completo
+ *  + Master gerencia horas (extras, devidas) por usuário
+ *  + Master edita prêmios da roleta
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -30,6 +30,16 @@ const CARGO_LABEL_SRV = {
   escrivao: 'Escrivão', tatico: 'Tático', agente: 'Agente oficial', gm: 'Guarda municipal'
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
+
+// ═══ PRÊMIOS DA ROLETA (padrão — salvos no DB) ═══
+const DEFAULT_ROLETA_PREMIOS = [
+  { id: 'p1', valor: 100,   peso: 70,  cor: '#10b981', cor2: '#059669', corBorda: '#34d399', nome: 'Comum',      icone: '💵', raridade: 'common' },
+  { id: 'p2', valor: 500,   peso: 20,  cor: '#3b82f6', cor2: '#1d4ed8', corBorda: '#60a5fa', nome: 'Incomum',    icone: '💰', raridade: 'uncommon' },
+  { id: 'p3', valor: 2000,  peso: 40,  cor: '#f59e0b', cor2: '#b45309', corBorda: '#fbbf24', nome: 'Raro',       icone: '💎', raridade: 'rare' },
+  { id: 'p4', valor: 3000,  peso: 5,   cor: '#ef4444', cor2: '#991b1b', corBorda: '#f87171', nome: 'Muito Raro', icone: '🏆', raridade: 'epic' },
+  { id: 'p5', valor: 4000,  peso: 5,   cor: '#8b5cf6', cor2: '#5b21b6', corBorda: '#a78bfa', nome: 'Épico',      icone: '👑', raridade: 'epic2' },
+  { id: 'p6', valor: 10000, peso: 0.5, cor: '#ec4899', cor2: '#9d174d', corBorda: '#f9a8d4', nome: 'LENDÁRIO',   icone: '💠', raridade: 'legendary' }
+];
 
 const PROVAS_CARGO = {
   gm: [
@@ -116,7 +126,6 @@ const PRISOES_QUESTOES = [
 ];
 
 function isMaster(u) { return !!u && u.user === 'master'; }
-
 function findUserByRef(ref) {
   if (!ref) return null;
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
@@ -129,12 +138,13 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: []
+    feedbacks: [], chats: [],
+    roletaPremios: DEFAULT_ROLETA_PREMIOS
   };
 }
 
@@ -143,7 +153,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
 }
@@ -152,20 +162,36 @@ function sanitize(p) {
   const def = getDefaultData();
   const users = (Array.isArray(p.users) ? p.users : def.users).map(u => ({
     ...u,
-    cicloDias:        Array.isArray(u.cicloDias) ? u.cicloDias : [],
-    folgaDia:         u.folgaDia || null,
-    girosBonus:       typeof u.girosBonus === 'number' ? u.girosBonus : 0,
-    ultimoGiroRoleta: u.ultimoGiroRoleta || null
+    cicloDias:              Array.isArray(u.cicloDias) ? u.cicloDias : [],
+    folgaDia:               u.folgaDia || null,
+    girosBonus:             typeof u.girosBonus === 'number' ? u.girosBonus : 0,
+    ultimoGiroRoleta:       u.ultimoGiroRoleta || null,
+    horasExtrasAjustadas:   typeof u.horasExtrasAjustadas === 'number' ? u.horasExtrasAjustadas : 0,
+    horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0
   }));
+  const roletaPremios = Array.isArray(p.roletaPremios) && p.roletaPremios.length > 0
+    ? p.roletaPremios.map(pr => ({
+        id: pr.id || 'p-' + Math.random().toString(36).slice(2, 8),
+        valor:    typeof pr.valor === 'number' ? pr.valor : 100,
+        peso:     typeof pr.peso === 'number' ? pr.peso : 1,
+        cor:      typeof pr.cor === 'string' ? pr.cor : '#10b981',
+        cor2:     typeof pr.cor2 === 'string' ? pr.cor2 : pr.cor,
+        corBorda: typeof pr.corBorda === 'string' ? pr.corBorda : pr.cor,
+        nome:     typeof pr.nome === 'string' ? pr.nome : 'Prêmio',
+        icone:    typeof pr.icone === 'string' ? pr.icone : '🎁',
+        raridade: typeof pr.raridade === 'string' ? pr.raridade : 'common'
+      }))
+    : DEFAULT_ROLETA_PREMIOS;
   return {
     users,
-    ocs:        Array.isArray(p.ocs)        ? p.ocs        : [],
-    puns:       Array.isArray(p.puns)       ? p.puns       : [],
-    pontos:     Array.isArray(p.pontos)     ? p.pontos     : [],
-    provas:     Array.isArray(p.provas)     ? p.provas     : [],
-    audit:      Array.isArray(p.audit)      ? p.audit      : [],
-    feedbacks:  Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
-    chats:      Array.isArray(p.chats)      ? p.chats      : []
+    ocs:         Array.isArray(p.ocs)        ? p.ocs        : [],
+    puns:        Array.isArray(p.puns)       ? p.puns       : [],
+    pontos:      Array.isArray(p.pontos)     ? p.pontos     : [],
+    provas:      Array.isArray(p.provas)     ? p.provas     : [],
+    audit:       Array.isArray(p.audit)      ? p.audit      : [],
+    feedbacks:   Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
+    chats:       Array.isArray(p.chats)      ? p.chats      : [],
+    roletaPremios
   };
 }
 
@@ -213,7 +239,7 @@ function saveDataSync() {
 }
 
 let DB = loadData();
-console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats`);
+console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios`);
 
 // ══════════════════════════════════════════════════════════════
 // ══ WEBSOCKET ═════════════════════════════════════════════
@@ -409,7 +435,8 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
-      feedbacks: DB.feedbacks, chats: DB.chats
+      feedbacks: DB.feedbacks, chats: DB.chats,
+      roletaPremios: DB.roletaPremios
     });
   }
 
@@ -440,11 +467,66 @@ async function handleAPI(req, res) {
       return jsonRes(res, 403, { error: 'Apenas Chefes de Polícia podem criar usuários.' });
     if (!master && (CARGO_PERM_SRV[cargo] || 0) >= (CARGO_PERM_SRV[criador.cargo] || 0))
       return jsonRes(res, 403, { error: 'Não pode criar usuários com cargo igual ou superior ao seu.' });
-    DB.users.push({ user: login, pass, cargo, nome, ativo: true, criadoPor: criador.user, criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null });
+    DB.users.push({
+      user: login, pass, cargo, nome, ativo: true,
+      criadoPor: criador.user, criadoEm: Date.now(),
+      cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
+      horasExtrasAjustadas: 0, horasDevidasAjustadas: 0
+    });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true });
+  }
+
+  // ═══ NOVO: MASTER AJUSTAR HORAS DO USUÁRIO ═══
+  const mHoras = url.match(/^\/api\/users\/([^/]+)\/horas$/);
+  if (method === 'PUT' && mHoras) {
+    const target = DB.users.find(u => u.user === mHoras[1]);
+    if (!target) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const { extrasMins, devidasMins, acao, feitorPor } = body;
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode ajustar horas.' });
+
+    if (typeof target.horasExtrasAjustadas  !== 'number') target.horasExtrasAjustadas = 0;
+    if (typeof target.horasDevidasAjustadas !== 'number') target.horasDevidasAjustadas = 0;
+
+    let logMsg = '';
+    if (acao === 'zerar') {
+      target.horasExtrasAjustadas = 0;
+      target.horasDevidasAjustadas = 0;
+      logMsg = `<b>${executor.nome}</b> zerou horas extras e devidas de <b>${target.nome}</b>`;
+    } else if (acao === 'zerar_extras') {
+      target.horasExtrasAjustadas = 0;
+      logMsg = `<b>${executor.nome}</b> zerou horas extras de <b>${target.nome}</b>`;
+    } else if (acao === 'zerar_devidas') {
+      target.horasDevidasAjustadas = 0;
+      logMsg = `<b>${executor.nome}</b> zerou horas devidas de <b>${target.nome}</b>`;
+    } else if (acao === 'ajustar') {
+      const extras = parseInt(extrasMins) || 0;
+      const devidas = parseInt(devidasMins) || 0;
+      target.horasExtrasAjustadas  = Math.max(-100000, Math.min(100000, target.horasExtrasAjustadas + extras));
+      target.horasDevidasAjustadas = Math.max(-100000, Math.min(100000, target.horasDevidasAjustadas + devidas));
+      logMsg = `<b>${executor.nome}</b> ajustou horas de <b>${target.nome}</b>: extras ${extras >= 0 ? '+' : ''}${extras}min, devidas ${devidas >= 0 ? '+' : ''}${devidas}min`;
+    } else if (acao === 'set') {
+      const extras = parseInt(extrasMins) || 0;
+      const devidas = parseInt(devidasMins) || 0;
+      target.horasExtrasAjustadas  = Math.max(0, extras);
+      target.horasDevidasAjustadas = Math.max(0, devidas);
+      logMsg = `<b>${executor.nome}</b> definiu horas de <b>${target.nome}</b>: extras ${extras}min, devidas ${devidas}min`;
+    } else {
+      return jsonRes(res, 400, { error: 'Ação inválida.' });
+    }
+
+    saveData();
+    audit(logMsg, '⏱️');
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, {
+      ok: true,
+      horasExtrasAjustadas: target.horasExtrasAjustadas,
+      horasDevidasAjustadas: target.horasDevidasAjustadas
+    });
   }
 
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
@@ -529,7 +611,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ NOVO: MASTER LIBERAR GIROS BÔNUS ══
   const mGiros = url.match(/^\/api\/users\/([^/]+)\/giros$/);
   if (method === 'POST' && mGiros) {
     const target = DB.users.find(u => u.user === mGiros[1]);
@@ -547,9 +628,7 @@ async function handleAPI(req, res) {
     audit(`<b>${executor.nome}</b> liberou <b>${q} giro(s) bônus</b> para <b>${target.nome}</b>`, '🎁');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     broadcast('GIROS_GAINED', {
-      userLogin: target.user,
-      giros: q,
-      total: target.girosBonus,
+      userLogin: target.user, giros: q, total: target.girosBonus,
       motivo: `${q} giro(s) liberado(s) pelo Master`
     });
     return jsonRes(res, 200, { ok: true, girosBonus: target.girosBonus });
@@ -673,7 +752,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ PONTOS + GIROS BÔNUS POR HORA EXTRA ══
+  // ══ PONTOS (com ajuste de horas do master) ══
   if (method === 'GET' && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -683,6 +762,8 @@ async function handleAPI(req, res) {
     if (!Array.isArray(u.cicloDias)) u.cicloDias = [];
     if (!u.folgaDia) u.folgaDia = null;
     if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
+    if (typeof u.horasExtrasAjustadas !== 'number') u.horasExtrasAjustadas = 0;
+    if (typeof u.horasDevidasAjustadas !== 'number') u.horasDevidasAjustadas = 0;
     ponto.ts = ponto.ts || Date.now();
     const dBr = brDateStr(ponto.ts);
     if ((ponto.type === 'entrada' || ponto.type === 'pausa_retomar') && u.folgaDia === dBr) {
@@ -692,26 +773,13 @@ async function handleAPI(req, res) {
     if (last && last.type === ponto.type && (ponto.ts - last.ts) < 3000) {
       return jsonRes(res, 200, { ok: true, ponto: last, dup: true });
     }
-    // ═══ VALIDAÇÕES DE FLUXO DE PAUSA ═══
-    // Estados válidos para pausar ou encerrar: entrada, pausa_retomar, pausa_fim
-    // Estado válido para retomar: apenas pausa_inicio
     const podePausarOuEncerrar = last && (last.type === 'entrada' || last.type === 'pausa_retomar' || last.type === 'pausa_fim');
-    
-    if (ponto.type === 'pausa_inicio') {
-      if (!podePausarOuEncerrar) {
-        return jsonRes(res, 403, { error: 'Você só pode pausar se estiver em turno ativo.' });
-      }
-    }
-    if (ponto.type === 'pausa_fim') {
-      if (!last || last.type !== 'pausa_inicio') {
-        return jsonRes(res, 403, { error: 'Você só pode retomar se estiver em pausa.' });
-      }
-    }
-    if (ponto.type === 'saida') {
-      if (!podePausarOuEncerrar) {
-        return jsonRes(res, 403, { error: 'Você só pode encerrar se estiver em turno ativo (não em pausa).' });
-      }
-    }
+    if (ponto.type === 'pausa_inicio' && !podePausarOuEncerrar)
+      return jsonRes(res, 403, { error: 'Você só pode pausar se estiver em turno ativo.' });
+    if (ponto.type === 'pausa_fim' && (!last || last.type !== 'pausa_inicio'))
+      return jsonRes(res, 403, { error: 'Você só pode retomar se estiver em pausa.' });
+    if (ponto.type === 'saida' && !podePausarOuEncerrar)
+      return jsonRes(res, 403, { error: 'Você só pode encerrar se estiver em turno ativo (não em pausa).' });
     ponto.id   = 'PON-' + ponto.ts + '-' + Math.random().toString(36).slice(2, 7);
     ponto.hora = brTimeStrSec(ponto.ts);
     ponto.data = dBr;
@@ -723,7 +791,6 @@ async function handleAPI(req, res) {
       const entradas = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'entrada').sort((a, b) => b.ts - a.ts);
       if (entradas.length > 0) {
         const entrada = entradas[0];
-        // ═══ CÁLCULO DE TEMPO LÍQUIDO (descontando pausas) ═══
         const pausasInicio = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'pausa_inicio' && p.ts > entrada.ts && p.ts < ponto.ts);
         const pausasFim    = DB.pontos.filter(p => p.userLogin === ponto.userLogin && p.type === 'pausa_fim'    && p.ts > entrada.ts && p.ts < ponto.ts);
         pausasInicio.sort((a, b) => a.ts - b.ts);
@@ -736,14 +803,17 @@ async function handleAPI(req, res) {
         const diffMins  = Math.round((ponto.ts - entrada.ts - totalPausaMs) / 60000);
         const baseMins  = CARGO_BASE_MINUTES[ponto.cargo] || 0;
         const extraMins = Math.max(0, diffMins - baseMins);
-        ponto.trabalhado = diffMins;
-        ponto.extraMins  = extraMins;
-        ponto.extraReais = Math.floor(extraMins / 30) * 20;
-        ponto.debtMins   = Math.max(0, baseMins - diffMins);
-        ponto.pausaMins  = Math.round(totalPausaMs / 60000);
-        
-        // ═══ BÔNUS: +1 giro por hora extra (60min) ═══
-        girosGanhos = Math.floor(extraMins / 60);
+        const debtMins  = Math.max(0, baseMins - diffMins);
+        ponto.trabalhado   = diffMins;
+        ponto.extraMins    = extraMins;
+        ponto.debtMins     = debtMins;
+        ponto.pausaMins    = Math.round(totalPausaMs / 60000);
+        // ══ Saldo TOTAL = calculado + ajuste do master ══
+        ponto.extraMinsTotal = extraMins + (u.horasExtrasAjustadas || 0);
+        ponto.debtMinsTotal  = debtMins  + (u.horasDevidasAjustadas || 0);
+        ponto.extraReais     = Math.floor(ponto.extraMinsTotal / 30) * 20;
+
+        girosGanhos = Math.floor(ponto.extraMinsTotal / 60);
         if (girosGanhos > 0) {
           u.girosBonus = (u.girosBonus || 0) + girosGanhos;
         }
@@ -767,7 +837,7 @@ async function handleAPI(req, res) {
     saveData();
     const hora = brTimeStr(ponto.ts);
     let auditMsg = `<b>${ponto.nome}</b> `;
-    if (ponto.type === 'entrada')       auditMsg += `bateu ponto às ${hora}`;
+    if (ponto.type === 'entrada')         auditMsg += `bateu ponto às ${hora}`;
     else if (ponto.type === 'pausa_inicio') auditMsg += `⏸️ iniciou pausa às ${hora}`;
     else if (ponto.type === 'pausa_fim')    auditMsg += `▶️ retomou o turno às ${hora}`;
     else if (ponto.type === 'saida')        auditMsg += `encerrou o turno às ${hora}`;
@@ -775,72 +845,82 @@ async function handleAPI(req, res) {
       const h = Math.floor(ponto.trabalhado / 60), m = ponto.trabalhado % 60;
       auditMsg += ` — ${h}h${m > 0 ? m + 'min' : ''} trabalhadas.`;
       if (ponto.pausaMins > 0) auditMsg += ` <b style="color:var(--warn);">(⏸️ ${ponto.pausaMins}min de pausa)</b>`;
+      if (u.horasExtrasAjustadas > 0)  auditMsg += ` <b style="color:#a78bfa;">(+${u.horasExtrasAjustadas}min ajuste Master)</b>`;
+      if (u.horasDevidasAjustadas > 0) auditMsg += ` <b style="color:#f87171;">(+${u.horasDevidasAjustadas}min devidas Master)</b>`;
       if (ponto.extraReais > 0) auditMsg += ` <b style="color:#4ade80;">(Extras R$ ${ponto.extraReais})</b>`;
       if (girosGanhos > 0)      auditMsg += ` <b style="color:#a78bfa;">(+${girosGanhos} 🎰 giro${girosGanhos>1?'s':''})</b>`;
-      if (ponto.debtMins > 0)   auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMins / 60)}h${(ponto.debtMins % 60).toString().padStart(2, '0')})</b>`;
+      if (ponto.debtMinsTotal > 0) auditMsg += ` <b style="color:#f87171;">(Deve ${Math.floor(ponto.debtMinsTotal / 60)}h${(ponto.debtMinsTotal % 60).toString().padStart(2, '0')})</b>`;
     }
     audit(auditMsg, '⏱️');
     broadcast('NEW_PONTO', ponto);
     broadcast('USERS_UPDATED', DB.users.map(pub));
-    
-    // Broadcast específico de giros ganhos para toast
     if (girosGanhos > 0) {
       broadcast('GIROS_GAINED', {
-        userLogin: u.user,
-        giros: girosGanhos,
-        total: u.girosBonus,
-        motivo: `+${girosGanhos} giro(s) por ${ponto.extraMins}min de hora extra`
+        userLogin: u.user, giros: girosGanhos, total: u.girosBonus,
+        motivo: `+${girosGanhos} giro(s) por horas extras`
       });
     }
-    
     return jsonRes(res, 200, { ok: true, ponto, girosGanhos });
   }
 
-  // ══ ROLETA: REGISTRAR GIRO (decrementa 1, ou nada se master) ══
+  // ══ ROLETA: REGISTRAR GIRO ══
   if (method === 'POST' && url === '/api/roleta/girar') {
     const { userLogin } = body;
     const u = DB.users.find(x => x.user === userLogin);
     if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
-    
     if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
-    
-    // ═══ MASTER: giros ilimitados, não gasta nada ═══
     if (isMaster(u)) {
       u.ultimoGiroRoleta = Date.now();
       saveData();
-      return jsonRes(res, 200, {
-        ok: true,
-        master: true,
-        girosBonus: u.girosBonus,
-        ultimoGiro: u.ultimoGiroRoleta
-      });
+      return jsonRes(res, 200, { ok: true, master: true, girosBonus: u.girosBonus, ultimoGiro: u.ultimoGiroRoleta });
     }
-    
-    // Usuário normal: verifica cooldown 24h + giros bônus
     const ultimoGiro = u.ultimoGiroRoleta;
     const agora = Date.now();
     const cooldown = 24 * 60 * 60 * 1000;
     const cooldownOk = !ultimoGiro || (agora - ultimoGiro) >= cooldown;
-    
     if (!cooldownOk && u.girosBonus <= 0) {
       return jsonRes(res, 403, { error: 'Cooldown ativo e sem giros bônus.' });
     }
-    
     if (!cooldownOk && u.girosBonus > 0) {
       u.girosBonus -= 1;
-      // Não atualiza ultimoGiro (continua em cooldown, mas usou bônus)
     } else {
       u.ultimoGiroRoleta = agora;
     }
-    
     saveData();
     broadcast('USERS_UPDATED', DB.users.map(pub));
-    return jsonRes(res, 200, {
-      ok: true,
-      master: false,
-      girosBonus: u.girosBonus,
-      ultimoGiro: u.ultimoGiroRoleta
-    });
+    return jsonRes(res, 200, { ok: true, master: false, girosBonus: u.girosBonus, ultimoGiro: u.ultimoGiroRoleta });
+  }
+
+  // ═══ NOVO: PRÊMIOS DA ROLETA ═══
+  if (method === 'GET' && url === '/api/roleta/premios') {
+    return jsonRes(res, 200, DB.roletaPremios);
+  }
+  if (method === 'PUT' && url === '/api/roleta/premios') {
+    const { premios, feitorPor } = body;
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode editar prêmios da roleta.' });
+    if (!Array.isArray(premios) || premios.length === 0)
+      return jsonRes(res, 400, { error: 'Lista de prêmios vazia.' });
+    if (premios.length > 20)
+      return jsonRes(res, 400, { error: 'Máximo de 20 prêmios.' });
+    const validRaridades = ['common', 'uncommon', 'rare', 'epic', 'epic2', 'legendary'];
+    const novos = premios.map((p, i) => ({
+      id: p.id || 'p-' + Date.now() + '-' + i,
+      valor:    typeof p.valor === 'number' && p.valor >= 0 ? Math.floor(p.valor) : 100,
+      peso:     typeof p.peso === 'number' && p.peso >= 0 ? p.peso : 1,
+      cor:      typeof p.cor === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.cor) ? p.cor : '#10b981',
+      cor2:     typeof p.cor2 === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.cor2) ? p.cor2 : p.cor,
+      corBorda: typeof p.corBorda === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.corBorda) ? p.corBorda : p.cor,
+      nome:     typeof p.nome === 'string' && p.nome.trim() ? p.nome.trim().slice(0, 30) : 'Prêmio',
+      icone:    typeof p.icone === 'string' && p.icone.trim() ? p.icone.trim().slice(0, 4) : '🎁',
+      raridade: validRaridades.includes(p.raridade) ? p.raridade : 'common'
+    }));
+    DB.roletaPremios = novos;
+    saveData();
+    audit(`<b>${executor.nome}</b> atualizou <b>${novos.length} prêmios da roleta</b>`, '🎰');
+    broadcast('ROLETA_PREMIOS_UPDATED', DB.roletaPremios);
+    return jsonRes(res, 200, { ok: true, premios: DB.roletaPremios });
   }
 
   // ══ PROVAS ══
@@ -1063,7 +1143,8 @@ httpServer.on('upgrade', (req, socket, head) => {
     payload: {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
-      feedbacks: DB.feedbacks, chats: DB.chats
+      feedbacks: DB.feedbacks, chats: DB.chats,
+      roletaPremios: DB.roletaPremios
     }
   });
 
@@ -1100,15 +1181,13 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.10        ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.12        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
-  console.log('║   chefe     / chefe123                   ║');
-  console.log('║   gm        / gm123                      ║');
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   🎰 Roleta: master ilimitado            ║');
-  console.log('║   🎁 +1 giro/hora extra (automático)     ║');
+  console.log('║   🎰 Master edita prêmios da roleta      ║');
+  console.log('║   ⏱️ Master ajusta horas por usuário     ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
@@ -1125,4 +1204,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                   }
+     }
