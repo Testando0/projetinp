@@ -1,12 +1,13 @@
 // ════════════════════════════════════════════════════════════
-// ══ VIP LED RGB — contorno giratório injetado globalmente ══
+// ══ VIP LED RGB — anel via border-box conic (NUNCA torto) ══
 // ════════════════════════════════════════════════════════════
 (function(){
   if(document.getElementById('vip-led-css'))return;
   const st=document.createElement('style');
   st.id='vip-led-css';
   st.textContent=`
-    @keyframes vipRot{to{transform:translate(-50%,-50%) rotate(360deg);}}
+    @property --vipang{syntax:'<angle>';initial-value:0deg;inherits:false;}
+    @keyframes vipSpin2{to{--vipang:360deg;}}
     @keyframes vipPulse{
       0%,100%{box-shadow:0 0 14px rgba(255,0,76,.40),0 0 30px rgba(0,213,255,.25);}
       33%{box-shadow:0 0 14px rgba(0,255,133,.40),0 0 30px rgba(255,230,0,.25);}
@@ -16,21 +17,14 @@
       0%,100%{box-shadow:0 0 16px rgba(255,0,0,.45),0 0 34px rgba(255,0,0,.22);}
       50%{box-shadow:0 0 24px rgba(255,60,60,.65),0 0 46px rgba(255,0,0,.35);}
     }
-    /* ══ LED RGB (bolhas) — anel QUADRADO perfeito cobre todos os lados ══ */
-    .vip-led{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 3s ease-in-out infinite !important;}
-    .vip-led::before{content:'';position:absolute;top:50%;left:50%;width:300%;height:auto;aspect-ratio:1/1;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 4s linear infinite;z-index:0;}
-    .vip-led::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:rgba(14,14,16,.98);z-index:1;}
-    .vip-led>*{position:relative;z-index:2;}
-    /* ══ LED RGB (foto/avatar) — foto recortada CERTINHO dentro da bolha ══ */
-    .vip-led-avatar{position:relative;overflow:hidden;background:transparent !important;border:none !important;animation:vipPulse 2.6s ease-in-out infinite !important;}
-    .vip-led-avatar::before{content:'';position:absolute;top:50%;left:50%;width:300%;height:auto;aspect-ratio:1/1;transform:translate(-50%,-50%) rotate(0deg);background:conic-gradient(#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c);animation:vipRot 3s linear infinite;z-index:0;}
-    .vip-led-avatar::after{content:'';position:absolute;inset:3px;border-radius:inherit;background:#17171a;z-index:1;}
-    .vip-led-avatar>img{inset:5px !important;width:auto !important;height:auto !important;border-radius:12px !important;object-fit:cover !important;display:block !important;}
-    .vip-letter{position:relative;z-index:2;display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
-    /* ══ MODAL GIGANTE com contorno VERMELHO correndo ══ */
-    .vip-led-red{animation:vipPulseRed 2.6s ease-in-out infinite !important;}
-    .vip-led-red::before{background:conic-gradient(#ff0000,#ff5555,#ff0000,#cc0000,#ff2222,#ff0000);animation:vipRot 3.2s linear infinite;}
-    .vip-led-red::after{background:rgba(14,14,16,.98);}
+    /* ══ Anel RGB UNIFORME via border-box conic — NUNCA torto ══ */
+    .vip-led{position:relative;overflow:hidden;border:4px solid transparent !important;background:linear-gradient(#0e0e10,#0e0e10) padding-box, conic-gradient(from var(--vipang),#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c) border-box !important;animation:vipSpin2 4s linear infinite, vipPulse 3s ease-in-out infinite !important;}
+    /* ══ Avatar: foto ENCAIXADA dentro do anel ══ */
+    .vip-led-avatar{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:4px;border:4px solid transparent !important;background:linear-gradient(#17171a,#17171a) padding-box, conic-gradient(from var(--vipang),#ff004c,#ff7b00,#ffe600,#00ff85,#00d5ff,#7b00ff,#ff00d4,#ff004c) border-box !important;animation:vipSpin2 3s linear infinite, vipPulse 2.6s ease-in-out infinite !important;}
+    .vip-led-avatar>img{position:static !important;inset:auto !important;width:100% !important;height:100% !important;object-fit:cover !important;border-radius:10px !important;display:block !important;}
+    .vip-letter{display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-weight:800;}
+    /* ══ Modal gigante: contorno VERMELHO correndo ══ */
+    .vip-led-red{background:linear-gradient(#0e0e10,#0e0e10) padding-box, conic-gradient(from var(--vipang),#ff0000,#ff5555,#ff0000,#cc0000,#ff2222,#ff0000) border-box !important;animation:vipSpin2 3.2s linear infinite, vipPulseRed 2.6s ease-in-out infinite !important;}
   `;
   document.head.appendChild(st);
 })();
@@ -71,7 +65,7 @@ function stopKeepAlive(){clearInterval(_keepIv);_keepIv=null;}
 async function ensureQuestionario(cargo){QUESTIONARIO=QUESTIONARIO||{};if(QUESTIONARIO[cargo])return QUESTIONARIO[cargo];try{QUESTIONARIO[cargo]=await API.request('GET','/prova/questionario?cargo='+cargo);}catch(e){console.error('[q]',e);QUESTIONARIO[cargo]=[];}return QUESTIONARIO[cargo];}
 async function ensureQuestionarioPrisoes(){if(QUESTIONARIO_PRISOES)return QUESTIONARIO_PRISOES;try{QUESTIONARIO_PRISOES=await API.request('GET','/prova/questionario?tipo=prisoes');}catch(e){console.error('[q]',e);return[];}return QUESTIONARIO_PRISOES;}
 
-// ═══ CORREÇÃO: não re-renderiza aba se há prova ativa ═══
+// ═══ Não re-renderiza aba se há prova ativa ═══
 function renderTabSafe(idx){
   if(_provaAtiva){
     if(typeof updateNotif==='function')updateNotif();
@@ -476,7 +470,7 @@ function abrirModalPerfil(){
     recadoWrap.appendChild(recadoInput0);
   }
 
-  // ══ Foto/avatar com LED RGB (recorte CERTINHO dentro da bolha) ══
+  // ══ Foto/avatar com LED RGB (foto ENCAIXADA dentro do anel) ══
   if(av){
     if(isVip&&!u.foto){
       av.innerHTML=`<span class="vip-letter">${avatarLetraDe(u)}</span>`;
