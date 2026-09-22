@@ -1,7 +1,8 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.14 — Servidor Completo
- *  + VIP + Recados + Foto de Perfil (imgbb) + Master ajusta horas + Editar prêmios
+ *  GMPOL Sistema Central v5.15 — Servidor Completo (Corrigido)
+ *  + VIP + Recados + Foto de Perfil (imgbb) + Master ajusta horas (CORRIGIDO)
+ *  + Editar prêmios + Punições na auditoria (CORRIGIDO)
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -127,6 +128,14 @@ function isMaster(u) { return !!u && u.user === 'master'; }
 function findUserByRef(ref) {
   if (!ref) return null;
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
+}
+
+// ═══ CORREÇÃO: Calcula horas reais a partir dos pontos ═══
+function calcHorasServidor(userLogin){
+  const pts=DB.pontos.filter(p=>p.userLogin===userLogin&&p.type==='saida'&&p.trabalhado!==undefined);
+  let trab=0,extra=0,debt=0,pausa=0,turnos=0;
+  pts.forEach(p=>{trab+=(p.trabalhado||0);pausa+=(p.pausaMins||0);extra+=(p.extraMins||0);debt+=(p.debtMins||0);turnos++;});
+  return {trab,extra,debt,pausa,turnos};
 }
 
 const TMP_FILE  = path.join('/tmp', 'gmpol-data.json');
@@ -471,7 +480,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ═══ MASTER: AJUSTAR HORAS ═══
+  // ═══ MASTER: AJUSTAR HORAS (CORRIGIDO) ═══
   const mHoras = url.match(/^\/api\/users\/([^/]+)\/horas$/);
   if (method === 'PUT' && mHoras) {
     const target = DB.users.find(u => u.user === mHoras[1]);
@@ -484,17 +493,21 @@ async function handleAPI(req, res) {
     if (typeof target.horasExtrasAjustadas  !== 'number') target.horasExtrasAjustadas = 0;
     if (typeof target.horasDevidasAjustadas !== 'number') target.horasDevidasAjustadas = 0;
 
+    // Saldo REAL vindo dos pontos registrados
+    const calc = calcHorasServidor(target.user);
+
     let logMsg = '';
     if (acao === 'zerar') {
-      target.horasExtrasAjustadas = 0;
-      target.horasDevidasAjustadas = 0;
-      logMsg = `<b>${executor.nome}</b> zerou horas extras e devidas de <b>${target.nome}</b>`;
+      // Zera o SALDO TOTAL: compensa exatamente o que vem dos pontos
+      target.horasExtrasAjustadas  = -calc.extra;
+      target.horasDevidasAjustadas = -calc.debt;
+      logMsg = `<b>${executor.nome}</b> ZEROU o saldo de horas de <b>${target.nome}</b> (extras e devidas)`;
     } else if (acao === 'zerar_extras') {
-      target.horasExtrasAjustadas = 0;
-      logMsg = `<b>${executor.nome}</b> zerou horas extras de <b>${target.nome}</b>`;
+      target.horasExtrasAjustadas = -calc.extra;
+      logMsg = `<b>${executor.nome}</b> zerou as HORAS EXTRAS de <b>${target.nome}</b>`;
     } else if (acao === 'zerar_devidas') {
-      target.horasDevidasAjustadas = 0;
-      logMsg = `<b>${executor.nome}</b> zerou horas devidas de <b>${target.nome}</b>`;
+      target.horasDevidasAjustadas = -calc.debt;
+      logMsg = `<b>${executor.nome}</b> zerou as HORAS DEVIDAS de <b>${target.nome}</b>`;
     } else if (acao === 'ajustar') {
       const extras = parseInt(extrasMins) || 0;
       const devidas = parseInt(devidasMins) || 0;
@@ -502,10 +515,11 @@ async function handleAPI(req, res) {
       target.horasDevidasAjustadas = Math.max(-100000, Math.min(100000, target.horasDevidasAjustadas + devidas));
       logMsg = `<b>${executor.nome}</b> ajustou horas de <b>${target.nome}</b>: extras ${extras >= 0 ? '+' : ''}${extras}min, devidas ${devidas >= 0 ? '+' : ''}${devidas}min`;
     } else if (acao === 'set') {
-      const extras = parseInt(extrasMins) || 0;
-      const devidas = parseInt(devidasMins) || 0;
-      target.horasExtrasAjustadas  = Math.max(0, extras);
-      target.horasDevidasAjustadas = Math.max(0, devidas);
+      // Define o TOTAL exibido: ajusta o offset para o total bater com o valor informado
+      const extras  = Math.max(0, parseInt(extrasMins)  || 0);
+      const devidas = Math.max(0, parseInt(devidasMins) || 0);
+      target.horasExtrasAjustadas  = extras  - calc.extra;
+      target.horasDevidasAjustadas = devidas - calc.debt;
       logMsg = `<b>${executor.nome}</b> definiu horas de <b>${target.nome}</b>: extras ${extras}min, devidas ${devidas}min`;
     } else {
       return jsonRes(res, 400, { error: 'Ação inválida.' });
@@ -778,6 +792,8 @@ async function handleAPI(req, res) {
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
     DB.puns.push(pun); saveData();
+    // ═══ CORREÇÃO: punições na auditoria ═══
+    audit(`<b>${pun.autor}</b> registrou punição <b>${pun.nivel}</b> para <b>${pun.nome}</b> — ${pun.motivo}`, '⚠️');
     broadcast('NEW_PUN', pun);
     return jsonRes(res, 200, { ok: true, pun });
   }
@@ -785,7 +801,10 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunId) {
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
+    // ═══ CORREÇÃO: punições na auditoria ═══
+    const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
+    audit(`<b>${body.feitorPor}</b> removeu a punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
@@ -793,7 +812,10 @@ async function handleAPI(req, res) {
   if (method === 'DELETE' && mPunIdx) {
     const i = parseInt(mPunIdx[1]);
     if (isNaN(i) || i < 0 || i >= DB.puns.length) return jsonRes(res, 404, { error: 'Índice inválido.' });
+    // ═══ CORREÇÃO: punições na auditoria ═══
+    const nome = DB.puns[i].nome;
     DB.puns.splice(i, 1); saveData();
+    audit(`<b>${body.feitorPor}</b> removeu a punição de <b>${nome}</b>`, '🗑');
     broadcast('PUNS_UPDATED', DB.puns);
     return jsonRes(res, 200, { ok: true });
   }
@@ -1216,15 +1238,15 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.14        ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.15        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   🌟 Sistema VIP + Recados               ║');
-  console.log('║   📷 Foto de Perfil (imgbb)              ║');
-  console.log('║   ⏱️  Master ajusta horas                ║');
-  console.log('║   🎰 Master edita prêmios da roleta      ║');
+  console.log('║   ✅ Zerar horas CORRIGIDO               ║');
+  console.log('║   ✅ Punições na auditoria CORRIGIDO     ║');
+  console.log('║   🌟 VIP + Recados + Foto imgbb          ║');
+  console.log('║   🎰 Roleta editável pelo Master         ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
@@ -1241,4 +1263,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-      }
+                                                                      }
