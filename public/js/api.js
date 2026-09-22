@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.10 (+ chat + roleta) ══
+// ══ API CLIENT — GMPOL v5.12 (+ roleta + admin) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -63,9 +63,14 @@ const API = {
                       API.request('POST', `/users/${username}/ban`, { duracao, motivo, feitorPor, feitorPorNome }),
   removeBan:        (username, feitorPor)                     => API.request('DELETE', `/users/${username}/ban`, { feitorPor }),
 
-  // ══ ROLETA (NOVO) ══
+  // ═══ MASTER: AJUSTAR HORAS ═══
+  ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
+
+  // ═══ ROLETA ═══
   girarRoleta:      (userLogin)                               => API.request('POST',   '/roleta/girar', { userLogin }),
   liberarGiros:     (userLogin, quantidade, feitorPor)        => API.request('POST',   `/users/${userLogin}/giros`, { quantidade, feitorPor }),
+  getRoletaPremios: ()                                        => API.request('GET',    '/roleta/premios'),
+  salvarRoletaPremios: (premios, feitorPor)                   => API.request('PUT',    '/roleta/premios', { premios, feitorPor }),
 
   getOcs:    ()              => API.request('GET',    '/ocs'),
   createOc:  (oc)            => API.request('POST',   '/ocs', oc),
@@ -89,7 +94,6 @@ const API = {
   createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
   deleteFeedback:  (id, feitorPor)         => API.request('DELETE', `/feedbacks/${id}`, { feitorPor }),
 
-  // ══ CHAT ══
   getChats:       (userLogin)             => API.request('GET',    `/chats?user=${userLogin}`),
   sendChatMsg:    (from, to, texto)       => API.request('POST',   '/chats', { from, to, texto }),
   deleteChatMsg:  (id, feitorPor)         => API.request('DELETE', `/chats/${id}`, { feitorPor }),
@@ -161,12 +165,14 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.audit))     STATE.audit     = payload.audit;
     if (Array.isArray(payload.feedbacks)) STATE.feedbacks = payload.feedbacks;
     if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
+    if (Array.isArray(payload.roletaPremios)) STATE.roletaPremios = payload.roletaPremios;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[], chats: payload.chats||[]
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[],
+    roletaPremios: payload.roletaPremios||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
   if (typeof me !== 'undefined' && me && typeof renderTab === 'function' && typeof activeTab !== 'undefined') {
@@ -201,8 +207,7 @@ function _handleServerMsg(msg) {
     if (!STATE.provas.find(x => x.id === payload.id)) { STATE.provas.push(payload); LSCache.merge('provas', STATE.provas); }
   }
   if (type === 'PROVAS_UPDATED' && typeof STATE !== 'undefined') {
-    STATE.provas = payload; LSCache.merge('provas', STATE.provas);
-  }
+    STATE.provas = payload; LSCache.merge('provas', STATE.provas); }
   if (type === 'USERS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.users = payload; LSCache.merge('users', STATE.users);
   }
@@ -234,6 +239,10 @@ function _handleServerMsg(msg) {
   if (type === 'CHAT_MSG_DELETED' && typeof STATE !== 'undefined') {
     STATE.chats = STATE.chats.filter(x => x.id !== payload.id);
     LSCache.merge('chats', STATE.chats);
+  }
+  if (type === 'ROLETA_PREMIOS_UPDATED' && typeof STATE !== 'undefined') {
+    STATE.roletaPremios = payload;
+    LSCache.merge('roletaPremios', STATE.roletaPremios);
   }
 
   if (typeof handleSocketMessage === 'function') {
