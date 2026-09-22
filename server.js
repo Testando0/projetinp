@@ -1,7 +1,7 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.13 — Servidor Completo
- *  + Sistema VIP + Recados + Master ajusta horas + Editar prêmios
+ *  GMPOL Sistema Central v5.14 — Servidor Completo
+ *  + VIP + Recados + Foto de Perfil (imgbb) + Master ajusta horas + Editar prêmios
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -136,9 +136,9 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: [],
@@ -151,7 +151,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '' });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
 }
@@ -167,7 +167,8 @@ function sanitize(p) {
     horasExtrasAjustadas:   typeof u.horasExtrasAjustadas === 'number' ? u.horasExtrasAjustadas : 0,
     horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0,
     vip:                    u.vip === true,
-    recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : ''
+    recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
+    foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : ''
   }));
   const roletaPremios = Array.isArray(p.roletaPremios) && p.roletaPremios.length > 0
     ? p.roletaPremios.map(pr => ({
@@ -462,7 +463,7 @@ async function handleAPI(req, res) {
       criadoPor: criador.user, criadoEm: Date.now(),
       cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
       horasExtrasAjustadas: 0, horasDevidasAjustadas: 0,
-      vip: false, recado: ''
+      vip: false, recado: '', foto: ''
     });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
@@ -560,6 +561,20 @@ async function handleAPI(req, res) {
     audit(`<b>${executor.nome}</b> atualizou seu recado`, '💬');
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true, recado: executor.recado });
+  }
+
+  // ═══ USUÁRIO: SALVAR FOTO DE PERFIL (URL do imgbb) ═══
+  const mFoto = url.match(/^\/api\/users\/me\/foto$/);
+  if (method === 'PUT' && mFoto) {
+    const { url: fotoUrl, feitorPor } = body;
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (typeof fotoUrl !== 'string' || fotoUrl.length > 500) return jsonRes(res, 400, { error: 'URL inválida.' });
+    if (fotoUrl && !/^https?:\/\//.test(fotoUrl)) return jsonRes(res, 400, { error: 'URL deve começar com http(s)://' });
+    executor.foto = fotoUrl;
+    saveData();
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, { ok: true, foto: fotoUrl });
   }
 
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
@@ -1201,13 +1216,13 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.13        ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.14        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('╠═══════════════════════════════════════════╣');
-  console.log('║   🌟 Sistema VIP completo                ║');
-  console.log('║   💬 Recados para usuários VIP           ║');
+  console.log('║   🌟 Sistema VIP + Recados               ║');
+  console.log('║   📷 Foto de Perfil (imgbb)              ║');
   console.log('║   ⏱️  Master ajusta horas                ║');
   console.log('║   🎰 Master edita prêmios da roleta      ║');
   console.log('╚═══════════════════════════════════════════╝\n');
