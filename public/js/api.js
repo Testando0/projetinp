@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.12 (+ roleta + admin) ══
+// ══ API CLIENT — GMPOL v5.13 (+ VIP + Recado) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -63,8 +63,10 @@ const API = {
                       API.request('POST', `/users/${username}/ban`, { duracao, motivo, feitorPor, feitorPorNome }),
   removeBan:        (username, feitorPor)                     => API.request('DELETE', `/users/${username}/ban`, { feitorPor }),
 
-  // ═══ MASTER: AJUSTAR HORAS ═══
+  // ═══ MASTER: AJUSTAR HORAS + VIP ═══
   ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
+  toggleVip:        (username, ativo, feitorPor)              => API.request('PUT',    `/users/${username}/vip`, { ativo, feitorPor }),
+  atualizarRecado:  (texto, feitorPor)                        => API.request('PUT',    '/users/me/recado', { texto, feitorPor }),
 
   // ═══ ROLETA ═══
   girarRoleta:      (userLogin)                               => API.request('POST',   '/roleta/girar', { userLogin }),
@@ -207,7 +209,8 @@ function _handleServerMsg(msg) {
     if (!STATE.provas.find(x => x.id === payload.id)) { STATE.provas.push(payload); LSCache.merge('provas', STATE.provas); }
   }
   if (type === 'PROVAS_UPDATED' && typeof STATE !== 'undefined') {
-    STATE.provas = payload; LSCache.merge('provas', STATE.provas); }
+    STATE.provas = payload; LSCache.merge('provas', STATE.provas);
+  }
   if (type === 'USERS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.users = payload; LSCache.merge('users', STATE.users);
   }
