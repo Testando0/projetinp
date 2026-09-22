@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.13 (+ VIP + Recado) ══
+// ══ API CLIENT — GMPOL v5.14 (+ foto de perfil) ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
@@ -63,10 +63,13 @@ const API = {
                       API.request('POST', `/users/${username}/ban`, { duracao, motivo, feitorPor, feitorPorNome }),
   removeBan:        (username, feitorPor)                     => API.request('DELETE', `/users/${username}/ban`, { feitorPor }),
 
-  // ═══ MASTER: AJUSTAR HORAS + VIP ═══
+  // ═══ MASTER: HORAS + VIP ═══
   ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
   toggleVip:        (username, ativo, feitorPor)              => API.request('PUT',    `/users/${username}/vip`, { ativo, feitorPor }),
+
+  // ═══ USUÁRIO: RECADO + FOTO ═══
   atualizarRecado:  (texto, feitorPor)                        => API.request('PUT',    '/users/me/recado', { texto, feitorPor }),
+  salvarFotoPerfil: (url, feitorPor)                          => API.request('PUT',    '/users/me/foto', { url, feitorPor }),
 
   // ═══ ROLETA ═══
   girarRoleta:      (userLogin)                               => API.request('POST',   '/roleta/girar', { userLogin }),
