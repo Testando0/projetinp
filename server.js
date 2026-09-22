@@ -1,8 +1,7 @@
 /**
  * ════════════════════════════════════════════════════════════════════════
- *  GMPOL Sistema Central v5.12 — Servidor Completo
- *  + Master gerencia horas (extras, devidas) por usuário
- *  + Master edita prêmios da roleta
+ *  GMPOL Sistema Central v5.13 — Servidor Completo
+ *  + Sistema VIP + Recados + Master ajusta horas + Editar prêmios
  * ════════════════════════════════════════════════════════════════════════
  */
 
@@ -31,7 +30,6 @@ const CARGO_LABEL_SRV = {
 };
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
-// ═══ PRÊMIOS DA ROLETA (padrão — salvos no DB) ═══
 const DEFAULT_ROLETA_PREMIOS = [
   { id: 'p1', valor: 100,   peso: 70,  cor: '#10b981', cor2: '#059669', corBorda: '#34d399', nome: 'Comum',      icone: '💵', raridade: 'common' },
   { id: 'p2', valor: 500,   peso: 20,  cor: '#3b82f6', cor2: '#1d4ed8', corBorda: '#60a5fa', nome: 'Incomum',    icone: '💰', raridade: 'uncommon' },
@@ -138,9 +136,9 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: [],
@@ -153,7 +151,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0 });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '' });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   return d;
 }
@@ -167,7 +165,9 @@ function sanitize(p) {
     girosBonus:             typeof u.girosBonus === 'number' ? u.girosBonus : 0,
     ultimoGiroRoleta:       u.ultimoGiroRoleta || null,
     horasExtrasAjustadas:   typeof u.horasExtrasAjustadas === 'number' ? u.horasExtrasAjustadas : 0,
-    horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0
+    horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0,
+    vip:                    u.vip === true,
+    recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : ''
   }));
   const roletaPremios = Array.isArray(p.roletaPremios) && p.roletaPremios.length > 0
     ? p.roletaPremios.map(pr => ({
@@ -241,9 +241,6 @@ function saveDataSync() {
 let DB = loadData();
 console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios`);
 
-// ══════════════════════════════════════════════════════════════
-// ══ WEBSOCKET ═════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const wsClients = new Set();
 
 function wsHandshake(req, socket) {
@@ -314,9 +311,6 @@ function audit(msg, icon = '📋') {
   broadcast('AUDIT_NEW', DB.audit[0]);
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ STATIC FILES ═══════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css':  'text/css',
@@ -406,9 +400,6 @@ function jsonRes(res, status, data) {
   res.end(body);
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ API ═══════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 async function handleAPI(req, res) {
   const method = req.method;
   const url    = req.url.split('?')[0];
@@ -451,7 +442,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, user: pub(u) });
   }
 
-  // ══ USUÁRIOS ══
   if (method === 'GET' && url === '/api/users') return jsonRes(res, 200, DB.users.map(pub));
 
   if (method === 'POST' && url === '/api/users') {
@@ -471,7 +461,8 @@ async function handleAPI(req, res) {
       user: login, pass, cargo, nome, ativo: true,
       criadoPor: criador.user, criadoEm: Date.now(),
       cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
-      horasExtrasAjustadas: 0, horasDevidasAjustadas: 0
+      horasExtrasAjustadas: 0, horasDevidasAjustadas: 0,
+      vip: false, recado: ''
     });
     saveData();
     audit(`<b>${criador.nome}</b> criou o usuário <b>${nome}</b> (${CARGO_LABEL_SRV[cargo] || cargo})`, '👤');
@@ -479,7 +470,7 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ═══ NOVO: MASTER AJUSTAR HORAS DO USUÁRIO ═══
+  // ═══ MASTER: AJUSTAR HORAS ═══
   const mHoras = url.match(/^\/api\/users\/([^/]+)\/horas$/);
   if (method === 'PUT' && mHoras) {
     const target = DB.users.find(u => u.user === mHoras[1]);
@@ -527,6 +518,48 @@ async function handleAPI(req, res) {
       horasExtrasAjustadas: target.horasExtrasAjustadas,
       horasDevidasAjustadas: target.horasDevidasAjustadas
     });
+  }
+
+  // ═══ MASTER: TOGGLE VIP ═══
+  const mVip = url.match(/^\/api\/users\/([^/]+)\/vip$/);
+  if (method === 'PUT' && mVip) {
+    const target = DB.users.find(u => u.user === mVip[1]);
+    if (!target) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const { ativo, feitorPor } = body;
+    const executor = findUserByRef(feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode dar/remover VIP.' });
+
+    target.vip = Boolean(ativo);
+    if (!ativo) target.recado = '';
+
+    saveData();
+    audit(
+      `<b>${executor.nome}</b> ${ativo ? '🌟 deu VIP para' : '❌ removeu VIP de'} <b>${target.nome}</b>`,
+      ativo ? '🌟' : '💔'
+    );
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    broadcast('VIP_CHANGED', {
+      userLogin: target.user,
+      ativo: target.vip,
+      feitorNome: executor.nome
+    });
+    return jsonRes(res, 200, { ok: true, vip: target.vip });
+  }
+
+  // ═══ USUÁRIO: ATUALIZAR RECADO (só VIP) ═══
+  const mRecado = url.match(/^\/api\/users\/me\/recado$/);
+  if (method === 'PUT' && mRecado) {
+    const { texto } = body;
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!executor.vip) return jsonRes(res, 403, { error: 'Apenas usuários VIP podem adicionar recado.' });
+
+    executor.recado = String(texto || '').trim().slice(0, 200);
+    saveData();
+    audit(`<b>${executor.nome}</b> atualizou seu recado`, '💬');
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, { ok: true, recado: executor.recado });
   }
 
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
@@ -693,7 +726,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ OCORRÊNCIAS ══
   if (method === 'GET' && url === '/api/ocs') return jsonRes(res, 200, DB.ocs);
   if (method === 'POST' && url === '/api/ocs') {
     const oc = body;
@@ -724,7 +756,6 @@ async function handleAPI(req, res) {
     }
   }
 
-  // ══ PUNIÇÕES ══
   if (method === 'GET' && url === '/api/puns') return jsonRes(res, 200, DB.puns);
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
@@ -752,7 +783,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ PONTOS (com ajuste de horas do master) ══
   if (method === 'GET' && url === '/api/pontos') return jsonRes(res, 200, DB.pontos);
   if (method === 'POST' && url === '/api/pontos') {
     const ponto = body;
@@ -808,7 +838,6 @@ async function handleAPI(req, res) {
         ponto.extraMins    = extraMins;
         ponto.debtMins     = debtMins;
         ponto.pausaMins    = Math.round(totalPausaMs / 60000);
-        // ══ Saldo TOTAL = calculado + ajuste do master ══
         ponto.extraMinsTotal = extraMins + (u.horasExtrasAjustadas || 0);
         ponto.debtMinsTotal  = debtMins  + (u.horasDevidasAjustadas || 0);
         ponto.extraReais     = Math.floor(ponto.extraMinsTotal / 30) * 20;
@@ -863,7 +892,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, ponto, girosGanhos });
   }
 
-  // ══ ROLETA: REGISTRAR GIRO ══
   if (method === 'POST' && url === '/api/roleta/girar') {
     const { userLogin } = body;
     const u = DB.users.find(x => x.user === userLogin);
@@ -891,7 +919,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, master: false, girosBonus: u.girosBonus, ultimoGiro: u.ultimoGiroRoleta });
   }
 
-  // ═══ NOVO: PRÊMIOS DA ROLETA ═══
   if (method === 'GET' && url === '/api/roleta/premios') {
     return jsonRes(res, 200, DB.roletaPremios);
   }
@@ -923,7 +950,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, premios: DB.roletaPremios });
   }
 
-  // ══ PROVAS ══
   if (method === 'GET' && url === '/api/provas') return jsonRes(res, 200, DB.provas);
   if (method === 'GET' && url === '/api/prova/questionario') {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
@@ -1039,7 +1065,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, prova });
   }
 
-  // ══ FEEDBACKS ══
   if (method === 'GET' && url === '/api/feedbacks') return jsonRes(res, 200, DB.feedbacks);
   if (method === 'POST' && url === '/api/feedbacks') {
     const { userLogin, nome, nota, texto } = body;
@@ -1073,7 +1098,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ CHAT ══
   if (method === 'GET' && url === '/api/chats') {
     const userLogin = body.userLogin || (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('user') : null);
     if (!userLogin) return jsonRes(res, 200, []);
@@ -1112,7 +1136,6 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true });
   }
 
-  // ══ AUDITORIA ══
   if (method === 'GET' && url === '/api/audit') return jsonRes(res, 200, DB.audit);
   if (method === 'DELETE' && url === '/api/audit') {
     DB.audit = []; saveData();
@@ -1123,9 +1146,6 @@ async function handleAPI(req, res) {
   return jsonRes(res, 404, { error: 'Rota não encontrada.' });
 }
 
-// ══════════════════════════════════════════════════════════════
-// ══ HTTP + WS SERVER ═══════════════════════════════════════
-// ══════════════════════════════════════════════════════════════
 const httpServer = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/api') || req.url === '/health') return handleAPI(req, res);
@@ -1181,13 +1201,15 @@ setInterval(() => {
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('\n╔═══════════════════════════════════════════╗');
-  console.log('║   🚔  GMPOL Sistema Central v5.12        ║');
+  console.log('║   🚔  GMPOL Sistema Central v5.13        ║');
   console.log('╠═══════════════════════════════════════════╣');
   console.log(`║   Porta: ${PORT.toString().padEnd(35)}║`);
   console.log('║   master    / masterx512  (ACESSO TOTAL) ║');
   console.log('╠═══════════════════════════════════════════╣');
+  console.log('║   🌟 Sistema VIP completo                ║');
+  console.log('║   💬 Recados para usuários VIP           ║');
+  console.log('║   ⏱️  Master ajusta horas                ║');
   console.log('║   🎰 Master edita prêmios da roleta      ║');
-  console.log('║   ⏱️ Master ajusta horas por usuário     ║');
   console.log('╚═══════════════════════════════════════════╝\n');
 });
 
@@ -1204,4 +1226,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-     }
+      }
