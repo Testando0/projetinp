@@ -1,4 +1,4 @@
-// ══ API CLIENT — GMPOL v5.14 (+ foto de perfil) ══
+// ══ API CLIENT — GMPOL v5.15 ══
 const LS_KEY = 'gmpol_state_v3';
 
 const LSCache = {
