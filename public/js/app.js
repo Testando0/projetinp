@@ -50,7 +50,7 @@ function fmtChatTime(ts){
 }
 
 let me=null,activeTab=0;
-let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[],chats:[],roletaPremios:[]};
+let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[],chats:[],prisoes:[],roletaPremios:[]};
 let _pendingCargoChange=null,_pendingBan=null,_banTimer=null,_clockInterval;
 let _busyPonto=false,_busyPun=false,_keepIv=null;
 let QUESTIONARIO=null,QUESTIONARIO_PRISOES=null,_provaAtiva=null;
@@ -120,6 +120,14 @@ function handleSocketMessage(data){
     case 'ROLETA_PREMIOS_UPDATED':
       if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);
       break;
+    case 'NEW_PRISAO':
+    case 'PRISOES_UPDATED':
+      if(activeTab===getTabIdx('prisoes'))renderTabSafe(activeTab);
+      break;
+    case 'NEW_MEDALHA':
+      if(activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
+      if(me&&payload.userLogin===me.user)toast('🏅 Você recebeu uma nova medalha!','s',7000);
+      break;
     case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
     case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
     case 'NEW_FEEDBACK':
@@ -158,10 +166,10 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
   showPanel();
 }
-function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;}
+function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;}
 
 async function apiLoginRetry(u,p,btn){let lastErr=null;for(let i=0;i<3;i++){try{return await API.login(u,p);}catch(e){lastErr=e;const msg=e.message||'';const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);if(!retryable)throw e;if(btn)btn.textContent='▸ ACORDANDO… ('+(i+2)+'/3)';await new Promise(r=>setTimeout(r,1200*(i+1)));}}throw lastErr;}
 async function login(){
@@ -190,7 +198,10 @@ function tabDefs(c){
     {label:'▸ PONTO',key:'pontos',notif:false},
     {label:'▸ PROVAS',key:'provas',notif:false},
     {label:'▸ CHAT',key:'chat',notif:true},
-    {label:'▸ ROLETA',key:'roleta',notif:false}
+    {label:'▸ ROLETA',key:'roleta',notif:false},
+    {label:'▸ MEU VIP',key:'vips',notif:false},
+    {label:'▸ HALL DA FAMA',key:'hall',notif:false},
+    {label:'▸ PRISÕES',key:'prisoes',notif:false}
   ];
   if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ VIPS',key:'vips',notif:false},{label:'▸ AUDITORIA',key:'audit',notif:false}];
   if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
@@ -215,7 +226,7 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,intro:vIntroducao,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
+  const views={home:vInicio,intro:vIntroducao,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,hall:vHall,prisoes:vPrisoes,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const fn=views[def.key]||vInicio;
   const contentEl=document.getElementById('content');
   if(contentEl)contentEl.classList.toggle('chat-mode',def.key==='chat');
@@ -407,38 +418,18 @@ function vIntroducao(){
     +'<div class="card intro-card">'+html+'</div>';
 }
 
-// ══ VIPS (SÓ MASTER) ══
-function vVips(){
-  if(!isMaster())return empty('🔒','Acesso restrito ao Master.');
-  const users=STATE.users.filter(u=>u.user!==me.user);
-  const vips=users.filter(u=>u.vip);
-  const naoVips=users.filter(u=>!u.vip);
-  const vipRows=vips.map(u=>`
-    <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div><div style="font-weight:600;">${u.nome} <span style="padding:2px 8px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.62rem;font-weight:700;margin-left:6px;">🌟 VIP</span></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
-      <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
-      <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-mid);">${u.recado||'<i>sem recado</i>'}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',false)">❌ REMOVER VIP</button></td>
-    </tr>
-  `).join('');
-  const naoVipRows=naoVips.map(u=>`
-    <tr>
-      <td><div style="display:flex;align-items:center;gap:10px;"><div class="u-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div><div style="font-weight:600;">${u.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);">@${u.user}</div></div></div></td>
-      <td><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${CARGO_LABEL[u.cargo]||u.cargo}</span></td>
-      <td style="font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text-dim);">—</td>
-      <td><button class="btn btn-success btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',true)">🌟 DAR VIP</button></td>
-    </tr>
-  `).join('');
-  return `<div class="stitle">▸ GERENCIAR VIPS</div>
-    <div class="card" style="margin-bottom:20px;">
-      <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;margin-bottom:12px;">🌟 USUÁRIOS VIP (${vips.length})</div>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>RECAD0</th><th>AÇÃO</th></tr></thead><tbody>${vipRows||'<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-dim);">Nenhum usuário VIP ainda.</td></tr>'}</tbody></table></div>
-    </div>
-    <div class="card">
-      <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--text-mid);letter-spacing:.14em;margin-bottom:12px;">📋 DEMAIS USUÁRIOS (${naoVips.length})</div>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>CARGO</th><th>RECAD0</th><th>AÇÃO</th></tr></thead><tbody>${naoVipRows}</tbody></table></div>
-    </div>`;
-}
+// ══ HUB MASTER VIP: score, patentes, banco de horas e medalhas ══
+function vipPatente(score){return score>=90?'DIAMANTE':score>=75?'OURO':score>=50?'PRATA':'BRONZE';}
+function vipMin(min){const n=Math.max(0,Number(min)||0);return Math.floor(n/60)+'h'+String(n%60).padStart(2,'0');}
+function medalhasHtml(meds, target){return (meds||[]).map((m,i)=>`<span title="${m.motivo||'Por trabalho'}" style="display:inline-flex;align-items:center;gap:4px;padding:6px 9px;margin:3px;border:1px solid rgba(251,191,36,.35);border-radius:10px;background:rgba(251,191,36,.08);font-size:1.15rem;">${m.icone||'🏅'}${isMaster()?`<button class="btn btn-xs btn-danger" style="padding:2px 5px;" onclick="removerMedalha('${target}',${i})">×</button>`:''}</span>`).join('')||'<span style="color:var(--text-dim);font-size:.75rem;">Nenhuma medalha ainda.</span>';}
+function vipInfoCard(info){const h=info.horas||{}, p=vipPatente(info.score||0);return `<div class="card vip-dashboard"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;"><div><div class="stitle" style="margin:0 0 8px;">🌟 ${info.user?.nome||me.nome}</div><span class="cargo-badge">${CARGO_LABEL[info.user?.cargo||me.cargo]||me.cargo}</span> <span class="status-chip">${info.vip?'VIP ATIVO':'VIP INATIVO'}</span></div><div style="text-align:right;"><div style="font-size:2.5rem;font-weight:900;color:#fbbf24;line-height:1;">${info.score||0}</div><div style="font-size:.65rem;color:var(--text-dim);">SCORE / 100</div></div></div><div style="height:10px;background:rgba(255,255,255,.08);border-radius:99px;margin:20px 0 12px;overflow:hidden;"><div style="height:100%;width:${info.score||0}%;background:linear-gradient(90deg,#cd7f32,#c0c0c0,#ffd700,#67e8f9);border-radius:99px;"></div></div><div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-mid);"><b>🏅 PATENTE ${p}</b><span>🔥 ${info.sequencia||0} dias/turnos ativos</span><span>⚡ ${info.xp||0} XP</span></div></div><div class="card"><div class="stitle">⏱ BANCO DE HORAS VIP</div><div class="g4"><div class="stat-box"><div class="stat-num">${vipMin(h.normais)}</div><div class="stat-lbl">Normais</div></div><div class="stat-box"><div class="stat-num" style="color:#fbbf24;">${vipMin(h.extras)}</div><div class="stat-lbl">Extras</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.operacao)}</div><div class="stat-lbl">Operação</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.semanais)}</div><div class="stat-lbl">Semana</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.recorde)}</div><div class="stat-lbl">Recorde pessoal</div></div><div class="stat-box"><div class="stat-num">${h.turnos||0}</div><div class="stat-lbl">Turnos</div></div></div></div><div class="card"><div class="stitle">🏅 MEDALHAS EXCLUSIVAS <span style="float:right;font-size:.65rem;color:var(--text-dim);">máx. 5 por patente</span></div><div>${medalhasHtml(info.medalhas,info.user?.user||me.user)}</div></div>`;}
+async function vVips(){const target=me.user;const info=await API.getVipInfo(target);let admin='';if(isMaster()){const users=STATE.users.filter(u=>u.user!==me.user);admin=`<div class="card"><div class="stitle">👑 CONTROLE DO ADMIN MASTER</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>PATENTE VIP</th><th>MEDALHAS</th><th>AÇÕES</th></tr></thead><tbody>${users.map(u=>`<tr><td><b>${u.nome}</b><br><small>@${u.user}</small></td><td>${u.vip?'🌟 VIP':'—'}</td><td>${(u.medalhas||[]).length}/5</td><td><button class="btn ${u.vip?'btn-danger':'btn-success'} btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',${!u.vip})">${u.vip?'Remover VIP':'Dar VIP'}</button> <button class="btn btn-warn btn-sm" onclick="darMedalha('${u.user}','${u.nome.replace(/'/g,"\\'")}')">🏅 Medalha</button></td></tr>`).join('')}</tbody></table></div><p class="hint" style="margin-top:12px;">Somente o Admin Master pode conceder medalhas por trabalho. Cada patente comporta até 5 medalhas.</p></div>`;}return `<div class="stitle">▸ MASTER VIP</div>${vipInfoCard(info)}${admin}`;}
+async function darMedalha(user,nome){const tipo=prompt(`Medalha para ${nome}: bronze, prata, ouro ou diamante`,'ouro');if(!tipo||!['bronze','prata','ouro','diamante'].includes(tipo.toLowerCase()))return toast('Tipo de medalha inválido.','d');const motivo=prompt('Motivo do trabalho:','Por trabalho');if(motivo===null)return;try{await API.addMedalha(user,tipo.toLowerCase(),motivo,me.user);toast('Medalha concedida.','s');}catch(e){toast(e.message,'d');}}
+async function removerMedalha(user,idx){if(!confirm('Remover esta medalha?'))return;try{await API.removeMedalha(user,idx,me.user);toast('Medalha removida.','w');}catch(e){toast(e.message,'d');}}
+async function vHall(){const h=await API.getHall();const blocos=[['maisHoras','⏱ Mais horas trabalhadas','min'],['maisOcorrencias','📋 Mais ocorrências registradas','ocorrências'],['maisOperacoes','🚓 Mais operações','operações'],['maiorSequencia','🔥 Maior sequência','dias'],['maiorXp','⚡ Maior XP','XP'],['maisMedalhas','🏅 Mais medalhas','medalhas']];const cards=blocos.map(([key,t,unit])=>`<div class="card"><div class="stitle">${t}</div>${(h[key]||[]).map((x,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);"><b style="color:#fbbf24;width:20px;">${i+1}</b><div style="flex:1;"><b>${x.nome}</b><small style="display:block;color:var(--text-dim);">${CARGO_LABEL[x.cargo]||x.cargo}</small></div><strong>${key==='maisHoras'?vipMin(x.valor):x.valor} ${unit}</strong></div>`).join('')||'<div class="hint">Sem dados.</div>'}</div>`).join('');return `<div class="stitle">🏆 HALL DA FAMA</div><div class="card" style="margin-bottom:18px;background:linear-gradient(135deg,rgba(251,191,36,.14),rgba(167,139,250,.08));"><div style="font-size:1.3rem;font-weight:800;">🏆 Funcionário do mês</div><div style="margin-top:8px;font-size:1.05rem;color:#fbbf24;">${h.funcionarioDoMes?.nome||'Ainda não definido'}</div><div class="hint">Destaque automático por horas trabalhadas.</div></div><div class="g2">${cards}</div>`;}
+async function vPrisoes(){const rows=(STATE.prisoes||[]).map(p=>`<tr><td>${p.nomePF}</td><td>${p.nomeEnvolvido}</td><td>${p.data||'—'} ${p.hora||'—'}</td><td>${p.motivo}</td><td>${(CARGO_PERM[me.cargo]||0)>=5?`<button class="btn btn-danger btn-xs" onclick="excluirPrisao('${p.id}')">✘</button>`:''}</td></tr>`).join('');return `<div class="stitle">🚓 SISTEMA PRISIONAL</div><div class="card" style="margin-bottom:18px;"><div class="stitle">▸ REGISTRAR APREENSÃO</div><div class="g2"><div class="fg"><label>Nome do PF</label><input id="pri-pf" value="${me.nome||''}"></div><div class="fg"><label>Nome do envolvido</label><input id="pri-envolvido"></div><div class="fg g-full"><label>Motivo da prisão</label><textarea id="pri-motivo" maxlength="200" placeholder="Descreva o motivo da prisão"></textarea></div></div><button class="btn btn-primary" onclick="registrarPrisao()">🚓 REGISTRAR PRISÃO</button></div><div class="card"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>PF</th><th>ENVOLVIDO</th><th>HORA DA APREENSÃO</th><th>MOTIVO</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:30px;">Nenhuma prisão registrada.</td></tr>'}</tbody></table></div></div>`;}
+async function registrarPrisao(){const nomePF=document.getElementById('pri-pf')?.value.trim(),nomeEnvolvido=document.getElementById('pri-envolvido')?.value.trim(),motivo=document.getElementById('pri-motivo')?.value.trim();if(!nomePF||!nomeEnvolvido||!motivo)return toast('Preencha todos os campos da prisão.','d');try{await API.createPrisao({nomePF,nomeEnvolvido,motivo,feitorPor:me.user});toast('Prisão registrada.','s');}catch(e){toast(e.message,'d');}}
+async function excluirPrisao(id){if(!confirm('Excluir este registro prisional?'))return;try{await API.deletePrisao(id,me.user);toast('Registro excluído.','w');}catch(e){toast(e.message,'d');}}
 async function toggleVipUsuario(username,nome,ativo){
   if(!confirm(`${ativo?'Dar VIP para':'Remover VIP de'} ${nome}?`))return;
   try{
