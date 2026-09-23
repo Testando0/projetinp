@@ -1,5 +1,8 @@
 /* ══ EXTRA STYLES — GMPOL B&W ══ */
 
+.vip-combos-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}
+@media (max-width:720px){.vip-combos-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vip-combos-grid .card{padding:20px 10px!important}}
+
 /* Master cargo badge */
 .cb-master {
   background: rgba(255,255,255,.12);
@@ -301,4 +304,4 @@
   background: rgba(239,68,68,.1);
   border: 1px solid rgba(239,68,68,.3);
   color: #f87171;
-}
+    }
