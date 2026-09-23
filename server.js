@@ -179,6 +179,8 @@ function migrate(d) {
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
     else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
+  m.vip = true;
+  m.vipExpiresAt = null;
   return d;
 }
 
@@ -192,7 +194,8 @@ function sanitize(p) {
     ultimoGiroRoleta:       u.ultimoGiroRoleta || null,
     horasExtrasAjustadas:   typeof u.horasExtrasAjustadas === 'number' ? u.horasExtrasAjustadas : 0,
     horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0,
-    vip:                    u.vip === true,
+    vip:                    u.user === 'master' || u.vip === true,
+    vipExpiresAt:           u.user === 'master' ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
     medalhas:               Array.isArray(u.medalhas) ? u.medalhas : [],
@@ -272,8 +275,22 @@ function saveDataSync() {
 
 let DB = loadData();
 console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios | ${DB.prisoes.length} prisões`);
-
 const wsClients = new Set();
+function expireVips() {
+  const now = Date.now();
+  const expired = DB.users.filter(u => u.user !== 'master' && u.vip === true && Number.isFinite(u.vipExpiresAt) && u.vipExpiresAt <= now);
+  if (!expired.length) return;
+  expired.forEach(u => {
+    u.vip = false;
+    u.vipExpiresAt = null;
+    u.recado = '';
+    audit(`<b>${u.nome}</b> perdeu o VIP automaticamente após o fim do prazo`, '⏳');
+    broadcast('VIP_CHANGED', { userLogin: u.user, ativo: false, vipExpiresAt: null, expirado: true, feitorNome: 'Sistema' });
+  });
+  saveData();
+  broadcast('USERS_UPDATED', DB.users.map(pub));
+}
+setInterval(expireVips, 30 * 1000);
 
 function wsHandshake(req, socket) {
   const key = req.headers['sec-websocket-key'];
@@ -433,6 +450,7 @@ function jsonRes(res, status, data) {
 }
 
 async function handleAPI(req, res) {
+  expireVips();
   const method = req.method;
   const url    = req.url.split('?')[0];
 
@@ -495,7 +513,7 @@ async function handleAPI(req, res) {
       criadoPor: criador.user, criadoEm: Date.now(),
       cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
       horasExtrasAjustadas: 0, horasDevidasAjustadas: 0,
-      vip: false, recado: '', foto: '',
+      vip: false, vipExpiresAt: null, recado: '', foto: '',
       medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0
     });
     saveData();
@@ -566,7 +584,15 @@ async function handleAPI(req, res) {
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode dar/remover VIP.' });
 
+    let vipExpiresAt = null;
+    if (Boolean(ativo) && target.user !== 'master') {
+      const dias = Number(body.dias);
+      if (!Number.isInteger(dias) || dias < 1 || dias > 3650)
+        return jsonRes(res, 400, { error: 'Informe uma duração válida entre 1 e 3650 dias.' });
+      vipExpiresAt = Date.now() + dias * 24 * 60 * 60 * 1000;
+    }
     target.vip = Boolean(ativo);
+    target.vipExpiresAt = target.user === 'master' ? null : vipExpiresAt;
     if (!ativo) target.recado = '';
 
     saveData();
@@ -578,9 +604,10 @@ async function handleAPI(req, res) {
     broadcast('VIP_CHANGED', {
       userLogin: target.user,
       ativo: target.vip,
+      vipExpiresAt: target.vipExpiresAt,
       feitorNome: executor.nome
     });
-    return jsonRes(res, 200, { ok: true, vip: target.vip });
+    return jsonRes(res, 200, { ok: true, vip: target.vip, vipExpiresAt: target.vipExpiresAt });
   }
 
   // ═══ 🌟 VIP INFO: score 0-100 + banco de horas detalhado + sequência + medalhas ═══
@@ -1464,4 +1491,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-     }
+                                                                    }
