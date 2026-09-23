@@ -67,6 +67,8 @@ const API = {
   ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
   toggleVip:        (username, ativo, feitorPor, dias)         => API.request('PUT',    `/users/${username}/vip`, { ativo, feitorPor, dias }),
   getVipInfo:       (username)                                => API.request('GET',    `/users/${username}/vip`),
+  getVipCombos:     ()                                        => API.request('GET',    '/vip-combos'),
+  updateVipCombos:  (combos, feitorPor)                       => API.request('PUT',   '/vip-combos', { combos, feitorPor }),
   addMedalha:       (username, medalha, motivo, feitorPor)    => API.request('POST',   `/users/${username}/medalhas`, { medalha, motivo, feitorPor }),
   removeMedalha:    (username, idx, feitorPor)                => API.request('DELETE', `/users/${username}/medalhas`, { idx, feitorPor }),
   getHall:          ()                                        => API.request('GET',    '/hall-da-fama'),
@@ -179,13 +181,14 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
     if (Array.isArray(payload.prisoes))   STATE.prisoes   = payload.prisoes;
     if (Array.isArray(payload.roletaPremios)) STATE.roletaPremios = payload.roletaPremios;
+    if (Array.isArray(payload.vipCombos)) STATE.vipCombos = payload.vipCombos;
   }
   LSCache.save({
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
     feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[],
-    roletaPremios: payload.roletaPremios||[]
+    roletaPremios: payload.roletaPremios||[], vipCombos: payload.vipCombos||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
   if (typeof me !== 'undefined' && me && typeof renderTab === 'function' && typeof activeTab !== 'undefined') {
