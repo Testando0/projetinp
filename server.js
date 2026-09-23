@@ -38,6 +38,12 @@ const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, de
 
 const MEDALHAS_VALIDAS = { bronze: '🥉', prata: '🥈', ouro: '🥇', diamante: '💎' };
 const MEDALHAS_MAX_POR_PATENTE = 5;
+const DEFAULT_VIP_COMBOS = [
+  { id: 'bronze', dias: 5, valor: 4000, icone: '🥉', cor: 'bronze' },
+  { id: 'prata', dias: 10, valor: 8000, icone: '🥈', cor: 'prata' },
+  { id: 'ouro', dias: 20, valor: 12000, icone: '🥇', cor: 'ouro' },
+  { id: 'diamante', dias: 30, valor: 20000, icone: '💎', cor: 'diamante' }
+];
 
 const DEFAULT_ROLETA_PREMIOS = [
   { id: 'p1', valor: 100,   peso: 70,  cor: '#10b981', cor2: '#059669', corBorda: '#34d399', nome: 'Comum',      icone: '💵', raridade: 'common' },
@@ -168,7 +174,8 @@ function getDefaultData() {
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: [], prisoes: [],
-    roletaPremios: DEFAULT_ROLETA_PREMIOS
+    roletaPremios: DEFAULT_ROLETA_PREMIOS,
+    vipCombos: DEFAULT_VIP_COMBOS
   };
 }
 
@@ -216,6 +223,15 @@ function sanitize(p) {
         raridade: typeof pr.raridade === 'string' ? pr.raridade : 'common'
       }))
     : DEFAULT_ROLETA_PREMIOS;
+  const vipCombos = Array.isArray(p.vipCombos) && p.vipCombos.length === 4
+    ? p.vipCombos.map((c, i) => ({
+        id: DEFAULT_VIP_COMBOS[i].id,
+        dias: Number.isInteger(c.dias) ? c.dias : DEFAULT_VIP_COMBOS[i].dias,
+        valor: typeof c.valor === 'number' ? c.valor : DEFAULT_VIP_COMBOS[i].valor,
+        icone: DEFAULT_VIP_COMBOS[i].icone,
+        cor: DEFAULT_VIP_COMBOS[i].cor
+      }))
+    : DEFAULT_VIP_COMBOS;
   return {
     users,
     ocs:         Array.isArray(p.ocs)        ? p.ocs        : [],
@@ -226,7 +242,8 @@ function sanitize(p) {
     feedbacks:   Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
     chats:       Array.isArray(p.chats)      ? p.chats      : [],
     prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
-    roletaPremios
+    roletaPremios,
+    vipCombos
   };
 }
 
@@ -478,8 +495,31 @@ async function handleAPI(req, res) {
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
       prisoes: DB.prisoes,
-      roletaPremios: DB.roletaPremios
+      roletaPremios: DB.roletaPremios,
+      vipCombos: DB.vipCombos
     });
+  }
+
+  if (method === 'GET' && url === '/api/vip-combos') return jsonRes(res, 200, DB.vipCombos);
+  if (method === 'PUT' && url === '/api/vip-combos') {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || !isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas o Master pode alterar os combos VIP.' });
+    if (!Array.isArray(body.combos) || body.combos.length !== 4)
+      return jsonRes(res, 400, { error: 'Envie exatamente 4 combos VIP.' });
+    const combos = body.combos.map((c, i) => ({
+      id: DEFAULT_VIP_COMBOS[i].id,
+      dias: Number(c.dias),
+      valor: Number(c.valor),
+      icone: DEFAULT_VIP_COMBOS[i].icone,
+      cor: DEFAULT_VIP_COMBOS[i].cor
+    }));
+    if (combos.some(c => !Number.isInteger(c.dias) || c.dias < 1 || c.dias > 3650 || !Number.isFinite(c.valor) || c.valor < 0 || c.valor > 1000000000))
+      return jsonRes(res, 400, { error: 'Dias devem ser inteiros entre 1 e 3650; valores entre 0 e 1.000.000.000.' });
+    DB.vipCombos = combos;
+    saveData();
+    audit(`<b>${executor.nome}</b> atualizou os 4 combos VIP para todos os usuários`, '👑');
+    broadcast('VIP_COMBOS_UPDATED', DB.vipCombos);
+    return jsonRes(res, 200, { ok: true, combos: DB.vipCombos });
   }
 
   if (method === 'POST' && url === '/api/login') {
@@ -1491,4 +1531,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                    }
+      }
