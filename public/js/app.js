@@ -99,19 +99,19 @@ function handleSocketMessage(data){
       }
       break;
     case 'USERS_UPDATED':
-      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,recado:mu.recado||'',foto:mu.foto||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
-      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
+      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,vipExpiresAt:mu.vipExpiresAt||null,recado:mu.recado||'',foto:mu.foto||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
+      if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('meuVip')||activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(activeTab===getTabIdx('chat')){renderChatListaContatos();renderChatMensagens();}
       if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);
       break;
     case 'VIP_CHANGED':
-      if(activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
+      if(activeTab===getTabIdx('meuVip')||activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user){
-        me.vip=payload.ativo;
+        me.vip=payload.ativo;me.vipExpiresAt=payload.vipExpiresAt||null;
         if(!payload.ativo)me.recado='';
         saveSession();
         if(payload.ativo)toast('🌟 Você agora é VIP! Parabéns!','s',8000);
-        else toast('❌ Você perdeu o status VIP. Seu recado foi removido.','w',8000);
+        else toast(payload.expirado?'⏳ Seu VIP expirou e o acesso VIP foi bloqueado.':'❌ Você perdeu o status VIP. Seu recado foi removido.','w',8000);
       }
       break;
     case 'GIROS_GAINED':
@@ -166,7 +166,7 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,vipExpiresAt:su.vipExpiresAt||null,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;}}catch(_){}
   showPanel();
 }
 function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;}
@@ -199,15 +199,32 @@ function tabDefs(c){
     {label:'▸ PROVAS',key:'provas',notif:false},
     {label:'▸ CHAT',key:'chat',notif:true},
     {label:'▸ ROLETA',key:'roleta',notif:false},
-    {label:'▸ MEU VIP',key:'vips',notif:false},
+    {label:'▸ MEU VIP',key:'meuVip',notif:false},
     {label:'▸ HALL DA FAMA',key:'hall',notif:false},
+    {label:'▸ VIPS',key:'vips',notif:false},
     {label:'▸ PRISÕES',key:'prisoes',notif:false}
   ];
-  if(p>=7)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},{label:'▸ VIPS',key:'vips',notif:false},{label:'▸ AUDITORIA',key:'audit',notif:false}];
-  if(p>=6)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ HISTÓRICO',key:'hist',notif:false},{label:'▸ USUÁRIOS',key:'users',notif:false},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
-  if(p>=5)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true},{label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true}];
-  if(p>=4)return[...base,...common,{label:'▸ PENDENTES',key:'ocs',notif:true}];
-  return[...base,...common];
+  return[...base,...common,
+    {label:'▸ PENDENTES',key:'ocs',notif:true},
+    {label:'▸ HISTÓRICO',key:'hist',notif:false},
+    {label:'▸ USUÁRIOS',key:'users',notif:false},
+    {label:'▸ ANÁLISE PROVAS',key:'aprovas',notif:true},
+    {label:'▸ AUDITORIA',key:'audit',notif:false}
+  ];
+}
+function vipAtivo(){return !!me&&(me.user==='master'||(me.vip===true&&(!me.vipExpiresAt||me.vipExpiresAt>Date.now())));}
+function menuPermitido(key){
+  const vipMenus=['chat','roleta','meuVip','hall','vips'];
+  if(vipMenus.includes(key)&&!vipAtivo())return false;
+  const cargoMin={ocs:5,aprovas:5,hist:6,users:6,audit:7};
+  return !cargoMin[key]||(CARGO_PERM[me?.cargo]||0)>=cargoMin[key];
+}
+function telaMenuBloqueado(key){
+  const vipMenus=['chat','roleta','meuVip','hall','vips'];
+  if(vipMenus.includes(key))return '<div class="card" style="text-align:center;padding:58px 22px;max-width:620px;margin:20px auto;"><div style="font-size:3rem;margin-bottom:16px;">🔒</div><div style="font-size:1.3rem;font-weight:800;margin-bottom:10px;">ÁREA EXCLUSIVA VIP</div><div style="color:var(--text-mid);line-height:1.7;">Este menu está disponível somente para usuários VIP.<br><span style="font-size:.78rem;color:var(--text-dim);">Solicite ao Admin Master a ativação do seu VIP.</span></div></div>';
+  const nomes={ocs:'PENDENTES',aprovas:'ANÁLISE DE PROVAS',hist:'HISTÓRICO',users:'USUÁRIOS',audit:'AUDITORIA'};
+  const cargo={ocs:'Delegado, Chefe de polícia ou Master',aprovas:'Delegado, Chefe de polícia ou Master',hist:'Chefe de polícia ou Master',users:'Chefe de polícia ou Master',audit:'Admin Master'};
+  return `<div class="card" style="text-align:center;padding:58px 22px;max-width:620px;margin:20px auto;"><div style="font-size:3rem;margin-bottom:16px;">🛡️</div><div style="font-size:1.3rem;font-weight:800;margin-bottom:10px;">ACESSO RESTRITO</div><div style="color:var(--text-mid);line-height:1.7;">O menu <b>${nomes[key]||'selecionado'}</b> está disponível somente para:<br><b style="color:var(--accent);">${cargo[key]||'cargo autorizado'}</b></div></div>`;
 }
 function buildTabs(){const defs=tabDefs(me.cargo);document.getElementById('tabs').innerHTML=defs.map((t,i)=>'<div class="tab '+(i===0?'active':'')+'" id="tab-'+i+'" onclick="switchTab('+i+')">'+t.label+(t.notif?'<span class="tab-n" id="tn-'+i+'" style="display:none"></span>':'')+' </div>').join('');buildMobileDrawer();}
 function buildMobileDrawer(){if(!me)return;const defs=tabDefs(me.cargo);const drawer=document.getElementById('nav-drawer');if(!drawer)return;drawer.innerHTML=defs.map((t,i)=>'<div class="nav-drawer-item'+(i===activeTab?' active':'')+'" onclick="switchTab('+i+');closeNavDrawer();">'+t.label+(t.notif?'<span class="tab-n-badge" id="tnd-'+i+'" style="display:none">0</span>':'')+' </div>').join('');}
@@ -226,9 +243,10 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,intro:vIntroducao,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,hall:vHall,prisoes:vPrisoes,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
-  const fn=views[def.key]||vInicio;
+  const views={home:vInicio,intro:vIntroducao,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,hall:vHall,prisoes:vPrisoes,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const contentEl=document.getElementById('content');
+  if(!menuPermitido(def.key)){contentEl.innerHTML=telaMenuBloqueado(def.key);return;}
+  const fn=views[def.key]||vInicio;
   if(contentEl)contentEl.classList.toggle('chat-mode',def.key==='chat');
   document.body.classList.toggle('chat-mode',def.key==='chat');
   const aplicar=(html)=>{if(activeTab!==idx)return;contentEl.innerHTML=html;if(def.key==='pontos')setTimeout(startClock,50);else clearInterval(_clockInterval);if(def.key==='chat')setTimeout(()=>{renderChatListaContatos();renderChatMensagens();startChatPolling();},60);else stopChatPolling();if(def.key==='roleta')setTimeout(inicializarRoleta,80);};
@@ -423,6 +441,8 @@ function vipPatente(score){return score>=90?'DIAMANTE':score>=75?'OURO':score>=5
 function vipMin(min){const n=Math.max(0,Number(min)||0);return Math.floor(n/60)+'h'+String(n%60).padStart(2,'0');}
 function medalhasHtml(meds, target){return (meds||[]).map((m,i)=>`<span title="${m.motivo||'Por trabalho'}" style="display:inline-flex;align-items:center;gap:4px;padding:6px 9px;margin:3px;border:1px solid rgba(251,191,36,.35);border-radius:10px;background:rgba(251,191,36,.08);font-size:1.15rem;">${m.icone||'🏅'}${isMaster()?`<button class="btn btn-xs btn-danger" style="padding:2px 5px;" onclick="removerMedalha('${target}',${i})">×</button>`:''}</span>`).join('')||'<span style="color:var(--text-dim);font-size:.75rem;">Nenhuma medalha ainda.</span>';}
 function vipInfoCard(info){const h=info.horas||{}, p=vipPatente(info.score||0);return `<div class="card vip-dashboard"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;"><div><div class="stitle" style="margin:0 0 8px;">🌟 ${info.user?.nome||me.nome}</div><span class="cargo-badge">${CARGO_LABEL[info.user?.cargo||me.cargo]||me.cargo}</span> <span class="status-chip">${info.vip?'VIP ATIVO':'VIP INATIVO'}</span></div><div style="text-align:right;"><div style="font-size:2.5rem;font-weight:900;color:#fbbf24;line-height:1;">${info.score||0}</div><div style="font-size:.65rem;color:var(--text-dim);">SCORE / 100</div></div></div><div style="height:10px;background:rgba(255,255,255,.08);border-radius:99px;margin:20px 0 12px;overflow:hidden;"><div style="height:100%;width:${info.score||0}%;background:linear-gradient(90deg,#cd7f32,#c0c0c0,#ffd700,#67e8f9);border-radius:99px;"></div></div><div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-mid);"><b>🏅 PATENTE ${p}</b><span>🔥 ${info.sequencia||0} dias/turnos ativos</span><span>⚡ ${info.xp||0} XP</span></div></div><div class="card"><div class="stitle">⏱ BANCO DE HORAS VIP</div><div class="g4"><div class="stat-box"><div class="stat-num">${vipMin(h.normais)}</div><div class="stat-lbl">Normais</div></div><div class="stat-box"><div class="stat-num" style="color:#fbbf24;">${vipMin(h.extras)}</div><div class="stat-lbl">Extras</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.operacao)}</div><div class="stat-lbl">Operação</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.semanais)}</div><div class="stat-lbl">Semana</div></div><div class="stat-box"><div class="stat-num">${vipMin(h.recorde)}</div><div class="stat-lbl">Recorde pessoal</div></div><div class="stat-box"><div class="stat-num">${h.turnos||0}</div><div class="stat-lbl">Turnos</div></div></div></div><div class="card"><div class="stitle">🏅 MEDALHAS EXCLUSIVAS <span style="float:right;font-size:.65rem;color:var(--text-dim);">máx. 5 por patente</span></div><div>${medalhasHtml(info.medalhas,info.user?.user||me.user)}</div></div>`;}
+function vipValidade(ts){if(!ts)return 'VIP permanente';const dias=Math.max(0,Math.ceil((ts-Date.now())/86400000));return `VIP válido por mais ${dias} dia${dias===1?'':'s'} — até ${new Date(ts).toLocaleDateString('pt-BR')}`;}
+async function vMeuVip(){const info=await API.getVipInfo(me.user);return `<div class="stitle">▸ MEU VIP</div><div style="margin-bottom:16px;padding:14px 18px;border:1px solid rgba(251,191,36,.3);border-radius:14px;background:rgba(251,191,36,.08);color:#fbbf24;font-weight:700;">${vipValidade(info.user?.vipExpiresAt)}</div>${vipInfoCard(info)}`;}
 async function vVips(){const target=me.user;const info=await API.getVipInfo(target);let admin='';if(isMaster()){const users=STATE.users.filter(u=>u.user!==me.user);admin=`<div class="card"><div class="stitle">👑 CONTROLE DO ADMIN MASTER</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>USUÁRIO</th><th>PATENTE VIP</th><th>MEDALHAS</th><th>AÇÕES</th></tr></thead><tbody>${users.map(u=>`<tr><td><b>${u.nome}</b><br><small>@${u.user}</small></td><td>${u.vip?'🌟 VIP':'—'}</td><td>${(u.medalhas||[]).length}/5</td><td><button class="btn ${u.vip?'btn-danger':'btn-success'} btn-sm" onclick="toggleVipUsuario('${u.user}','${u.nome.replace(/'/g,"\\'")}',${!u.vip})">${u.vip?'Remover VIP':'Dar VIP'}</button> <button class="btn btn-warn btn-sm" onclick="darMedalha('${u.user}','${u.nome.replace(/'/g,"\\'")}')">🏅 Medalha</button></td></tr>`).join('')}</tbody></table></div><p class="hint" style="margin-top:12px;">Somente o Admin Master pode conceder medalhas por trabalho. Cada patente comporta até 5 medalhas.</p></div>`;}return `<div class="stitle">▸ MASTER VIP</div>${vipInfoCard(info)}${admin}`;}
 async function darMedalha(user,nome){const tipo=prompt(`Medalha para ${nome}: bronze, prata, ouro ou diamante`,'ouro');if(!tipo||!['bronze','prata','ouro','diamante'].includes(tipo.toLowerCase()))return toast('Tipo de medalha inválido.','d');const motivo=prompt('Motivo do trabalho:','Por trabalho');if(motivo===null)return;try{await API.addMedalha(user,tipo.toLowerCase(),motivo,me.user);toast('Medalha concedida.','s');}catch(e){toast(e.message,'d');}}
 async function removerMedalha(user,idx){if(!confirm('Remover esta medalha?'))return;try{await API.removeMedalha(user,idx,me.user);toast('Medalha removida.','w');}catch(e){toast(e.message,'d');}}
@@ -432,9 +452,11 @@ async function registrarPrisao(){const nomePF=document.getElementById('pri-pf')?
 async function excluirPrisao(id){if(!confirm('Excluir este registro prisional?'))return;try{await API.deletePrisao(id,me.user);toast('Registro excluído.','w');}catch(e){toast(e.message,'d');}}
 async function toggleVipUsuario(username,nome,ativo){
   if(!confirm(`${ativo?'Dar VIP para':'Remover VIP de'} ${nome}?`))return;
+  let dias=null;
+  if(ativo){dias=parseInt(prompt(`Por quantos dias ${nome} terá VIP? (1 a 3650)`,'3'),10);if(!Number.isInteger(dias)||dias<1||dias>3650){toast('Informe uma duração entre 1 e 3650 dias.','d');return;}}
   try{
-    const res=await API.toggleVip(username,ativo,me.user);
-    if(res&&res.ok){toast(ativo?`🌟 ${nome} agora é VIP!`:`❌ VIP de ${nome} removido.`,ativo?'s':'w');}
+    const res=await API.toggleVip(username,ativo,me.user,dias);
+    if(res&&res.ok){toast(ativo?`🌟 ${nome} agora é VIP por ${dias} dia${dias===1?'':'s'}!`:`❌ VIP de ${nome} removido.`,ativo?'s':'w');}
     else toast(res?.error||'Erro.','d');
   }catch(e){toast(e.message||'Erro.','d');}
 }
