@@ -1,5 +1,5 @@
 // GMPOL Service Worker v1.0
-const CACHE_NAME = 'gmpol-cache-v3';
+const CACHE_NAME = 'gmpol-cache-v4';
 const OFFLINE_URL = '/';
 
 // Recursos críticos para cache offline
