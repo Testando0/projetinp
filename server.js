@@ -44,6 +44,23 @@ const DEFAULT_VIP_COMBOS = [
   { id: 'ouro', dias: 20, valor: 12000, icone: '🥇', cor: 'ouro' },
   { id: 'diamante', dias: 30, valor: 20000, icone: '💎', cor: 'diamante' }
 ];
+const RECRUTAMENTO_QUESTOES = [
+  { id: 1, tipo: 'texto', titulo: 'Cite 8 códigos Q.' },
+  { id: 2, tipo: 'texto', titulo: 'Cite 5 regras da Bíblia RP.' },
+  { id: 3, tipo: 'texto', titulo: 'O que é hierarquia?' },
+  { id: 4, tipo: 'texto', titulo: 'O que é abuso de poder?' },
+  { id: 5, tipo: 'texto', titulo: 'Qual sua disponibilidade de horário?' },
+  { id: 6, tipo: 'texto', titulo: 'Você pode entrar para ajudar nos 2 CRMs? Explique.' },
+  { id: 7, tipo: 'texto', titulo: 'Cite 2 regras de carregamento.' },
+  { id: 8, tipo: 'texto', titulo: 'Cite 3 regras que não podem ser quebradas da PF.' },
+  { id: 9, tipo: 'texto', titulo: 'Você teria disponibilidade para cobrir algum QTH em hora extra?' },
+  { id: 10, tipo: 'texto', titulo: 'Se um grupo de azaralhos vier para te matar e você só tiver o cassetete e estiver sem farda, o que faria?' },
+  { id: 11, tipo: 'texto', titulo: 'Se você receber uma ordem direta do Delegado, mas o Chefe de Polícia te der outra ordem, o que faria?' },
+  { id: 12, tipo: 'escolha', titulo: 'Se seu cargo fosse rebaixado com motivo justo, o que faria?', opcoes: ['Aceitar a punição e questionar', 'Questionar e entender', 'Pedir para a Chefe repensar', 'Aceitar a punição sem questionamento'], correta: 3 },
+  { id: 13, tipo: 'escolha', titulo: 'Cite qual questão não seria considerada abuso de poder.', opcoes: ['Atordoar sem avisar e prender', 'Dar avisos, prender e avisar o motivo da prisão', 'Matar atordoado (legítima defesa)', 'Após morrer, voltar, atordoar e prender o mesmo por homicídio'], correta: 1 },
+  { id: 14, tipo: 'escolha', titulo: 'Se estiver sozinho no QTH HP e diversos azaralhos estiverem gritando, xingando e colocando música no VoIP, o que faria?', opcoes: ['Com a pressão total, sairia e deixaria resolverem com a Administração', 'Chamaria QRR e floodaria a rádio sem parar até todos ajudarem', 'Chamaria a Administração e deixaria eles resolverem', 'Manteria a calma, avisaria QRU na rádio, aguardaria o efetivo e conteria conforme as regras da PF', 'Atordoaria todos, gritaria e usaria taser dentro do HP'], correta: 3 },
+  { id: 15, tipo: 'escolha', titulo: 'Se uma PF Delegada der uma ordem, mas um Delegado também der uma ordem diferente, o que priorizaria?', opcoes: ['Obedeceria a PF Delegada porque ela deu a primeira ordem', 'Obedeceria o Delegado por ser homem e ter a farda bonita e posturada', 'Conversaria com os dois para resolver qual QTH assumir'], correta: 2 }
+];
 
 const DEFAULT_ROLETA_PREMIOS = [
   { id: 'p1', valor: 100,   peso: 70,  cor: '#10b981', cor2: '#059669', corBorda: '#34d399', nome: 'Comum',      icone: '💵', raridade: 'common' },
@@ -173,7 +190,7 @@ function getDefaultData() {
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [], prisoes: [],
+    feedbacks: [], chats: [], prisoes: [], recrutamentos: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS,
     vipCombos: DEFAULT_VIP_COMBOS
   };
@@ -242,6 +259,7 @@ function sanitize(p) {
     feedbacks:   Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
     chats:       Array.isArray(p.chats)      ? p.chats      : [],
     prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
+    recrutamentos: Array.isArray(p.recrutamentos) ? p.recrutamentos : [],
     roletaPremios,
     vipCombos
   };
@@ -1187,6 +1205,61 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, premios: DB.roletaPremios });
   }
 
+  if (method === 'GET' && url === '/api/recrutamento/questoes') {
+    return jsonRes(res, 200, RECRUTAMENTO_QUESTOES.map(({ correta, ...q }) => q));
+  }
+  if (method === 'GET' && url === '/api/recrutamento') {
+    const params = new URLSearchParams(req.url.split('?')[1] || '');
+    const executor = findUserByRef(params.get('user'));
+    if (!executor) return jsonRes(res, 403, { error: 'Usuário não encontrado.' });
+    const podeAnalisar = isMaster(executor) || (CARGO_PERM_SRV[executor.cargo] || 0) >= 5;
+    if (podeAnalisar) {
+      return jsonRes(res, 200, { recrutamentos: DB.recrutamentos, questoes: RECRUTAMENTO_QUESTOES });
+    }
+    return jsonRes(res, 200, { recrutamentos: DB.recrutamentos.filter(r => r.userLogin === executor.user).map(r => ({ ...r, respostas: r.respostas })) });
+  }
+  if (method === 'POST' && url === '/api/recrutamento') {
+    const { userLogin, respostas } = body;
+    const u = DB.users.find(x => x.user === userLogin);
+    if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    if (!Array.isArray(respostas) || respostas.length !== RECRUTAMENTO_QUESTOES.length)
+      return jsonRes(res, 400, { error: 'Responda todas as questões do recrutamento.' });
+    if (DB.recrutamentos.some(r => r.userLogin === u.user && r.status === 'pendente'))
+      return jsonRes(res, 409, { error: 'Você já possui um recrutamento aguardando análise.' });
+    const mapa = new Map(respostas.map(r => [Number(r.questaoId), r]));
+    const respostasNormalizadas = RECRUTAMENTO_QUESTOES.map(q => {
+      const r = mapa.get(q.id) || {};
+      if (q.tipo === 'texto') return { questaoId: q.id, texto: String(r.texto || '').trim().slice(0, 2000) };
+      return { questaoId: q.id, escolha: Number.isInteger(Number(r.escolha)) ? Number(r.escolha) : -1 };
+    });
+    if (respostasNormalizadas.some((r, i) => RECRUTAMENTO_QUESTOES[i].tipo === 'texto' ? r.texto.length < 3 : r.escolha < 0 || r.escolha >= RECRUTAMENTO_QUESTOES[i].opcoes.length))
+      return jsonRes(res, 400, { error: 'Preencha todas as respostas corretamente.' });
+    const objetivas = RECRUTAMENTO_QUESTOES.filter(q => q.tipo === 'escolha');
+    const acertos = objetivas.filter(q => respostasNormalizadas.find(r => r.questaoId === q.id)?.escolha === q.correta).length;
+    const recrutamento = { id: 'REC-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), userLogin: u.user, nome: u.nome, cargoAtual: u.cargo, respostas: respostasNormalizadas, acertos, totalObjetivas: objetivas.length, status: 'pendente', motivoDecisao: '', enviadoEm: Date.now(), decididoPor: null, decididoEm: null };
+    DB.recrutamentos.push(recrutamento); saveData();
+    audit(`<b>${u.nome}</b> enviou um recrutamento para análise`, '📋');
+    broadcast('NEW_RECRUTAMENTO', { id: recrutamento.id, userLogin: u.user, nome: u.nome });
+    return jsonRes(res, 201, { ok: true, recrutamento: { ...recrutamento, respostas: undefined } });
+  }
+  const mRecrutamento = url.match(/^\/api\/recrutamento\/([^/]+)\/decisao$/);
+  if (method === 'PUT' && mRecrutamento) {
+    const recrutamento = DB.recrutamentos.find(r => r.id === mRecrutamento[1]);
+    if (!recrutamento) return jsonRes(res, 404, { error: 'Recrutamento não encontrado.' });
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (!isMaster(executor) && (CARGO_PERM_SRV[executor.cargo] || 0) < 5)) return jsonRes(res, 403, { error: 'Somente Delegado, Chefe de Polícia ou Master podem analisar recrutamentos.' });
+    if (!['aprovado', 'recusado'].includes(body.status)) return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    recrutamento.status = body.status;
+    recrutamento.motivoDecisao = String(body.motivo || '').trim().slice(0, 500);
+    recrutamento.decididoPor = executor.user;
+    recrutamento.decididoPorNome = executor.nome;
+    recrutamento.decididoEm = Date.now();
+    saveData();
+    audit(`<b>${executor.nome}</b> ${body.status} o recrutamento de <b>${recrutamento.nome}</b>`, body.status === 'aprovado' ? '✅' : '❌');
+    broadcast('RECRUTAMENTO_DECIDIDO', { id: recrutamento.id, userLogin: recrutamento.userLogin, status: recrutamento.status });
+    return jsonRes(res, 200, { ok: true, recrutamento });
+  }
+
   if (method === 'GET' && url === '/api/provas') return jsonRes(res, 200, DB.provas);
   if (method === 'GET' && url === '/api/prova/questionario') {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
@@ -1531,4 +1604,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-      }
+  }
