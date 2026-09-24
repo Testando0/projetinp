@@ -1012,7 +1012,8 @@ async function baterPonto(type){
         toast(msg,'s',9000);
       }else toast('✅ Saída registrada às '+p.hora+'!','s');
     }
-    renderTab(activeTab);
+    // Nunca desmontar a tela durante uma prova: o estado e o cronômetro devem continuar intactos.
+    renderTabSafe(activeTab);
   }catch(e){toast(e.message||'Erro.','d');}
   finally{setTimeout(()=>{_busyPonto=false;},1500);}
 }
