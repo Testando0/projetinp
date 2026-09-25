@@ -6,6 +6,12 @@
 @media (max-width:720px){.vip-combos-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vip-combos-grid .card{padding:20px 10px!important}}
 @media (max-width:720px){.vip-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
+@media (max-width:600px){
+  #m-perfil .modal-b>div:first-child{gap:14px!important;padding:18px 14px!important;}
+  #m-perfil #pf-avatar{width:82px!important;height:82px!important;flex:0 0 82px;font-size:2.1rem!important;}
+  #m-perfil #pf-avatar img{width:100%!important;height:100%!important;object-fit:cover!important;}
+}
+
 /* Master cargo badge */
 .cb-master {
   background: rgba(255,255,255,.12);
@@ -307,4 +313,4 @@
   background: rgba(239,68,68,.1);
   border: 1px solid rgba(239,68,68,.3);
   color: #f87171;
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           }
+  }
