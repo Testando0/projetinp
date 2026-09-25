@@ -970,6 +970,25 @@
       "score": 0,
       "sequenciaAtiva": 0,
       "recordeHoras": 0
+    },
+    {
+      "user": "cyz_tadashi",
+      "pass": "12345678",
+      "cargo": "chefe",
+      "nome": "Cyz_tadashi",
+      "ativo": true,
+      "criadoPor": "sistema",
+      "criadoEm": 1758800000000,
+      "cicloDias": [],
+      "folgaDia": null,
+      "vip": false,
+      "vipExpiresAt": null,
+      "recado": "",
+      "foto": "",
+      "medalhas": [],
+      "score": 0,
+      "sequenciaAtiva": 0,
+      "recordeHoras": 0
     }
   ],
   "ocs": [],
