@@ -126,7 +126,18 @@ const PROVAS_CARGO = {
     { enunciado: 'Ao receber uma ordem de um superior, o policial deve:', alt: ['Seguir os procedimentos e regras aplicáveis','Ignorar sempre','Fazer o contrário','Sair da ocorrência'], correta: 0 },
     { enunciado: 'Em uma ocorrência com vários suspeitos, o ideal é:', alt: ['Cada policial agir por conta própria','Coordenar a equipe e pedir apoio quando necessário','Ignorar o rádio','Entrar sem planejamento'], correta: 1 },
     { enunciado: 'Qual atitude pode prejudicar uma operação?', alt: ['Comunicação','Trabalho em equipe','Agir sem coordenação','Solicitar apoio'], correta: 2 },
-    { enunciado: 'O que um candidato a Tático deve demonstrar?', alt: ['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta: 0 }
+    { enunciado: 'O que um candidato a Tático deve demonstrar?', alt: ['Disciplina, conhecimento das regras e trabalho em equipe','Abuso de autoridade','Desrespeito aos superiores','Busca constante por confronto'], correta: 0 },
+    { enunciado: 'Você está responsável pelo Tático do PS. Um preso está no lado externo, aguardando o advogado. Antes de iniciar o procedimento, outro efetivo sugere levar o preso para dentro do PS para “facilitar a conversa”. Qual procedimento está correto?', alt: ['Levar o preso para dentro, pois o advogado precisa de um ambiente reservado.','Realizar o procedimento externo no lado externo do PS, incluindo a revista e o atendimento das necessidades previstas.','Permitir que o advogado entre no PS e realizar a revista somente depois da conversa.','Encerrar o atendimento, pois advogado não pode ter contato com preso no lado externo.'], correta: 1 },
+    { enunciado: 'Um preso está dentro do PS e solicita alimentação. O efetivo responsável afirma que alimentação é procedimento externo e manda o preso para fora. Analisando exclusivamente as regras do Tático, a conduta foi:', alt: ['Correta, pois alimentação sempre deve ser realizada no externo.','Correta somente se o preso estiver acompanhado.','Incorreta, pois alimentação está entre os procedimentos do interno do PS.','Incorreta somente porque o preso deveria primeiro falar com o advogado.'], correta: 2 },
+    { enunciado: 'Um advogado chega ao PS e solicita contato com um preso que está no interno. O Tático decide automaticamente levá-lo para o lado externo porque “advogado é sempre procedimento externo”. Qual é o problema dessa interpretação?', alt: ['Advogado nunca pode ter contato com preso no PS.','O efetivo confundiu a existência do procedimento com a divisão entre externo e interno.','O advogado deveria conversar somente pelo rádio.','O preso deveria ser levado diretamente para o HP.'], correta: 1 },
+    { enunciado: 'Qual alternativa apresenta somente procedimentos associados ao interno do PS?', alt: ['Revista, advogado e trocação.','Alimentação, advogado e banho de sol.','Revista, proteção veicular e relatório.','Banho de sol, proteção veicular e mídia de massa.'], correta: 1 },
+    { enunciado: 'Um efetivo afirma: “Se o preso estiver no interno do PS, o Tático não precisa mais se preocupar com suas necessidades.” Essa afirmação é:', alt: ['Correta.','Correta somente durante patrulhamento.','Incorreta, pois alimentação, advogado e banho de sol fazem parte dos procedimentos do interno.','Correta quando o preso estiver acompanhado.'], correta: 2 },
+    { enunciado: 'Você chega ao HP e encontra efetivos correndo, utilização desnecessária de VoIP e movimentação desorganizada. Qual deve ser a prioridade do Tático?', alt: ['Participar da movimentação para não ficar para trás.','Manter o local organizado, evitando correria e uso inadequado do VoIP.','Abandonar o HP e aguardar os efetivos se organizarem.','Permitir a situação porque não existe trocação.'], correta: 1 },
+    { enunciado: 'Qual alternativa apresenta corretamente a diferença entre os procedimentos mencionados nas regras?', alt: ['PS externo envolve procedimentos como revista e advogado; no interno há alimentação, advogado e banho de sol; HP envolve organização do local, evitando correria e VoIP.','PS e HP possuem exatamente as mesmas regras.','HP é responsável por banho de sol, enquanto PS é responsável por proteção veicular.','PS externo e HP possuem exclusivamente função de patrulhamento.'], correta: 0 },
+    { enunciado: 'Durante uma patrulha, o comandante solicita: “Precisamos manter o rádio organizado, registrar as informações e realizar abordagens de rotina.” Qual posição está diretamente relacionada a essas funções?', alt: ['P2.','P3.','P4 exclusivamente.','Tático do HP.'], correta: 0 },
+    { enunciado: 'Durante uma ocorrência, a equipe precisa concentrar sua atenção na proteção da viatura. Qual função corresponde diretamente a essa atribuição?', alt: ['P2.','P3.','HP.','PS interno.'], correta: 1 },
+    { enunciado: 'A equipe está dentro do QTH. Um civil começa a xingar os policiais repetidamente, tentando fazer com que alguém saia. O que deve acontecer?', alt: ['Um efetivo deve sair para responder verbalmente.','A equipe deve permanecer no QTH e não atender às provocações.','A equipe deve sair somente se os xingamentos continuarem.','O efetivo deve perseguir o civil para evitar novas provocações.'], correta: 1 },
+    { enunciado: 'Um civil está do lado de fora do QTH e começa a provocar a equipe. Outro efetivo afirma: “Podemos sair, desde que não haja troca de tiros.” Considerando as regras apresentadas, essa afirmação é:', alt: ['Correta.','Correta somente se o civil estiver armado.','Incorreta, pois a regra determina permanência dentro do QTH e que não sejam atendidas as provocações dos civis.','Correta quando houver superior hierárquico presente.'], correta: 2 }
   ],
   escrivao: [
     { enunciado: 'Durante uma operação, um superior determina pelo rádio que toda a equipe avance, mas o Delegado percebe que a ordem pode colocar agentes em risco. Qual é a conduta mais adequada?', alt: ['Cumprir imediatamente','Ignorar a ordem','Comunicar a preocupação pelo rádio e seguir o procedimento hierárquico','Encerrar a operação sem comunicar ninguém'], correta: 2 },
@@ -141,6 +152,11 @@ const PROVAS_CARGO = {
     { enunciado: 'Um Delegado recebe denúncia de possível abuso de poder envolvendo agente próximo. Qual decisão demonstra melhor postura?', alt: ['Arquivar imediatamente','Punir imediatamente','Preservar evidências e apurar conforme regras','Divulgar publicamente'], correta: 2 }
   ]
 };
+
+// A antiga prova identificada como “Delegado” passa a fazer parte do fluxo de Agente.
+// Escrivão deixa de aparecer como opção de prova de promoção.
+PROVAS_CARGO.agente = [...PROVAS_CARGO.agente, ...(PROVAS_CARGO.escrivao || [])];
+delete PROVAS_CARGO.escrivao;
 
 const PRISOES_QUESTOES = [
   'Cite todos os comandos em ordem para efetuar prisões.',
@@ -1296,6 +1312,7 @@ async function handleAPI(req, res) {
 
     const set = PROVAS_CARGO[u.cargo];
     if (!set) return jsonRes(res, 400, { error: 'Seu cargo atual não possui prova.' });
+    if (cargoAlvo === 'delegado') return jsonRes(res, 400, { error: 'Provas para Delegado foram removidas. As questões foram transferidas para Agente.' });
     const myPerm = CARGO_PERM_SRV[u.cargo] || 0;
     const alvoPerm = CARGO_PERM_SRV[cargoAlvo] || 0;
     if (alvoPerm <= myPerm) return jsonRes(res, 400, { error: 'Escolha um cargo ACIMA do seu.' });
@@ -1604,4 +1621,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-  }
+   }
