@@ -316,13 +316,11 @@ function avatarLetraDe(u){
 }
 function avatarContent(u){
   const letra=avatarLetraDe(u).replace(/'/g,'');
-  const raw=u&&typeof u.foto==='string'?u.foto.trim():'';
-  const fallback=`<span class="avatar-fallback" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${letra}</span>`;
-  if(raw){
-    const src=raw.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'%27');
-    return `<img class="avatar-image" src="${src}" alt="Foto de ${letra}" loading="eager" decoding="async" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class="avatar-fallback" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;width:100%;height:100%;">${letra}</span>`;
+  if(u&&u.foto){
+    const src=String(u.foto).replace(/"/g,'&quot;').replace(/'/g,'%27');
+    return `<img src="${src}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.remove();this.parentNode.textContent='${letra}';">`;
   }
-  return fallback;
+  return letra;
 }
 const AVATAR_POS='position:relative;overflow:hidden;';
 
