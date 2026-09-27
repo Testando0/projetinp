@@ -12,6 +12,7 @@
  */
 
 const http   = require('http');
+const https  = require('https');
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
@@ -513,6 +514,31 @@ async function handleAPI(req, res) {
       'Access-Control-Allow-Headers': 'Content-Type'
     });
     return res.end();
+  }
+
+  if (method === 'GET' && url === '/api/avatar') {
+    const raw = new URL(req.url, 'http://localhost').searchParams.get('url') || '';
+    let target;
+    try { target = new URL(raw); } catch (_) { res.writeHead(400); return res.end('URL inválida'); }
+    if (target.protocol !== 'https:' || !/^(i\.)?ibb\.co$|^i\.ibb\.co$/i.test(target.hostname)) {
+      res.writeHead(403); return res.end('Fonte não permitida');
+    }
+    const requestImage = (imageUrl, redirects = 0) => {
+      const upstream = https.get(imageUrl, { headers: { 'User-Agent': 'GMPOL-avatar/1.0', Accept: 'image/*' } }, (up) => {
+        if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && redirects < 2) {
+          up.resume(); return requestImage(new URL(up.headers.location, imageUrl), redirects + 1);
+        }
+        const type = String(up.headers['content-type'] || '').toLowerCase();
+        if (up.statusCode !== 200 || !type.startsWith('image/')) {
+          up.resume(); res.writeHead(502); return res.end('Imagem indisponível');
+        }
+        res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
+        up.pipe(res);
+      });
+      upstream.setTimeout(15000, () => upstream.destroy(new Error('timeout')));
+      upstream.on('error', () => { if (!res.headersSent) { res.writeHead(502); res.end('Imagem indisponível'); } });
+    };
+    return requestImage(target);
   }
 
   let body = {};
@@ -1654,4 +1680,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-   }
+                                                                                                                                                      }
