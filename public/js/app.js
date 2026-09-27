@@ -317,8 +317,8 @@ function avatarLetraDe(u){
 function avatarContent(u){
   const letra=avatarLetraDe(u).replace(/'/g,'');
   if(u&&u.foto){
-    const src=String(u.foto).replace(/"/g,'&quot;').replace(/'/g,'%27');
-    return `<img src="${src}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.remove();this.parentNode.textContent='${letra}';">`;
+    const src=String(u.foto).trim().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'%27');
+    return `<img src="${src}" alt="" loading="eager" decoding="async" referrerpolicy="no-referrer" style="position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block!important;z-index:2;" onload="this.style.visibility='visible';" onerror="this.style.display='none';this.parentNode.textContent='${letra}';">`;
   }
   return letra;
 }
