@@ -206,7 +206,7 @@ function getDefaultData() {
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [], prisoes: [], recrutamentos: [],
+    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS,
     vipCombos: DEFAULT_VIP_COMBOS
   };
@@ -276,6 +276,7 @@ function sanitize(p) {
     chats:       Array.isArray(p.chats)      ? p.chats      : [],
     prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
     recrutamentos: Array.isArray(p.recrutamentos) ? p.recrutamentos : [],
+    faltas:        Array.isArray(p.faltas)        ? p.faltas        : [],
     roletaPremios,
     vipCombos
   };
@@ -529,6 +530,7 @@ async function handleAPI(req, res) {
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
       prisoes: DB.prisoes,
+      faltas: DB.faltas,
       roletaPremios: DB.roletaPremios,
       vipCombos: DB.vipCombos
     });
@@ -1221,6 +1223,36 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, premios: DB.roletaPremios });
   }
 
+  if (method === 'GET' && url === '/api/faltas') return jsonRes(res, 200, DB.faltas);
+  if (method === 'POST' && url === '/api/faltas') {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) < 5)
+      return jsonRes(res, 403, { error: 'Apenas Delegado, Chefe de Polícia ou Admin Master podem aplicar faltas.' });
+    const target = findUserByRef(body.userLogin || body.nome);
+    if (!target) return jsonRes(res, 404, { error: 'Efetivo não encontrado.' });
+    const dias = Number(body.dias);
+    const motivo = String(body.motivo || '').trim().slice(0, 300);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 30)
+      return jsonRes(res, 400, { error: 'Informe uma quantidade de 1 a 30 dias.' });
+    if (motivo.length < 3) return jsonRes(res, 400, { error: 'Informe o motivo da falta.' });
+    const falta = {
+      id: 'FAL-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      userLogin: target.user,
+      nome: target.nome,
+      cargo: target.cargo,
+      dias,
+      motivo,
+      aplicadoPor: executor.user,
+      aplicadoPorNome: executor.nome,
+      ts: Date.now()
+    };
+    DB.faltas.unshift(falta);
+    saveData();
+    audit(`<b>${executor.nome}</b> aplicou <b>${dias} dia${dias === 1 ? '' : 's'} de falta</b> em <b>${target.nome}</b> — ${motivo}`, '⚠️');
+    broadcast('FALTAS_UPDATED', DB.faltas);
+    return jsonRes(res, 200, { ok: true, falta });
+  }
+
   if (method === 'GET' && url === '/api/recrutamento/questoes') {
     return jsonRes(res, 200, RECRUTAMENTO_QUESTOES.map(({ correta, ...q }) => q));
   }
@@ -1621,4 +1653,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-   }
+    }
