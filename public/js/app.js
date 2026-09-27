@@ -50,7 +50,7 @@ function fmtChatTime(ts){
 }
 
 let me=null,activeTab=0;
-let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[],chats:[],prisoes:[],roletaPremios:[],vipCombos:[]};
+let STATE={ocs:[],puns:[],pontos:[],provas:[],users:[],audit:[],feedbacks:[],chats:[],prisoes:[],faltas:[],roletaPremios:[],vipCombos:[]};
 let _pendingCargoChange=null,_pendingBan=null,_banTimer=null,_clockInterval;
 let _busyPonto=false,_busyPun=false,_keepIv=null,_recrutamentoAtivo=false;
 let QUESTIONARIO=null,QUESTIONARIO_PRISOES=null,_provaAtiva=null;
@@ -111,7 +111,7 @@ function handleSocketMessage(data){
       if(me&&payload.userLogin===me.user)toast(payload.status==='aprovado'?'✅ Seu recrutamento foi aprovado!':'❌ Seu recrutamento foi recusado.','i',8000);
       break;
     case 'USERS_UPDATED':
-      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,vipExpiresAt:mu.vipExpiresAt||null,recado:mu.recado||'',foto:mu.foto||'',horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
+      if(me){const mu=(payload||[]).find(u=>u.user===me.user);if(mu){me={...me,cargo:mu.cargo,nome:mu.nome,ativo:mu.ativo,girosBonus:(typeof mu.girosBonus==='number'?mu.girosBonus:0),ultimoGiroRoleta:mu.ultimoGiroRoleta||null,vip:mu.vip===true,vipExpiresAt:mu.vipExpiresAt||null,recado:mu.recado||'',foto:mu.foto||'',medalhas:Array.isArray(mu.medalhas)?mu.medalhas:[],horasExtrasAjustadas:mu.horasExtrasAjustadas||0,horasDevidasAjustadas:mu.horasDevidasAjustadas||0};saveSession();const badge=document.getElementById('tb-badge');if(badge){badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;}}}
       if(activeTab===getTabIdx('users')||activeTab===getTabIdx('pontos')||activeTab===getTabIdx('meuVip')||activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(activeTab===getTabIdx('chat')){renderChatListaContatos();renderChatMensagens();}
       if(activeTab===getTabIdx('roleta'))renderTabSafe(activeTab);
@@ -142,8 +142,15 @@ function handleSocketMessage(data){
       if(activeTab===getTabIdx('prisoes'))renderTabSafe(activeTab);
       break;
     case 'NEW_MEDALHA':
+      if(me&&payload.userLogin===me.user){me.medalhas=[...(me.medalhas||[]),payload.medalha];saveSession();}
+      if(me&&payload.userLogin===me.user)STATE.users=STATE.users.map(u=>u.user===me.user?{...u,medalhas:me.medalhas}:u);
+      if(activeTab===getTabIdx('home'))renderTabSafe(activeTab);
       if(activeTab===getTabIdx('vips'))renderTabSafe(activeTab);
       if(me&&payload.userLogin===me.user)toast('🏅 Você recebeu uma nova medalha!','s',7000);
+      break;
+    case 'FALTAS_UPDATED':
+      if(Array.isArray(payload))STATE.faltas=payload;
+      if(activeTab===getTabIdx('faltas'))renderTabSafe(activeTab);
       break;
     case 'AUDIT_NEW':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
     case 'AUDIT_CLEARED':if(activeTab===getTabIdx('audit'))renderTabSafe(activeTab);break;
@@ -183,10 +190,10 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,vipExpiresAt:su.vipExpiresAt||null,recado:su.recado||'',foto:su.foto||'',horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;if(Array.isArray(st.vipCombos))STATE.vipCombos=st.vipCombos;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,vipExpiresAt:su.vipExpiresAt||null,recado:su.recado||'',foto:su.foto||'',medalhas:Array.isArray(su.medalhas)?su.medalhas:[],horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.faltas))STATE.faltas=st.faltas;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;if(Array.isArray(st.vipCombos))STATE.vipCombos=st.vipCombos;}}catch(_){}
   showPanel();
 }
-function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;if(Array.isArray(c.vipCombos))STATE.vipCombos=c.vipCombos;}
+function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.faltas))STATE.faltas=c.faltas;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;if(Array.isArray(c.vipCombos))STATE.vipCombos=c.vipCombos;}
 
 async function apiLoginRetry(u,p,btn){let lastErr=null;for(let i=0;i<3;i++){try{return await API.login(u,p);}catch(e){lastErr=e;const msg=e.message||'';const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);if(!retryable)throw e;if(btn)btn.textContent='▸ ACORDANDO… ('+(i+2)+'/3)';await new Promise(r=>setTimeout(r,1200*(i+1)));}}throw lastErr;}
 async function login(){
@@ -207,7 +214,7 @@ function showPanel(){document.getElementById('s-login').classList.remove('active
 
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
-  const base=[{label:'▸ INÍCIO',key:'home',notif:false},{label:'▸ INTRODUÇÃO',key:'intro',notif:false}];
+  const base=[{label:'▸ INÍCIO',key:'home',notif:false},{label:'▸ INTRODUÇÃO',key:'intro',notif:false},{label:'▸ ESTUDOS',key:'estudos',notif:false}];
   const common=[
     {label:'▸ REGISTRAR',key:'registrar',notif:false},
     {label:'▸ MINHAS OCs',key:'myocs',notif:false},
@@ -223,7 +230,7 @@ function tabDefs(c){
     {label:'▸ PRISÕES',key:'prisoes',notif:false},
     {label:'▸ RECRUTAMENTO',key:'recrutamento',notif:false}
   ];
-  const avaliacao=p>=5?[{label:'▸ ANALISAR RECRUTAMENTO',key:'analisarRecrutamento',notif:true}]:[];
+  const avaliacao=p>=5?[{label:'▸ ANALISAR RECRUTAMENTO',key:'analisarRecrutamento',notif:true},{label:'▸ APLICAR FALTA',key:'faltas',notif:false}]:[];
   return[...base,...common,...avaliacao,
     {label:'▸ PENDENTES',key:'ocs',notif:true},
     {label:'▸ HISTÓRICO',key:'hist',notif:false},
@@ -266,7 +273,7 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,intro:vIntroducao,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
+  const views={home:vInicio,intro:vIntroducao,estudos:vEstudos,faltas:vFaltas,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const contentEl=document.getElementById('content');
   if(!menuPermitido(def.key)){contentEl.innerHTML=telaMenuBloqueado(def.key);return;}
   const fn=views[def.key]||vInicio;
@@ -457,6 +464,25 @@ function vIntroducao(){
     +'.intro-p{font-size:.88rem;color:var(--text-mid);line-height:1.7;margin:0 0 6px;white-space:pre-wrap;}'
     +'</style>'
     +'<div class="card intro-card">'+html+'</div>';
+}
+
+function vEstudos(){
+  const base=vIntroducao().replace('INTRODUÇÃO — REGRAS & ESTUDOS DIÁRIOS','CENTRAL DE ESTUDOS');
+  return `<div class="stitle">▸ CENTRAL DE ESTUDOS</div><div class="g3" style="margin-bottom:18px;"><div class="card" style="border-color:rgba(96,165,250,.35);"><div style="font-size:1.7rem;margin-bottom:8px;">📘</div><b>Regras da PF</b><p class="hint" style="margin-top:8px;line-height:1.5;">Revise conduta, hierarquia, códigos Q e procedimentos antes do turno.</p></div><div class="card" style="border-color:rgba(167,139,250,.35);"><div style="font-size:1.7rem;margin-bottom:8px;">🎯</div><b>Preparação para provas</b><p class="hint" style="margin-top:8px;line-height:1.5;">Estude com atenção e mantenha o conhecimento operacional sempre atualizado.</p></div><div class="card" style="border-color:rgba(74,222,128,.35);"><div style="font-size:1.7rem;margin-bottom:8px;">🛡️</div><b>Conduta profissional</b><p class="hint" style="margin-top:8px;line-height:1.5;">Disciplina, comunicação e trabalho em equipe são essenciais.</p></div></div>${base}`;
+}
+
+function vFaltas(){
+  const usuarios=(STATE.users||[]).filter(u=>u.ativo&&u.user!=='master').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  const rows=(STATE.faltas||[]).map(f=>`<tr><td><b>${escRec(f.nome)}</b><br><span class="hint">${CARGO_LABEL[f.cargo]||f.cargo}</span></td><td>${f.dias} dia${f.dias===1?'':'s'}</td><td>${escRec(f.motivo)}</td><td>${escRec(f.aplicadoPorNome||f.aplicadoPor||'—')}<br><span class="hint">${new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}</span></td></tr>`).join('');
+  return `<div class="stitle">▸ APLICAÇÃO DE FALTA</div><div class="card" style="border-color:rgba(248,113,113,.35);"><div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;"><div style="font-size:2rem;">⚠️</div><div><b style="font-size:1rem;">Aplicar falta em um efetivo</b><p class="hint" style="margin-top:5px;line-height:1.5;">Área administrativa exclusiva para Delegado, Chefe de Polícia e Admin Master.</p></div></div><div class="g2"><div class="fg"><label>Efetivo</label><select id="falta-user"><option value="">Selecione o efetivo</option>${usuarios.map(u=>`<option value="${escRec(u.user)}">${escRec(u.nome)} — ${escRec(CARGO_LABEL[u.cargo]||u.cargo)}</option>`).join('')}</select></div><div class="fg"><label>Quantos dias</label><input id="falta-dias" type="number" min="1" max="30" inputmode="numeric" placeholder="Ex.: 1"></div><div class="fg g-full"><label>Motivo</label><textarea id="falta-motivo" maxlength="300" rows="3" placeholder="Informe o motivo da falta..."></textarea></div></div><button class="btn btn-danger" onclick="aplicarFalta()">⚠️ APLICAR FALTA</button></div><div class="card"><div class="stitle">📋 HISTÓRICO DE FALTAS</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>EFETIVO</th><th>DIAS</th><th>MOTIVO</th><th>APLICADA POR / DATA</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-dim);">Nenhuma falta aplicada.</td></tr>'}</tbody></table></div></div>`;
+}
+async function aplicarFalta(){
+  const userLogin=document.getElementById('falta-user')?.value;
+  const dias=Number(document.getElementById('falta-dias')?.value);
+  const motivo=document.getElementById('falta-motivo')?.value.trim()||'';
+  if(!userLogin||!Number.isInteger(dias)||dias<1||dias>30||motivo.length<3){toast('Selecione o efetivo, informe de 1 a 30 dias e um motivo.','w');return;}
+  if(!confirm(`Aplicar ${dias} dia${dias===1?'':'s'} de falta em ${userLogin}?`))return;
+  try{const res=await API.createFalta({userLogin,dias,motivo,feitorPor:me.user});STATE.faltas=[res.falta,...(STATE.faltas||[])];toast('⚠️ Falta aplicada com sucesso.','s');renderTabSafe(activeTab);}catch(e){toast(e.message||'Não foi possível aplicar a falta.','d');}
 }
 
 // ══ HUB MASTER VIP: score, patentes, banco de horas e medalhas ══
@@ -760,6 +786,9 @@ function vInicio(){
   const cooldownMs=24*60*60*1000;
   const podeAvaliar=!meuUltimoFb||(Date.now()-meuUltimoFb.ts)>=cooldownMs;
   const horasRestantes=meuUltimoFb?Math.max(0,Math.ceil((cooldownMs-(Date.now()-meuUltimoFb.ts))/3600000)):0;
+  const perfilAtual=STATE.users.find(u=>u.user===me.user)||me;
+  const minhasMedalhas=Array.isArray(perfilAtual.medalhas)?perfilAtual.medalhas:[];
+  const cardMedalhas=`<div class="card home-medals" style="margin-bottom:20px;border-color:rgba(251,191,36,.32);"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fbbf24;letter-spacing:.12em;">🏅 MINHAS MEDALHAS</div><span class="status-chip">${minhasMedalhas.length} / 5</span></div>${minhasMedalhas.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;">${minhasMedalhas.map(m=>`<div title="${escRec(m.motivo||'Por trabalho')}" style="display:flex;align-items:center;gap:7px;padding:10px 12px;border:1px solid rgba(251,191,36,.35);border-radius:12px;background:rgba(251,191,36,.08);"><span style="font-size:1.55rem;">${m.icone||'🏅'}</span><span style="font-size:.72rem;color:#fbbf24;font-weight:700;text-transform:uppercase;">${escRec(m.tipo||'Medalha')}</span></div>`).join('')}</div>`:'<div style="padding:16px;border:1px dashed rgba(251,191,36,.28);border-radius:12px;color:var(--text-dim);font-size:.78rem;text-align:center;">Nenhuma medalha recebida ainda. Continue se destacando no trabalho!</div>'}</div>`;
   const cardAvaliacao=`<div class="card" style="margin-bottom:20px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:var(--warn);letter-spacing:.14em;">⭐ AVALIE O SISTEMA</div><div style="font-family:'Share Tech Mono',monospace;font-size:.62rem;color:var(--text-dim);">MÉDIA GERAL: <b style="color:var(--warn);font-size:.75rem;">${mediaStr}★</b> (${totalFbs} aval.)</div></div><div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;">${estrelasMedia}</div>${podeAvaliar?`<p style="color:var(--text-mid);font-size:.85rem;margin-bottom:12px;line-height:1.5;">Sua opinião ajuda a melhorar o GMPOL. <b>De uma nota de 1 a 5 estrelas</b> e deixe suas sugestões.</p><div id="fb-estrelas" style="display:flex;gap:6px;margin-bottom:12px;user-select:none;"><span class="fb-star" data-n="1" onclick="setEstrela(1)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="2" onclick="setEstrela(2)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="3" onclick="setEstrela(3)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="4" onclick="setEstrela(4)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span class="fb-star" data-n="5" onclick="setEstrela(5)" style="font-size:1.8rem;cursor:pointer;transition:transform .15s;color:var(--text-dim);">★</span><span id="fb-nota-txt" style="margin-left:10px;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text-mid);">(clique para avaliar)</span></div><div class="fg"><label>Sugestões e melhorias</label><textarea id="fb-texto" placeholder="O que podemos melhorar?" style="min-height:80px;"></textarea></div><button class="btn btn-warn" id="btn-fb-enviar" onclick="enviarFeedback()" style="max-width:280px;">📤 ENVIAR AVALIAÇÃO</button>`:`<div style="padding:12px 14px;background:rgba(224,192,96,.06);border:1px solid rgba(224,192,96,.2);border-radius:4px;margin-bottom:10px;"><div style="font-size:.85rem;color:var(--warn);margin-bottom:4px;">✅ Você já avaliou recentemente!</div><div style="font-size:.72rem;color:var(--text-dim);font-family:'Share Tech Mono',monospace;">Sua nota: <b style="color:var(--warn);">${meuUltimoFb.nota}★</b> • novamente em <b>${horasRestantes}h</b></div></div><div style="font-size:.82rem;color:var(--text-mid);line-height:1.5;margin-bottom:6px;"><b>Sua sugestão foi:</b></div><div class="dep-box" style="margin-bottom:0;">${(meuUltimoFb.texto||'').replace(/</g,'&lt;')}</div>`}</div>`;
   let histFbHtml='';
   if((CARGO_PERM[me.cargo]||0)>=5&&totalFbs>0){
@@ -770,7 +799,7 @@ function vInicio(){
   const today=brDateLong();
   const statsCards=p>=3?`<div class="g3" style="grid-template-columns:repeat(4,1fr);"><div class="card c-warn stat-box"><div class="stat-num" style="color:var(--warn);">${pend}</div><div class="stat-lbl">PENDENTES</div></div><div class="card c-success stat-box"><div class="stat-num" style="color:var(--accent3);">${ace}</div><div class="stat-lbl">ACEITAS</div></div><div class="card c-danger stat-box"><div class="stat-num" style="color:var(--danger);">${rec}</div><div class="stat-lbl">RECUSADAS</div></div><div class="card stat-box"><div class="stat-num" style="color:var(--text-dim);">${can}</div><div class="stat-lbl">CANCELADAS</div></div></div>`:'';
   const auditRecent=STATE.audit.slice(0,5).map(l=>`<div class="log-entry" style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="log-time">${new Date(l.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div><div class="log-icon">${l.icon||'📋'}</div><div class="log-txt" style="font-size:.8rem;">${l.msg}</div></div>`).join('')||'<p style="color:var(--text-dim);font-size:.8rem;">Nenhuma atividade.</p>';
-  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div class="u-avatar" style="width:56px;height:56px;font-size:1.5rem;${AVATAR_POS}">${avatarContent(me)}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
+  return `<div class="stitle">▸ PAINEL INICIAL</div><div class="card" style="margin-bottom:20px;"><div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div class="u-avatar" style="width:56px;height:56px;font-size:1.5rem;${AVATAR_POS}">${avatarContent(me)}</div><div><div style="font-family:'Orbitron',sans-serif;font-size:1.15rem;color:var(--accent);">${me.nome}</div><div style="font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--text-dim);letter-spacing:.1em;">${(CARGO_LABEL[me.cargo]||me.cargo).toUpperCase()} — GMPOL SISTEMA CENTRAL</div></div></div><div style="font-family:'Share Tech Mono',monospace;font-size:.6rem;color:var(--text-dim);margin-bottom:14px;">${today}</div><p style="color:var(--text-mid);font-size:.92rem;line-height:1.6;">${msgs[me.cargo]||'Bem-vindo.'}</p></div>${cardMedalhas}${cardAvaliacao}${histFbHtml}${statsCards}<div class="card" style="margin-top:20px;"><div style="font-family:'Orbitron',sans-serif;font-size:.7rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ ÚLTIMAS ATIVIDADES</div>${auditRecent}</div>`;
 }
 function renderEstrelasHtml(n){let s='';for(let i=1;i<=5;i++){s+=`<span style="color:${i<=n?'var(--warn)':'var(--text-dim)'};font-size:1rem;">★</span>`;}return s;}
 let _fbNotaAtual=0;
@@ -1208,7 +1237,7 @@ function abrirEditorPremios(){
   modal.innerHTML=`
     <div class="bonus-modal-content" style="max-width:600px;border-color:rgba(16,185,129,.5);">
       <div class="bonus-modal-title" style="background:linear-gradient(135deg,#10b981,#059669);-webkit-background-clip:text;background-clip:text;">🎰 EDITOR DE PRÊMIOS DA ROLETA</div>
-      <div class="bonus-modal-sub">Edite os prêmios, probabilidades e cores da roleta</div>
+      <div class="bonus-modal-sub">Edite pelo teclado os prêmios, valores, probabilidades e nomes da roleta</div>
       <div style="max-height:55vh;overflow-y:auto;padding-right:6px;margin-bottom:14px;">
         <div id="ep-container">${rows}</div>
         <button class="btn btn-success btn-sm" onclick="adicionarPremioEditor()" style="width:100%;margin-top:8px;">+ ADICIONAR NOVO PRÊMIO</button>
