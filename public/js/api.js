@@ -79,6 +79,9 @@ const API = {
   getPrisoes:       ()                                        => API.request('GET',    '/prisoes'),
   getFaltas:        ()                                        => API.request('GET',    '/faltas'),
   createFalta:      (data)                                    => API.request('POST',   '/faltas', data),
+  getSolicitacoesCarreira: (userLogin)                       => API.request('GET',    `/carreira/solicitacoes?user=${encodeURIComponent(userLogin)}`),
+  criarSolicitacaoCarreira: (data)                            => API.request('POST',   '/carreira/solicitacoes', data),
+  decidirSolicitacaoCarreira: (id, status, motivo, feitorPor) => API.request('PUT', `/carreira/solicitacoes/${id}/decisao`, { status, motivo, feitorPor }),
   createPrisao:     (data)                                    => API.request('POST',   '/prisoes', data),
   deletePrisao:     (id, feitorPor)                           => API.request('DELETE', `/prisoes/${id}`, { feitorPor }),
 
@@ -194,7 +197,7 @@ function _applyServerState(payload) {
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[], faltas: payload.faltas||[],
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[], faltas: payload.faltas||[], solicitacoesCarreira: payload.solicitacoesCarreira||[],
     roletaPremios: payload.roletaPremios||[], vipCombos: payload.vipCombos||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
