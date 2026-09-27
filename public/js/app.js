@@ -317,8 +317,10 @@ function avatarLetraDe(u){
 function avatarContent(u){
   const letra=avatarLetraDe(u).replace(/'/g,'');
   if(u&&u.foto){
-    const src=String(u.foto).trim().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'%27');
-    return `<img src="${src}" alt="" loading="eager" decoding="async" referrerpolicy="no-referrer" style="position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block!important;z-index:2;" onload="this.style.visibility='visible';" onerror="this.style.display='none';this.parentNode.textContent='${letra}';">`;
+    const original=String(u.foto).trim();
+    const src='/api/avatar?url='+encodeURIComponent(original);
+    const direct=original.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'%27');
+    return `<img src="${src}" data-direct-src="${direct}" alt="" loading="eager" decoding="async" referrerpolicy="no-referrer" style="position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block!important;z-index:2;" onload="this.style.visibility='visible';" onerror="if(this.src!==this.dataset.directSrc){this.src=this.dataset.directSrc;}else{this.style.display='none';this.parentNode.textContent='${letra}';}">`;
   }
   return letra;
 }
@@ -608,13 +610,17 @@ async function uploadFotoPerfil(){
     if(!resp.ok)throw new Error('Erro HTTP: '+resp.status);
     const data=await resp.json();
     if(!(data&&data.success&&data.data&&data.data.url))throw new Error((data.error&&data.error.message)||'Resposta inválida da API');
-    const url=data.data.url;
+    const url=String(data.data.display_url||data.data.url||'').trim();
     const res=await API.salvarFotoPerfil(url,me.user);
     if(res&&res.ok){
-      me.foto=url;
-      const su=STATE.users.find(x=>x.user===me.user);if(su)su.foto=url;
+      const savedUrl=String(res.foto||url).trim();
+      me.foto=savedUrl;
+      const su=STATE.users.find(x=>x.user===me.user);if(su)su.foto=savedUrl;
       saveSession();
       toast('✅ Foto de perfil atualizada!','s');
+      const fresh=await API.getState();
+      const persisted=(fresh.users||[]).find(x=>x.user===me.user);
+      if(persisted){me={...me,...persisted};STATE.users=fresh.users;saveSession();}
       abrirModalPerfil();
     }else{
       if(status)status.textContent='';
