@@ -77,6 +77,8 @@ const API = {
   removeMedalha:    (username, idx, feitorPor)                => API.request('DELETE', `/users/${username}/medalhas`, { idx, feitorPor }),
   getHall:          ()                                        => API.request('GET',    '/hall-da-fama'),
   getPrisoes:       ()                                        => API.request('GET',    '/prisoes'),
+  getFaltas:        ()                                        => API.request('GET',    '/faltas'),
+  createFalta:      (data)                                    => API.request('POST',   '/faltas', data),
   createPrisao:     (data)                                    => API.request('POST',   '/prisoes', data),
   deletePrisao:     (id, feitorPor)                           => API.request('DELETE', `/prisoes/${id}`, { feitorPor }),
 
@@ -184,6 +186,7 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.feedbacks)) STATE.feedbacks = payload.feedbacks;
     if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
     if (Array.isArray(payload.prisoes))   STATE.prisoes   = payload.prisoes;
+    if (Array.isArray(payload.faltas))    STATE.faltas    = payload.faltas;
     if (Array.isArray(payload.roletaPremios)) STATE.roletaPremios = payload.roletaPremios;
     if (Array.isArray(payload.vipCombos)) STATE.vipCombos = payload.vipCombos;
   }
@@ -191,7 +194,7 @@ function _applyServerState(payload) {
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[],
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[], faltas: payload.faltas||[],
     roletaPremios: payload.roletaPremios||[], vipCombos: payload.vipCombos||[]
   });
   if (typeof updateNotif === 'function') updateNotif();
@@ -266,6 +269,9 @@ function _handleServerMsg(msg) {
   }
   if (type === 'PRISOES_UPDATED' && typeof STATE !== 'undefined') {
     STATE.prisoes = payload; LSCache.merge('prisoes', STATE.prisoes);
+  }
+  if (type === 'FALTAS_UPDATED' && typeof STATE !== 'undefined') {
+    STATE.faltas = payload; LSCache.merge('faltas', STATE.faltas);
   }
   if (type === 'ROLETA_PREMIOS_UPDATED' && typeof STATE !== 'undefined') {
     STATE.roletaPremios = payload;
