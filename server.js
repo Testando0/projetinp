@@ -1213,7 +1213,7 @@ async function handleAPI(req, res) {
       cor2:     typeof p.cor2 === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.cor2) ? p.cor2 : p.cor,
       corBorda: typeof p.corBorda === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.corBorda) ? p.corBorda : p.cor,
       nome:     typeof p.nome === 'string' && p.nome.trim() ? p.nome.trim().slice(0, 30) : 'Prêmio',
-      icone:    typeof p.icone === 'string' && p.icone.trim() ? p.icone.trim().slice(0, 4) : '🎁',
+      icone:    typeof p.icone === 'string' && p.icone.trim() ? p.icone.trim() : '🎁',
       raridade: validRaridades.includes(p.raridade) ? p.raridade : 'common'
     }));
     DB.roletaPremios = novos;
@@ -1244,6 +1244,7 @@ async function handleAPI(req, res) {
       motivo,
       aplicadoPor: executor.user,
       aplicadoPorNome: executor.nome,
+      aplicadoPorCargo: executor.cargo,
       ts: Date.now()
     };
     DB.faltas.unshift(falta);
@@ -1653,4 +1654,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-    }
+   }
