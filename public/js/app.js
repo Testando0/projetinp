@@ -316,11 +316,13 @@ function avatarLetraDe(u){
 }
 function avatarContent(u){
   const letra=avatarLetraDe(u).replace(/'/g,'');
-  if(u&&u.foto){
-    const src=String(u.foto).replace(/"/g,'&quot;').replace(/'/g,'%27');
-    return `<img src="${src}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.remove();this.parentNode.textContent='${letra}';">`;
+  const raw=u&&typeof u.foto==='string'?u.foto.trim():'';
+  const fallback=`<span class="avatar-fallback" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;width:100%;height:100%;">${letra}</span>`;
+  if(raw){
+    const src=raw.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'%27');
+    return `<img class="avatar-image" src="${src}" alt="Foto de ${letra}" loading="eager" decoding="async" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class="avatar-fallback" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;width:100%;height:100%;">${letra}</span>`;
   }
-  return letra;
+  return fallback;
 }
 const AVATAR_POS='position:relative;overflow:hidden;';
 
@@ -984,6 +986,8 @@ function vPontos(){
   const FM="font-family:'Share Tech Mono',monospace;";const FO="font-family:'Orbitron',sans-serif;";
   const uMe=STATE.users.find(u=>u.user===me.user);
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
+  const minhasFaltas=(STATE.faltas||[]).filter(f=>f.userLogin===me.user);
+  const faltasHtml=minhasFaltas.length?`<div class="card" style="margin-bottom:20px;border-color:rgba(248,113,113,.5);background:linear-gradient(135deg,rgba(127,29,29,.28),rgba(248,113,113,.04));"><div style="display:flex;align-items:flex-start;gap:12px;"><div style="font-size:1.8rem;line-height:1;">⚠️</div><div style="flex:1;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fca5a5;letter-spacing:.1em;margin-bottom:8px;">VOCÊ RECEBEU FALTA</div>${minhasFaltas.map(f=>{const aplicador=STATE.users.find(u=>u.user===f.aplicadoPor);const cargo=f.aplicadoPorCargo||aplicador?.cargo||'';return `<div style="padding:10px 0;border-top:1px solid rgba(248,113,113,.18);color:#fecaca;font-size:.84rem;line-height:1.55;"><b>${f.dias} dia${f.dias===1?'':'s'} de falta</b> por <b>“${escRec(f.motivo||'Motivo não informado')}”</b><br><span style="font-size:.72rem;color:#fda4af;">Aplicada por ${escRec(f.aplicadoPorNome||f.aplicadoPor||'superior')} — ${escRec(CARGO_LABEL[cargo]||cargo||'superior')}</span></div>`;}).join('')}</div></div></div>`:'';
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
   let folgaHtml='';
   if(folgaDia===hojeBr)folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">🌴 HOJE É SEU DIA DE FOLGA!</div>';
@@ -1018,7 +1022,7 @@ function vPontos(){
     const tabelaAgentes=Object.entries(porUser).map(function(kv){const login=kv[0],pts=kv[1];const u=STATE.users.find(function(u){return u.user===login;});const nm=u?u.nome:login;const cg=u?u.cargo:'';const rows=[...pts].reverse().map(function(p){return '<tr><td style="'+FM+'">'+(p.data||brDateOf(p.ts))+'</td><td style="'+FM+'color:var(--accent);font-weight:700;">'+p.hora+'</td><td style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+(p.type==='folga'?'FOLGA':p.type==='pausa_inicio'?'⏸ PAUSA':p.type==='pausa_fim'?'▶ RETOMADA':p.type.toUpperCase())+'</td></tr>';}).join('');return '<div class="ponto-agente-block"><div class="ponto-agente-header" onclick="togglePontoAgente(\'pa-'+login+'\')"><div><div class="u-avatar" style="display:inline-flex;width:28px;height:28px;font-size:.7rem;'+AVATAR_POS+'">'+avatarContent(u)+'</div><b style="margin-left:8px;">'+nm+'</b><span class="cargo-badge '+(CARGO_BADGE_CLASS[cg]||'')+'" style="font-size:.5rem;margin-left:8px;">'+(CARGO_LABEL[cg]||cg)+'</span></div><span style="'+FM+'font-size:.65rem;color:var(--text-dim);">'+pts.length+' reg. ▾</span></div><div id="pa-'+login+'" style="display:none;"><table class="tbl"><thead><tr><th>DATA</th><th>HORA</th><th>TIPO</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';}).join('');
     supervHtml='<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ PONTOS HOJE</div>'+tabelaHoje+'</div><div class="card"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ HISTÓRICO POR AGENTE</div>'+tabelaAgentes+'</div>';
   }
-  return '<div class="stitle">▸ BATER PONTO</div>'+'<div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div>'+bancoHorasHtml+'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;
+  return '<div class="stitle">▸ BATER PONTO</div>'+faltasHtml+'<div class="card" style="margin-bottom:20px;text-align:center;"><div style="'+FO+'font-size:.7rem;color:var(--accent);letter-spacing:.14em;margin-bottom:12px;">▸ REGISTRO DE PONTO</div><div id="rel-clock" style="'+FO+'font-size:2rem;color:var(--text);margin-bottom:8px;letter-spacing:.1em;">--:--:--</div><div id="rel-date" style="'+FM+'font-size:.65rem;color:var(--text-dim);margin-bottom:20px;"></div>'+botaoPonto+folgaHtml+cicloHtml+'</div>'+bancoHorasHtml+'<div class="card" style="margin-bottom:20px;"><div style="'+FO+'font-size:.68rem;color:var(--accent);letter-spacing:.12em;margin-bottom:12px;">▸ MEUS REGISTROS</div>'+minhaTab+'</div>'+supervHtml;
 }
 function togglePontoAgente(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'':'none';}
 function startClock(){clearInterval(_clockInterval);_clockInterval=setInterval(()=>{const ce=document.getElementById('rel-clock'),de=document.getElementById('rel-date');if(!ce){clearInterval(_clockInterval);return;}ce.textContent=brTimeSec();if(de)de.textContent=brDateLong();},1000);}
@@ -1222,7 +1226,7 @@ function abrirEditorPremios(){
         <button class="btn btn-danger btn-xs" onclick="removerPremioEditor(${i})">🗑 REMOVER</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="${p.icone}" maxlength="4"></div>
+        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="${p.icone}"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Nome</label><input type="text" class="ep-nome" value="${p.nome}" maxlength="30"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Valor (R$)</label><input type="number" class="ep-valor" value="${p.valor}" min="0"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Peso (probabilidade)</label><input type="number" class="ep-peso" value="${p.peso}" min="0" step="0.1"><div style="font-size:.62rem;color:var(--text-dim);">Quanto maior, mais comum</div></div>
@@ -1265,7 +1269,7 @@ function adicionarPremioEditor(){
         <button class="btn btn-danger btn-xs" onclick="removerPremioEditor(${i})">🗑 REMOVER</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="🎁" maxlength="4"></div>
+        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="🎁"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Nome</label><input type="text" class="ep-nome" value="Novo Prêmio" maxlength="30"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Valor (R$)</label><input type="number" class="ep-valor" value="100" min="0"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Peso (probabilidade)</label><input type="number" class="ep-peso" value="10" min="0" step="0.1"></div>
@@ -1329,7 +1333,7 @@ function restaurarPremiosPadrao(){
         <button class="btn btn-danger btn-xs" onclick="removerPremioEditor(${i})">🗑 REMOVER</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="${p.icone}" maxlength="4"></div>
+        <div class="fg" style="margin-bottom:8px;"><label>Ícone (emoji)</label><input type="text" class="ep-icone" value="${p.icone}"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Nome</label><input type="text" class="ep-nome" value="${p.nome}" maxlength="30"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Valor (R$)</label><input type="number" class="ep-valor" value="${p.valor}" min="0"></div>
         <div class="fg" style="margin-bottom:8px;"><label>Peso (probabilidade)</label><input type="number" class="ep-peso" value="${p.peso}" min="0" step="0.1"></div>
