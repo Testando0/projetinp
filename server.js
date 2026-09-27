@@ -207,7 +207,7 @@ function getDefaultData() {
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [],
+    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS,
     vipCombos: DEFAULT_VIP_COMBOS
   };
@@ -278,6 +278,7 @@ function sanitize(p) {
     prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
     recrutamentos: Array.isArray(p.recrutamentos) ? p.recrutamentos : [],
     faltas:        Array.isArray(p.faltas)        ? p.faltas        : [],
+    solicitacoesCarreira: Array.isArray(p.solicitacoesCarreira) ? p.solicitacoesCarreira : [],
     roletaPremios,
     vipCombos
   };
@@ -557,6 +558,7 @@ async function handleAPI(req, res) {
       feedbacks: DB.feedbacks, chats: DB.chats,
       prisoes: DB.prisoes,
       faltas: DB.faltas,
+      solicitacoesCarreira: DB.solicitacoesCarreira,
       roletaPremios: DB.roletaPremios,
       vipCombos: DB.vipCombos
     });
@@ -1280,6 +1282,50 @@ async function handleAPI(req, res) {
     return jsonRes(res, 200, { ok: true, falta });
   }
 
+  if (method === 'GET' && url === '/api/carreira/solicitacoes') {
+    const executor = findUserByRef(new URL(req.url, 'http://localhost').searchParams.get('user'));
+    if (!executor) return jsonRes(res, 403, { error: 'Usuário não encontrado.' });
+    const superior = isMaster(executor) || (CARGO_PERM_SRV[executor.cargo] || 0) >= 6;
+    return jsonRes(res, 200, { solicitacoes: superior ? DB.solicitacoesCarreira : DB.solicitacoesCarreira.filter(s => s.solicitadoPor === executor.user) });
+  }
+  if (method === 'POST' && url === '/api/carreira/solicitacoes') {
+    const executor = findUserByRef(body.solicitadoPor);
+    if (!executor || (!isMaster(executor) && (CARGO_PERM_SRV[executor.cargo] || 0) < 5)) return jsonRes(res, 403, { error: 'Somente Delegados e Admin Master podem enviar solicitações.' });
+    const tipo = String(body.tipo || '').toLowerCase();
+    if (!['subida', 'descida', 'exoneracao'].includes(tipo)) return jsonRes(res, 400, { error: 'Tipo de solicitação inválido.' });
+    const target = findUserByRef(body.userLogin || body.nomeEnvolvido);
+    if (!target || target.user === executor.user) return jsonRes(res, 400, { error: 'Informe um envolvido válido e diferente do solicitante.' });
+    const motivo = String(body.motivo || '').trim().slice(0, 1000);
+    if (motivo.length < 5) return jsonRes(res, 400, { error: 'Informe um motivo detalhado.' });
+    if (tipo === 'subida' && !CARGO_PERM_SRV[String(body.novoCargo)]) return jsonRes(res, 400, { error: 'Selecione o cargo solicitado.' });
+    if (tipo === 'subida' && (CARGO_PERM_SRV[String(body.novoCargo)] || 0) <= (CARGO_PERM_SRV[target.cargo] || 0)) return jsonRes(res, 400, { error: 'A subida deve indicar um cargo superior ao atual.' });
+    const solic = { id: 'CAR-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), tipo, userLogin: target.user, nomeEnvolvido: target.nome, cargoAtual: target.cargo, novoCargo: tipo === 'subida' ? String(body.novoCargo) : null, solicitadoPor: executor.user, solicitadoPorNome: executor.nome, motivo, concordo: body.concordo === true, status: 'pendente', ts: Date.now(), decididoPor: null, decididoPorNome: null, decididoEm: null };
+    DB.solicitacoesCarreira.unshift(solic); DB.solicitacoesCarreira = DB.solicitacoesCarreira.slice(0, 300); saveData();
+    audit(`<b>${executor.nome}</b> enviou solicitação de ${tipo} para <b>${target.nome}</b>`, '📨');
+    broadcast('CARREIRA_SOLICITACAO', solic);
+    return jsonRes(res, 201, { ok: true, solicitacao: solic });
+  }
+  const mCarreira = url.match(/^\/api\/carreira\/solicitacoes\/([^/]+)\/decisao$/);
+  if (method === 'PUT' && mCarreira) {
+    const solic = DB.solicitacoesCarreira.find(s => s.id === mCarreira[1]);
+    if (!solic) return jsonRes(res, 404, { error: 'Solicitação não encontrada.' });
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (!isMaster(executor) && (CARGO_PERM_SRV[executor.cargo] || 0) < 6)) return jsonRes(res, 403, { error: 'Somente Chefe de Polícia ou Admin Master podem decidir.' });
+    if (!['aprovado', 'recusado'].includes(body.status)) return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    if (solic.status !== 'pendente') return jsonRes(res, 409, { error: 'Essa solicitação já foi decidida.' });
+    const alvo = DB.users.find(u => u.user === solic.userLogin);
+    if (!alvo) return jsonRes(res, 404, { error: 'Envolvido não encontrado.' });
+    if (body.status === 'aprovado') {
+      if (solic.tipo === 'subida') alvo.cargo = solic.novoCargo;
+      if (solic.tipo === 'descida') { const atual = CARGO_PERM_SRV[alvo.cargo] || 0; const abaixo = Object.keys(CARGO_PERM_SRV).filter(k => (CARGO_PERM_SRV[k] || 0) < atual && k !== 'admin').sort((a,b) => (CARGO_PERM_SRV[b]||0) - (CARGO_PERM_SRV[a]||0))[0]; alvo.cargo = abaixo || alvo.cargo; }
+      if (solic.tipo === 'exoneracao') { alvo.ativo = false; alvo.exoneradoEm = Date.now(); }
+    }
+    solic.status = body.status; solic.motivoDecisao = String(body.motivo || '').trim().slice(0, 500); solic.decididoPor = executor.user; solic.decididoPorNome = executor.nome; solic.decididoEm = Date.now(); saveData();
+    audit(`<b>${executor.nome}</b> ${body.status} a solicitação de ${solic.tipo} de <b>${solic.nomeEnvolvido}</b>`, body.status === 'aprovado' ? '✅' : '❌');
+    broadcast('CARREIRA_DECIDIDA', solic); broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, { ok: true, solicitacao: solic });
+  }
+
   if (method === 'GET' && url === '/api/recrutamento/questoes') {
     return jsonRes(res, 200, RECRUTAMENTO_QUESTOES.map(({ correta, ...q }) => q));
   }
@@ -1680,4 +1726,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                                                                                                      }
+                                                                              }
