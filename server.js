@@ -207,7 +207,7 @@ function getDefaultData() {
       { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [],
+    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [], alertas: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS,
     vipCombos: DEFAULT_VIP_COMBOS
   };
@@ -279,6 +279,7 @@ function sanitize(p) {
     recrutamentos: Array.isArray(p.recrutamentos) ? p.recrutamentos : [],
     faltas:        Array.isArray(p.faltas)        ? p.faltas        : [],
     solicitacoesCarreira: Array.isArray(p.solicitacoesCarreira) ? p.solicitacoesCarreira : [],
+    alertas: Array.isArray(p.alertas) ? p.alertas.filter(a => a && Number(a.expiresAt) > Date.now()).slice(-100) : [],
     roletaPremios,
     vipCombos
   };
@@ -328,6 +329,13 @@ function saveDataSync() {
 }
 
 let DB = loadData();
+function alertasAtivos(){
+  const agora=Date.now();
+  const antes=DB.alertas.length;
+  DB.alertas=DB.alertas.filter(a=>a&&Number(a.expiresAt)>agora);
+  if(DB.alertas.length!==antes)saveData();
+  return DB.alertas;
+}
 console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.chats.length} chats | ${DB.roletaPremios.length} prêmios | ${DB.prisoes.length} prisões`);
 const wsClients = new Set();
 function expireVips() {
@@ -559,6 +567,7 @@ async function handleAPI(req, res) {
       prisoes: DB.prisoes,
       faltas: DB.faltas,
       solicitacoesCarreira: DB.solicitacoesCarreira,
+      alertas: alertasAtivos(),
       roletaPremios: DB.roletaPremios,
       vipCombos: DB.vipCombos
     });
@@ -1026,6 +1035,9 @@ async function handleAPI(req, res) {
       DB.ocs.push(oc); saveData();
       audit(`<b>${oc.delegado}</b> registrou ${oc.tipo || 'ocorrência'} sobre <b>${oc.nome}</b>`, '📝');
       broadcast('NEW_OC', oc);
+      const alerta={id:'ALR-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),tipo:'ocorrencia',titulo:'VERIFICAR QUESTÕES PENDENTES IMEDIATAMENTE ⚠️',detalhe:`${oc.tipo||'Ocorrência'} sobre ${oc.nome||'um efetivo'} — nova análise necessária.`,createdAt:Date.now(),expiresAt:Date.now()+20*60*1000};
+      DB.alertas.push(alerta); DB.alertas=DB.alertas.slice(-100); saveData();
+      broadcast('OC_ALERTA', alerta);
     }
     return jsonRes(res, 200, { ok: true });
   }
@@ -1052,15 +1064,20 @@ async function handleAPI(req, res) {
   if (method === 'POST' && url === '/api/puns') {
     const pun = body;
     if (!pun || !pun.nome) return jsonRes(res, 400, { error: 'Dados inválidos.' });
+    const executor=findUserByRef(pun.feitorPor||pun.autor);
+    if(!executor || (CARGO_PERM_SRV[executor.cargo]||0)<3) return jsonRes(res,403,{error:'Somente Tático, Escrivão, Delegado, Chefe ou Master podem emitir advertências.'});
+    pun.autor=executor.nome; pun.autorUser=executor.user; pun.tipo='advertencia';
     pun.id = `PUN-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     pun.ts = pun.ts || Date.now();
     DB.puns.push(pun); saveData();
-    audit(`<b>${pun.autor}</b> registrou punição <b>${pun.nivel}</b> para <b>${pun.nome}</b> — ${pun.motivo}`, '⚠️');
+    audit(`<b>${pun.autor}</b> emitiu advertência <b>${pun.nivel}</b> para <b>${pun.nome}</b> — ${pun.motivo}`, '⚠️');
     broadcast('NEW_PUN', pun);
     return jsonRes(res, 200, { ok: true, pun });
   }
   const mPunId = url.match(/^\/api\/puns\/id\/([^/]+)$/);
   if (method === 'DELETE' && mPunId) {
+    const executor=findUserByRef(body.feitorPor);
+    if(!executor || (CARGO_PERM_SRV[executor.cargo]||0)<3) return jsonRes(res,403,{error:'Somente cargos autorizados podem retirar advertências.'});
     const i = DB.puns.findIndex(p => p.id === mPunId[1]);
     if (i === -1) return jsonRes(res, 404, { error: 'Punição não encontrada.' });
     const nome = DB.puns[i].nome;
@@ -1071,6 +1088,8 @@ async function handleAPI(req, res) {
   }
   const mPunIdx = url.match(/^\/api\/puns\/(\d+)$/);
   if (method === 'DELETE' && mPunIdx) {
+    const executor=findUserByRef(body.feitorPor);
+    if(!executor || (CARGO_PERM_SRV[executor.cargo]||0)<3) return jsonRes(res,403,{error:'Somente cargos autorizados podem retirar advertências.'});
     const i = parseInt(mPunIdx[1]);
     if (isNaN(i) || i < 0 || i >= DB.puns.length) return jsonRes(res, 404, { error: 'Índice inválido.' });
     const nome = DB.puns[i].nome;
@@ -1696,7 +1715,7 @@ httpServer.on('upgrade', (req, socket, head) => {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
-      prisoes: DB.prisoes, faltas: DB.faltas,
+      prisoes: DB.prisoes, faltas: DB.faltas, alertas: alertasAtivos(),
       roletaPremios: DB.roletaPremios
     }
   });
@@ -1760,4 +1779,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                              }
+                                                                                                             }
