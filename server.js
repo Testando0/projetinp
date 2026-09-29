@@ -636,6 +636,25 @@ async function handleAPI(req, res) {
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode ajustar horas.' });
 
+    if (acao === 'set_ponto') {
+      const ponto = DB.pontos.find(p => p.id === String(body.pontoId) && p.userLogin === target.user && p.type === 'saida');
+      const mins = Number(body.trabalhadoMins);
+      if (!ponto) return jsonRes(res, 404, { error: 'Registro de saída não encontrado.' });
+      if (!Number.isInteger(mins) || mins < 0 || mins > 10080) return jsonRes(res, 400, { error: 'Informe horas trabalhadas entre 0 e 10080 minutos.' });
+      const baseMins = CARGO_BASE_MINUTES[ponto.cargo || target.cargo] || 0;
+      ponto.trabalhado = mins;
+      ponto.extraMins = Math.max(0, mins - baseMins);
+      ponto.debtMins = Math.max(0, baseMins - mins);
+      ponto.extraMinsTotal = ponto.extraMins + (target.horasExtrasAjustadas || 0);
+      ponto.debtMinsTotal = ponto.debtMins + (target.horasDevidasAjustadas || 0);
+      ponto.extraReais = Math.floor(Math.max(0, ponto.extraMinsTotal) / 30) * 20;
+      saveData();
+      audit(`<b>${executor.nome}</b> corrigiu o ponto de <b>${target.nome}</b> para <b>${mins} minutos trabalhados</b>`, '🛠️');
+      broadcast('PONTO_EDITED', ponto);
+      broadcast('USERS_UPDATED', DB.users.map(pub));
+      return jsonRes(res, 200, { ok: true, ponto });
+    }
+
     if (typeof target.horasExtrasAjustadas  !== 'number') target.horasExtrasAjustadas = 0;
     if (typeof target.horasDevidasAjustadas !== 'number') target.horasDevidasAjustadas = 0;
 
@@ -1726,4 +1745,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                              }
+                                                                                                                                                                         }
