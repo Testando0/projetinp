@@ -845,6 +845,7 @@ async function handleAPI(req, res) {
     const { url: fotoUrl, feitorPor } = body;
     const executor = findUserByRef(feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    if (!(executor.user === 'master' || (executor.vip === true && (!executor.vipExpiresAt || executor.vipExpiresAt > Date.now())))) return jsonRes(res, 403, { error: '🌟 Apenas usuários VIP podem colocar foto de perfil.' });
     if (typeof fotoUrl !== 'string' || fotoUrl.length > 500) return jsonRes(res, 400, { error: 'URL inválida.' });
     if (fotoUrl && !/^https?:\/\//.test(fotoUrl)) return jsonRes(res, 400, { error: 'URL deve começar com http(s)://' });
     executor.foto = fotoUrl;
@@ -1085,6 +1086,8 @@ async function handleAPI(req, res) {
     if (!ponto || !ponto.userLogin || !ponto.type) return jsonRes(res, 400, { error: 'Dados inválidos.' });
     const u = DB.users.find(x => x.user === ponto.userLogin);
     if (!u) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    const faltasAtivas = DB.faltas.filter(f => f.userLogin === u.user);
+    if (faltasAtivas.length) return jsonRes(res, 403, { error: '⛔ Seu ponto está bloqueado enquanto houver falta ativa. Procure um superior autorizado para removê-la.', faltas: faltasAtivas });
     if (!Array.isArray(u.cicloDias)) u.cicloDias = [];
     if (!u.folgaDia) u.folgaDia = null;
     if (typeof u.girosBonus !== 'number') u.girosBonus = 0;
@@ -1298,7 +1301,19 @@ async function handleAPI(req, res) {
     saveData();
     audit(`<b>${executor.nome}</b> aplicou <b>${dias} dia${dias === 1 ? '' : 's'} de falta</b> em <b>${target.nome}</b> — ${motivo}`, '⚠️');
     broadcast('FALTAS_UPDATED', DB.faltas);
+    broadcast('FALTA_APLICADA', falta);
     return jsonRes(res, 200, { ok: true, falta });
+  }
+  const mFalta = url.match(/^\/api\/faltas\/([^/]+)$/);
+  if (method === 'DELETE' && mFalta) {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (CARGO_PERM_SRV[executor.cargo] || 0) < 5) return jsonRes(res, 403, { error: 'Somente Delegado, Chefe de Polícia ou Admin Master podem remover faltas.' });
+    const idx = DB.faltas.findIndex(f => f.id === mFalta[1]);
+    if (idx < 0) return jsonRes(res, 404, { error: 'Falta não encontrada.' });
+    const removida = DB.faltas.splice(idx, 1)[0]; saveData();
+    audit(`<b>${executor.nome}</b> removeu a falta de <b>${removida.nome}</b>`, '✅');
+    broadcast('FALTAS_UPDATED', DB.faltas); broadcast('FALTA_REMOVIDA', removida);
+    return jsonRes(res, 200, { ok: true, falta: removida });
   }
 
   if (method === 'GET' && url === '/api/carreira/solicitacoes') {
@@ -1681,7 +1696,7 @@ httpServer.on('upgrade', (req, socket, head) => {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
-      prisoes: DB.prisoes,
+      prisoes: DB.prisoes, faltas: DB.faltas,
       roletaPremios: DB.roletaPremios
     }
   });
@@ -1745,4 +1760,4 @@ if (RENDER_URL) {
     req.on('error', (e) => console.warn('[KeepAlive] Ping falhou:', e.message));
     req.end();
   }, 14 * 60 * 1000);
-                                                                                                                                                                         }
+                                                                              }
