@@ -388,4 +388,15 @@ body::after{
   background: rgba(239,68,68,.1);
   border: 1px solid rgba(239,68,68,.3);
   color: #f87171;
-  }
+}
+
+/* ═══ ALERTA URGENTE DE PENDÊNCIAS ═══ */
+.gmpol-urgent-overlay{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(3,4,10,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:gmpolUrgentIn .22s ease-out both}
+.gmpol-urgent-card{width:min(720px,100%);padding:clamp(28px,6vw,64px) clamp(22px,6vw,58px);text-align:center;border:2px solid #ef4444;border-radius:24px;background:radial-gradient(circle at 50% 0,rgba(239,68,68,.22),transparent 58%),linear-gradient(145deg,rgba(40,7,15,.98),rgba(10,8,18,.98));box-shadow:0 0 18px rgba(239,68,68,.8),0 0 70px rgba(220,38,38,.42),inset 0 0 35px rgba(239,68,68,.1);animation:gmpolUrgentPulse 1.15s ease-in-out infinite alternate}
+.gmpol-urgent-kicker{font-family:'Share Tech Mono',monospace;color:#fca5a5;font-size:.75rem;letter-spacing:.18em;text-transform:uppercase;margin-bottom:18px}
+.gmpol-urgent-title{font-family:'Orbitron',sans-serif;color:#fff;font-size:clamp(1.05rem,3vw,1.65rem);font-weight:900;line-height:1.35;text-shadow:0 0 16px rgba(248,113,113,.8)}
+.gmpol-urgent-detail{margin-top:16px;color:#fecaca;font-size:.9rem;line-height:1.65}
+.gmpol-urgent-count{margin-top:24px;color:#f87171;font-family:'Share Tech Mono',monospace;font-size:.7rem;letter-spacing:.12em}
+@keyframes gmpolUrgentIn{from{opacity:0}to{opacity:1}}
+@keyframes gmpolUrgentPulse{from{transform:scale(1);box-shadow:0 0 18px rgba(239,68,68,.72),0 0 55px rgba(220,38,38,.3),inset 0 0 25px rgba(239,68,68,.08)}to{transform:scale(1.012);box-shadow:0 0 28px rgba(248,113,113,1),0 0 95px rgba(220,38,38,.55),inset 0 0 45px rgba(239,68,68,.16)}}
+@media (prefers-reduced-motion:reduce){.gmpol-urgent-overlay,.gmpol-urgent-card{animation:none}}
