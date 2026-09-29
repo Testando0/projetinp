@@ -81,13 +81,13 @@ function renderTabSafe(idx){
 function handleSocketMessage(data){
   const{type,payload}=data;
   switch(type){
-    case 'INIT':updateNotif();if(me)renderTabSafe(activeTab);break;
+    case 'INIT':if(Array.isArray(payload?.faltas))STATE.faltas=payload.faltas;sincronizarAlertaFalta();updateNotif();if(me)renderTabSafe(activeTab);break;
     case 'NEW_OC':updateNotif();renderTabSafe(activeTab);if(me&&payload.delegadoUser!==me.user)toast('Nova ocorrência: '+payload.id,'w');if(podeReceberPendencias())mostrarAlertaUrgente('Verificar questões pendentes imediatamente ⚠️','Nova ocorrência registrada: '+(payload.id||'sem identificação'));break;
     case 'OC_UPDATED':updateNotif();renderTabSafe(activeTab);break;
     case 'OC_DELETED':updateNotif();renderTabSafe(activeTab);break;
     case 'NEW_PUN':renderTabSafe(activeTab);toast('Nova punição para '+payload.nome,'w');if(podeReceberPendencias())mostrarAlertaUrgente('Verificar questões pendentes imediatamente ⚠️','Nova ocorrência/punição para '+(payload.nome||'um efetivo'));break;
     case 'PUNS_UPDATED':renderTabSafe(activeTab);break;
-    case 'FALTAS_UPDATED':STATE.faltas=Array.isArray(payload)?payload:STATE.faltas;renderTabSafe(activeTab);break;
+    case 'FALTAS_UPDATED':STATE.faltas=Array.isArray(payload)?payload:STATE.faltas;sincronizarAlertaFalta();renderTabSafe(activeTab);break;
     case 'PONTO_EDITED':{const ix=STATE.pontos.findIndex(p=>p.id===payload.id);if(ix>=0)STATE.pontos[ix]=payload;else STATE.pontos.push(payload);renderTabSafe(activeTab);break;}
     case 'NEW_PONTO':renderTabSafe(activeTab);if(me&&payload.userLogin!==me.user&&payload.type!=='folga')toast(payload.nome+' registrou ponto.','i');break;
     case 'FOLGA_GRANTED':if(me&&payload.userLogin===me.user)toast('🌴 Folga concedida para '+payload.folgaDia+'!','s',8000);renderTabSafe(activeTab);break;
@@ -227,8 +227,9 @@ function mostrarAlertaUrgente(titulo,detalhe){
   const overlay=document.createElement('div');overlay.id='gmpol-urgent-overlay';overlay.className='gmpol-urgent-overlay';overlay.setAttribute('role','alert');overlay.innerHTML='<div class="gmpol-urgent-card"><div class="gmpol-urgent-kicker">⚠️ PENDÊNCIA ADMINISTRATIVA</div><div class="gmpol-urgent-title">'+escRec(titulo)+'</div><div class="gmpol-urgent-detail">'+escRec(detalhe)+'</div><div class="gmpol-urgent-count">ESTA NOTIFICAÇÃO DESAPARECERÁ EM 5 SEGUNDOS</div></div>';document.body.appendChild(overlay);
   _urgentAlertTimer=setTimeout(()=>{const el=document.getElementById('gmpol-urgent-overlay');if(el){el.style.opacity='0';el.style.transition='opacity .18s ease';setTimeout(()=>el.remove(),190);}},5000);
 }
+function sincronizarAlertaFalta(){const minhas=(STATE.faltas||[]).filter(f=>f.userLogin===me?.user);if(!minhas.length){document.getElementById('gmpol-falta-overlay')?.remove();return;}if(document.getElementById('gmpol-falta-overlay'))return;const dias=minhas.reduce((n,f)=>n+(Number(f.dias)||0),0);const overlay=document.createElement('div');overlay.id='gmpol-falta-overlay';overlay.className='gmpol-urgent-overlay falta-persistente';overlay.setAttribute('role','alert');overlay.innerHTML='<div class="gmpol-urgent-card falta-alert-card"><div class="gmpol-urgent-kicker">⚠️ COMUNICADO DISCIPLINAR</div><div class="gmpol-urgent-title">FALTA REGISTRADA NO SEU EFETIVO</div><div class="gmpol-urgent-detail">Você possui <b>'+minhas.length+' registro(s)</b>, totalizando <b>'+dias+' dia(s)</b> de falta.<br><br>⛔ A área de ponto está bloqueada até que um Delegado, Chefe de Polícia ou Admin Master retire a falta.</div><div class="gmpol-urgent-count">ESTE ALERTA PERMANECE ATIVO ATÉ A REMOÇÃO AUTORIZADA</div></div>';document.body.appendChild(overlay);}
 function showLogin(){document.getElementById('s-panel').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-login').classList.add('active');setTimeout(()=>{const e=document.getElementById('l-user');if(e)e.focus();},80);}
-function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);updateNotif();}
+function showPanel(){document.getElementById('s-login').classList.remove('active');document.getElementById('s-ban').classList.remove('active');document.getElementById('s-panel').classList.add('active');const badge=document.getElementById('tb-badge');badge.className='cargo-badge '+(CARGO_BADGE_CLASS[me.cargo]||'cb-guarda');badge.textContent=CARGO_LABEL[me.cargo]||me.cargo;document.getElementById('tb-user').textContent=me.nome;startKeepAlive();activeTab=0;buildTabs();renderTab(0);sincronizarAlertaFalta();updateNotif();}
 
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
@@ -514,8 +515,8 @@ async function enviarSolicitacaoCarreira(){const tipo=document.getElementById('c
 async function decidirCarreira(id,status){const motivo=prompt(status==='aprovado'?'Motivo da aprovação (opcional):':'Motivo da recusa:','')||'';if(status==='recusado'&&!motivo.trim()){toast('Informe o motivo da recusa.','w');return;}try{await API.decidirSolicitacaoCarreira(id,status,motivo,me.user);toast(status==='aprovado'?'✅ Solicitação aprovada.':'❌ Solicitação recusada.','s');renderTabSafe(activeTab);}catch(e){toast(e.message||'Não foi possível decidir.','d');}}
 function vFaltas(){
   const usuarios=(STATE.users||[]).filter(u=>u.ativo&&u.user!=='master').sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-  const rows=(STATE.faltas||[]).map(f=>`<tr><td><b>${escRec(f.nome)}</b><br><span class="hint">${CARGO_LABEL[f.cargo]||f.cargo}</span></td><td>${f.dias} dia${f.dias===1?'':'s'}</td><td>${escRec(f.motivo)}</td><td>${escRec(f.aplicadoPorNome||f.aplicadoPor||'—')}<br><span class="hint">${new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}</span></td></tr>`).join('');
-  return `<div class="stitle">▸ APLICAÇÃO DE FALTA</div><div class="card" style="border-color:rgba(248,113,113,.35);"><div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;"><div style="font-size:2rem;">⚠️</div><div><b style="font-size:1rem;">Aplicar falta em um efetivo</b><p class="hint" style="margin-top:5px;line-height:1.5;">Área administrativa exclusiva para Delegado, Chefe de Polícia e Admin Master.</p></div></div><div class="g2"><div class="fg"><label>Efetivo</label><select id="falta-user"><option value="">Selecione o efetivo</option>${usuarios.map(u=>`<option value="${escRec(u.user)}">${escRec(u.nome)} — ${escRec(CARGO_LABEL[u.cargo]||u.cargo)}</option>`).join('')}</select></div><div class="fg"><label>Quantos dias</label><input id="falta-dias" type="number" min="1" max="30" inputmode="numeric" placeholder="Ex.: 1"></div><div class="fg g-full"><label>Motivo</label><textarea id="falta-motivo" maxlength="300" rows="3" placeholder="Informe o motivo da falta..."></textarea></div></div><button class="btn btn-danger" onclick="aplicarFalta()">⚠️ APLICAR FALTA</button></div><div class="card"><div class="stitle">📋 HISTÓRICO DE FALTAS</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>EFETIVO</th><th>DIAS</th><th>MOTIVO</th><th>APLICADA POR / DATA</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text-dim);">Nenhuma falta aplicada.</td></tr>'}</tbody></table></div></div>`;
+  const rows=(STATE.faltas||[]).map(f=>`<tr><td><b>${escRec(f.nome)}</b><br><span class="hint">${CARGO_LABEL[f.cargo]||f.cargo}</span></td><td>${f.dias} dia${f.dias===1?'':'s'}</td><td>${escRec(f.motivo)}</td><td>${escRec(f.aplicadoPorNome||f.aplicadoPor||'—')}<br><span class="hint">${new Date(f.ts).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}</span></td><td>${(CARGO_PERM[me.cargo]||0)>=5?`<button class="btn btn-success btn-xs" onclick="removerFalta('${f.id}')">✅ RETIRAR</button>`:''}</td></tr>`).join('');
+  return `<div class="stitle">▸ APLICAÇÃO DE FALTA</div><div class="card" style="border-color:rgba(248,113,113,.35);"><div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:16px;"><div style="font-size:2rem;">⚠️</div><div><b style="font-size:1rem;">Aplicar falta em um efetivo</b><p class="hint" style="margin-top:5px;line-height:1.5;">Área administrativa exclusiva para Delegado, Chefe de Polícia e Admin Master. A falta bloqueia o ponto até ser retirada.</p></div></div><div class="g2"><div class="fg"><label>Efetivo</label><select id="falta-user"><option value="">Selecione o efetivo</option>${usuarios.map(u=>`<option value="${escRec(u.user)}">${escRec(u.nome)} — ${escRec(CARGO_LABEL[u.cargo]||u.cargo)}</option>`).join('')}</select></div><div class="fg"><label>Quantos dias</label><input id="falta-dias" type="number" min="1" max="30" inputmode="numeric" placeholder="Ex.: 1"></div><div class="fg g-full"><label>Motivo</label><textarea id="falta-motivo" maxlength="300" rows="3" placeholder="Informe o motivo da falta..."></textarea></div></div><button class="btn btn-danger" onclick="aplicarFalta()">⚠️ APLICAR FALTA</button></div><div class="card"><div class="stitle">📋 HISTÓRICO DE FALTAS</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>EFETIVO</th><th>DIAS</th><th>MOTIVO</th><th>APLICADA POR / DATA</th><th>AÇÃO</th></tr></thead><tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text-dim);">Nenhuma falta aplicada.</td></tr>'}</tbody></table></div></div>`;
 }
 async function aplicarFalta(){
   const userLogin=document.getElementById('falta-user')?.value;
@@ -525,6 +526,7 @@ async function aplicarFalta(){
   if(!confirm(`Aplicar ${dias} dia${dias===1?'':'s'} de falta em ${userLogin}?`))return;
   try{const res=await API.createFalta({userLogin,dias,motivo,feitorPor:me.user});STATE.faltas=[res.falta,...(STATE.faltas||[])];toast('⚠️ Falta aplicada com sucesso.','s');renderTabSafe(activeTab);}catch(e){toast(e.message||'Não foi possível aplicar a falta.','d');}
 }
+async function removerFalta(id){if((CARGO_PERM[me.cargo]||0)<5)return toast('Sem permissão para retirar faltas.','d');if(!confirm('Retirar esta falta e desbloquear o ponto do efetivo?'))return;try{await API.removeFalta(id,me.user);STATE.faltas=(STATE.faltas||[]).filter(f=>f.id!==id);sincronizarAlertaFalta();toast('✅ Falta retirada e ponto desbloqueado.','s');renderTabSafe(activeTab);}catch(e){toast(e.message||'Não foi possível retirar a falta.','d');}}
 
 // ══ HUB MASTER VIP: score, patentes, banco de horas e medalhas ══
 function vipPatente(score){return score>=90?'DIAMANTE':score>=75?'OURO':score>=50?'PRATA':'BRONZE';}
@@ -565,7 +567,7 @@ async function toggleVipUsuario(username,nome,ativo){
 function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
-  const isVip=!!u.vip;
+  const isVip=vipAtivo();
   const av=document.getElementById('pf-avatar');
   const cardBox=av?av.parentElement:null;
   const userBox=document.getElementById('pf-user')?document.getElementById('pf-user').parentElement:null;
@@ -607,6 +609,8 @@ function abrirModalPerfil(){
   document.getElementById('pf-cargo').className='cargo-badge '+(CARGO_BADGE_CLASS[u.cargo]||'');
   document.getElementById('pf-user').textContent='@'+(u.user||me.user);
   const rm=document.getElementById('pf-foto-remove');
+  const fotoActions=document.getElementById('pf-foto-actions');
+  if(fotoActions)fotoActions.style.display=isVip?'flex':'none';
   if(rm)rm.style.display=u.foto?'inline-flex':'none';
   const st=document.getElementById('pf-foto-status');
   if(st)st.textContent='';
@@ -635,6 +639,7 @@ function abrirModalPerfil(){
 
 const IMGBB_KEY='599411b1c02c7129d1b0da9bd4634c09';
 async function uploadFotoPerfil(){
+  if(!vipAtivo()){toast('🌟 Apenas usuários VIP podem colocar foto de perfil.','w');return;}
   const input=document.getElementById('pf-foto-input');
   const status=document.getElementById('pf-foto-status');
   if(!input||!input.files||!input.files.length){toast('Selecione uma imagem primeiro.','w');return;}
@@ -673,6 +678,7 @@ async function uploadFotoPerfil(){
   }
 }
 async function removerFotoPerfil(){
+  if(!vipAtivo()){toast('🌟 Apenas usuários VIP podem remover a foto de perfil.','w');return;}
   try{
     const res=await API.salvarFotoPerfil('',me.user);
     if(res&&res.ok){
@@ -1031,6 +1037,7 @@ function vPontos(){
   const cicloLen=(uMe&&Array.isArray(uMe.cicloDias))?uMe.cicloDias.length:0;
   const minhasFaltas=(STATE.faltas||[]).filter(f=>f.userLogin===me.user);
   const faltasHtml=minhasFaltas.length?`<div class="card" style="margin-bottom:20px;border-color:rgba(248,113,113,.5);background:linear-gradient(135deg,rgba(127,29,29,.28),rgba(248,113,113,.04));"><div style="display:flex;align-items:flex-start;gap:12px;"><div style="font-size:1.8rem;line-height:1;">⚠️</div><div style="flex:1;"><div style="font-family:'Orbitron',sans-serif;font-size:.72rem;color:#fca5a5;letter-spacing:.1em;margin-bottom:8px;">VOCÊ TEM ${minhasFaltas.length} FALTA${minhasFaltas.length===1?'':'S'} REGISTRADA${minhasFaltas.length===1?'':'S'}</div>${minhasFaltas.map(f=>{const aplicador=STATE.users.find(u=>u.user===f.aplicadoPor);const cargo=f.aplicadoPorCargo||aplicador?.cargo||'';return `<div style="padding:10px 0;border-top:1px solid rgba(248,113,113,.18);color:#fecaca;font-size:.84rem;line-height:1.55;"><b>${f.dias} dia${f.dias===1?'':'s'} de falta</b> por <b>“${escRec(f.motivo||'Motivo não informado')}”</b><br><span style="font-size:.72rem;color:#fda4af;">Aplicada por ${escRec(f.aplicadoPorNome||f.aplicadoPor||'superior')} — ${escRec(CARGO_LABEL[cargo]||cargo||'superior')}</span></div>`;}).join('')}</div></div></div>`:'';
+  if(minhasFaltas.length)return '<div class="stitle">▸ BATER PONTO</div>'+faltasHtml+'<div class="card ponto-bloqueado" style="text-align:center;padding:34px 22px;border:2px solid #ef4444;background:radial-gradient(circle at 50% 0,rgba(239,68,68,.18),transparent 60%),rgba(30,5,12,.9);"><div style="font-size:3rem;">⛔</div><div style="font-family:\'Orbitron\',sans-serif;color:#f87171;font-size:1rem;font-weight:900;letter-spacing:.08em;margin:12px 0;">ÁREA DE PONTO BLOQUEADA</div><div style="color:#fecaca;line-height:1.6;">Você não pode bater, pausar ou encerrar ponto enquanto houver falta ativa. Aguarde um Delegado, Chefe de Polícia ou Admin Master remover a falta.</div></div>';
   const folgaDia=(uMe&&uMe.folgaDia)?uMe.folgaDia:null;
   let folgaHtml='';
   if(folgaDia===hojeBr)folgaHtml='<div style="margin-top:14px;padding:10px 14px;border:1px solid rgba(224,192,96,.4);background:rgba(224,192,96,.08);border-radius:4px;'+FM+'font-size:.7rem;color:var(--warn);">🌴 HOJE É SEU DIA DE FOLGA!</div>';
