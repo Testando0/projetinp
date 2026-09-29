@@ -65,6 +65,7 @@ const API = {
 
   // ═══ MASTER: HORAS + VIP ═══
   ajustarHoras:     (username, data)                          => API.request('PUT',    `/users/${username}/horas`, { ...data, feitorPor: data.feitorPor }),
+  editarHorasPonto: (username, pontoId, trabalhadoMins, feitorPor) => API.request('PUT', `/users/${username}/horas`, { acao: 'set_ponto', pontoId, trabalhadoMins, feitorPor }),
   toggleVip:        (username, ativo, feitorPor, dias)         => API.request('PUT',    `/users/${username}/vip`, { ativo, feitorPor, dias }),
   getVipInfo:       (username)                                => API.request('GET',    `/users/${username}/vip`),
   getVipCombos:     ()                                        => API.request('GET',    '/vip-combos'),
