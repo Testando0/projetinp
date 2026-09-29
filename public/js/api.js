@@ -80,6 +80,7 @@ const API = {
   getPrisoes:       ()                                        => API.request('GET',    '/prisoes'),
   getFaltas:        ()                                        => API.request('GET',    '/faltas'),
   createFalta:      (data)                                    => API.request('POST',   '/faltas', data),
+  removeFalta:      (id, feitorPor)                           => API.request('DELETE', `/faltas/${id}`, { feitorPor }),
   getSolicitacoesCarreira: (userLogin)                       => API.request('GET',    `/carreira/solicitacoes?user=${encodeURIComponent(userLogin)}`),
   criarSolicitacaoCarreira: (data)                            => API.request('POST',   '/carreira/solicitacoes', data),
   decidirSolicitacaoCarreira: (id, status, motivo, feitorPor) => API.request('PUT', `/carreira/solicitacoes/${id}/decisao`, { status, motivo, feitorPor }),
