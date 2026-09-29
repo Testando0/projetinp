@@ -403,3 +403,7 @@ body::after{
 .falta-persistente{background:radial-gradient(circle at 50% 38%,rgba(220,38,38,.22),transparent 34%),repeating-conic-gradient(from 0deg at 50% 50%,rgba(239,68,68,.06) 0deg,transparent 12deg,rgba(239,68,68,.06) 24deg,transparent 42deg),rgba(3,4,10,.96)}
 .falta-alert-card{border-width:3px;max-width:760px;box-shadow:0 0 24px rgba(239,68,68,.95),0 0 120px rgba(220,38,38,.65),inset 0 0 65px rgba(239,68,68,.18)}
 .falta-alert-card .gmpol-urgent-title{font-size:clamp(1.15rem,4vw,2rem);letter-spacing:.08em}
+.ocorrencia-persistente{background:radial-gradient(circle at 50% 35%,rgba(220,38,38,.26),transparent 35%),repeating-conic-gradient(from 0deg at 50% 50%,rgba(239,68,68,.07) 0deg,transparent 10deg,rgba(239,68,68,.07) 20deg,transparent 38deg),rgba(3,4,10,.96)}
+.ocorrencia-alert-card{position:relative;max-width:780px;border-width:3px}
+.oc-alert-close{position:absolute;top:10px;right:14px;width:42px;height:42px;border:1px solid rgba(252,165,165,.55);border-radius:50%;background:rgba(127,29,29,.65);color:#fff;font-size:2rem;line-height:1;cursor:pointer;box-shadow:0 0 14px rgba(239,68,68,.7);transition:transform .15s,background .15s}
+.oc-alert-close:hover{transform:scale(1.1);background:#b91c1c}
