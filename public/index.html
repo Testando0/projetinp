@@ -352,6 +352,7 @@
           <button class="settings-btn" onclick="toggleSettings()" title="Configurações">⚙</button>
           <div id="settings-menu" class="settings-menu">
             <button class="settings-item" onclick="abrirModalPerfil();closeSettings();">👤 Meu Perfil</button>
+            <button class="settings-item settings-notification-item" onclick="abrirCentralNotificacoes();closeSettings();">🔔 Notificações <span id="notification-badge" class="notification-menu-badge" style="display:none;">0</span></button>
             <button class="settings-item" onclick="openModal('m-senha');closeSettings();">🔑 Alterar Senha</button>
             <div class="settings-divider"></div>
             <button class="settings-item danger" onclick="logout()">🔒 Sair do Sistema</button>
@@ -562,9 +563,20 @@
     </div>
   </div>
 
+  <!-- ══════════════ MODAL: NOTIFICAÇÕES ══════════════ -->
+  <div id="m-notificacoes" class="modal-overlay">
+    <div class="modal modal-lg notification-modal">
+      <div class="modal-h"><h3>🔔 NOTIFICAÇÕES</h3><button class="modal-close" onclick="closeModal('m-notificacoes')">&times;</button></div>
+      <div class="modal-b">
+        <div class="notification-modal-toolbar"><span class="hint">Avisos recentes ficam salvos aqui para você consultar quando quiser.</span><button class="btn btn-ghost btn-xs" onclick="marcarTodasNotificacoesLidas()">✓ MARCAR TODAS COMO LIDAS</button></div>
+        <div id="notifications-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
-  <script src="js/api.js?v=5.32"></script>
-  <script src="js/app.js?v=5.32"></script>
+  <script src="js/api.js?v=5.33"></script>
+  <script src="js/app.js?v=5.33"></script>
 </body>
-                                                                                               </html>
+              </html>
