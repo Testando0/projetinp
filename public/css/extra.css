@@ -502,3 +502,54 @@ body[data-theme="ciano"] .content{background:linear-gradient(180deg,rgba(43,163,
   100%{transform:scale(1.05) translate3d(-.8%,.5%,0);}
 }
 @media (prefers-reduced-motion:reduce){body[data-theme="ciano"]::before{animation:none!important;}}
+
+
+/* ══ CIANO — REFERÊNCIA GALÁCTICA NEON ══
+   A textura vem da referência visual; conteúdo permanece com alto contraste. */
+body[data-theme="ciano"]{
+  background:#020b18 url('/assets/theme-ciano-galaxy.png') center center / cover fixed no-repeat!important;
+  color:#f4fdff!important;
+}
+body[data-theme="ciano"]::before{
+  content:''!important;
+  position:fixed!important;
+  inset:0!important;
+  z-index:0!important;
+  pointer-events:none!important;
+  background:
+    linear-gradient(rgba(1,11,26,.30),rgba(1,13,30,.40)),
+    url('/assets/theme-ciano-galaxy.png') center center / cover fixed no-repeat!important;
+  opacity:1!important;
+  filter:blur(5px) saturate(1.35) brightness(.78) contrast(1.08)!important;
+  transform:scale(1.035)!important;
+  animation:none!important;
+}
+body[data-theme="ciano"]::after{
+  content:''!important;
+  position:fixed!important;
+  inset:0!important;
+  z-index:0!important;
+  pointer-events:none!important;
+  background:radial-gradient(ellipse at 50% 18%,rgba(0,222,255,.16),transparent 44%),linear-gradient(180deg,rgba(0,10,28,.08),rgba(0,7,20,.28))!important;
+}
+body[data-theme="ciano"] #s-panel,body[data-theme="ciano"] #s-login{position:relative;z-index:1;}
+body[data-theme="ciano"] .topbar{background:rgba(1,12,28,.94)!important;border-bottom:1px solid #14dfff!important;box-shadow:0 0 22px rgba(0,217,255,.34)!important;}
+body[data-theme="ciano"] .topbar-logo{color:#eafcff!important;text-shadow:0 0 9px #14eaff,0 0 24px rgba(0,216,255,.72)!important;}
+body[data-theme="ciano"] .topbar-role,body[data-theme="ciano"] .settings-btn,body[data-theme="ciano"] .hamburger-btn{border-color:#16dfff!important;color:#dfffff!important;box-shadow:0 0 12px rgba(0,221,255,.45)!important;}
+body[data-theme="ciano"] .content{background:transparent!important;}
+body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme="ciano"] .login-card,body[data-theme="ciano"] .empty,body[data-theme="ciano"] .hint-box,body[data-theme="ciano"] .dep-box,body[data-theme="ciano"] .ponto-agente-block,body[data-theme="ciano"] .stat-box,body[data-theme="ciano"] .recruitment-hero{
+  color:#f4fdff!important;
+  background:linear-gradient(145deg,rgba(1,21,43,.84),rgba(2,31,58,.78) 52%,rgba(1,13,30,.88))!important;
+  border:1px solid rgba(25,226,255,.88)!important;
+  border-radius:22px!important;
+  box-shadow:0 0 18px rgba(0,205,255,.28),inset 0 0 26px rgba(0,194,255,.08)!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+body[data-theme="ciano"] .card::before,body[data-theme="ciano"] .card::after{opacity:0!important;}
+body[data-theme="ciano"] .card h1,body[data-theme="ciano"] .card h2,body[data-theme="ciano"] .card h3,body[data-theme="ciano"] .card b,body[data-theme="ciano"] .card strong,body[data-theme="ciano"] .card label{color:#f3fdff!important;text-shadow:0 1px 4px #00101e!important;}
+body[data-theme="ciano"] .card p,body[data-theme="ciano"] .card .hint,body[data-theme="ciano"] .card small,body[data-theme="ciano"] .card span{color:#9cecff!important;text-shadow:0 1px 3px #00101e!important;}
+body[data-theme="ciano"] .stitle{color:#5cecff!important;text-shadow:0 0 10px rgba(0,224,255,.9)!important;}
+body[data-theme="ciano"] .btn,body[data-theme="ciano"] button{color:#effeff!important;}
+body[data-theme="ciano"] .btn-primary{background:linear-gradient(135deg,#007d9f,#14dffb)!important;color:#00131d!important;border-color:#75f5ff!important;box-shadow:0 0 14px rgba(0,224,255,.6)!important;}
+body[data-theme="ciano"] input,body[data-theme="ciano"] textarea,body[data-theme="ciano"] select{background:#03172d!important;color:#f4fdff!important;border-color:#1adcf7!important;}
+body[data-theme="ciano"] .theme-option{background:linear-gradient(145deg,#03182c,#061f39)!important;}
