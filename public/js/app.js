@@ -576,7 +576,7 @@ P4 – Segurança de Perímetro Auxiliar Quando houver um quarto integrante na e
 *NILL - NADA*
 
 *TKS - OBRIGADO*
-[11/8 02:12] livia: *POR FAVOR NÃO COLOQUE  ERRADO .
+*POR FAVOR NÃO COLOQUE  ERRADO .
 
 *(Crime de 1 estrela⭐)*
 
