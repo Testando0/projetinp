@@ -534,7 +534,8 @@ P4 – Segurança de Perímetro Auxiliar Quando houver um quarto integrante na e
 📢 /m [texto] → falar no megafone do carro de serviço
 
 📞 /proc ID → aceitar a chamada de uma pessoa em um carro de serviço
-[11/8 02:12] livia: *CODIGOS Q*
+
+*CODIGOS Q*
 
 *QAP - NA ESCUTA*
 
@@ -598,6 +599,7 @@ TDH - (Tentativa de homicídio)
 TDD - (tráfico de drogas)
 TDA - (Tráfico de armas)
 PIA - (Porte ilegal de arma)
+IAR 3 ESTRELAS
 ODSF - (obtenção de $ sujo/falso
 
 *(Crime de 4 estrelas ⭐⭐⭐⭐)*
@@ -620,8 +622,9 @@ Racismo
 Estupro
 DPOS - (discriminação por orientação sexual)
 Assédio
-IAR - (invasão a área restrita)
-[11/8 02:17] livia: *REGRAS DA BÍBLIA RP*
+DESORDEM 6
+
+*REGRAS DA BÍBLIA RP*
 
 1- *"INA"* ( INVASÃO NÃO AUTORIZADA ) É o ato de invadir locais como organizações/Corporações sem autorização prévia da prefeitura.
 *Banimento de 5 Dias*
@@ -732,6 +735,7 @@ Dependendo da situação
 28- *"CC"* Cortar caminho para ter vantagem e chegar rápido no seu destino.
 *Prisão de 10 a 15 Minutos*
 *Expulsão*
+
 O sucesso de uma PTR depende da organização, comunicação, disciplina e trabalho em equipe.
 
 Nenhuma equipe atua sozinha, toda operação deve ser coordenada e supervisionada pelo comando.
