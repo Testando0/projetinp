@@ -453,8 +453,52 @@ body[data-theme="violeta"] .stitle,body[data-theme="rubi"] .stitle,body[data-the
 body[data-theme="violeta"] .btn-primary,body[data-theme="rubi"] .btn-primary,body[data-theme="ciano"] .btn-primary{background:linear-gradient(135deg,var(--gn-deep),var(--gn-a),var(--gn-hot))!important;color:var(--gn-ink)!important;border-color:var(--gn-a)!important;box-shadow:0 0 14px rgba(var(--gn-a-rgb),.5)!important;}
 body[data-theme="violeta"] .card,body[data-theme="rubi"] .card,body[data-theme="ciano"] .card{border-color:rgba(var(--gn-a-rgb),.5)!important;box-shadow:0 0 18px rgba(var(--gn-a-rgb),.18),inset 0 0 22px rgba(var(--gn-a-rgb),.05)!important;}
 
-/* Tema ciano: céu azul com nuvens, nebulosas e estrelas — somente CSS */
-body[data-theme="ciano"]{background-color:#020b22!important;background-image:radial-gradient(ellipse 85% 32% at 18% 23%,rgba(88,196,255,.3),transparent 70%),radial-gradient(ellipse 72% 28% at 84% 18%,rgba(35,113,255,.34),transparent 72%),radial-gradient(ellipse 100% 34% at 48% 54%,rgba(0,219,255,.23),transparent 70%),radial-gradient(ellipse 66% 28% at 78% 76%,rgba(20,101,235,.27),transparent 74%),linear-gradient(150deg,#02071a 0%,#063b79 37%,#0878b7 54%,#032c69 73%,#010717 100%)!important;background-attachment:fixed!important;}
-body[data-theme="ciano"]::before{background-color:transparent!important;background-image:radial-gradient(ellipse 50% 16% at 10% 22%,rgba(209,246,255,.34),rgba(94,204,255,.27) 38%,transparent 76%),radial-gradient(ellipse 46% 18% at 30% 17%,rgba(150,231,255,.32),rgba(47,158,255,.2) 44%,transparent 78%),radial-gradient(ellipse 58% 20% at 66% 20%,rgba(181,240,255,.3),rgba(53,142,255,.22) 42%,transparent 78%),radial-gradient(ellipse 42% 15% at 93% 28%,rgba(199,246,255,.27),rgba(44,129,255,.18) 45%,transparent 80%),radial-gradient(ellipse 80% 18% at 47% 48%,rgba(68,225,255,.26),rgba(0,124,240,.17) 40%,transparent 76%),radial-gradient(ellipse 66% 20% at 18% 69%,rgba(90,202,255,.26),rgba(18,86,221,.18) 44%,transparent 78%),radial-gradient(ellipse 72% 22% at 78% 77%,rgba(33,144,255,.24),rgba(10,65,181,.16) 45%,transparent 80%),repeating-linear-gradient(155deg,transparent 0 13px,rgba(143,238,255,.028) 14px 19px,transparent 20px 37px),radial-gradient(circle at 5% 11%,#fff 0 1px,transparent 1.7px),radial-gradient(circle at 13% 58%,rgba(182,250,255,.95) 0 1px,transparent 1.8px),radial-gradient(circle at 22% 31%,rgba(255,255,255,.9) 0 1.1px,transparent 1.9px),radial-gradient(circle at 36% 78%,rgba(121,242,255,.95) 0 1px,transparent 1.8px),radial-gradient(circle at 48% 12%,rgba(255,255,255,.92) 0 1px,transparent 1.7px),radial-gradient(circle at 59% 64%,rgba(108,238,255,.95) 0 1px,transparent 1.8px),radial-gradient(circle at 73% 26%,rgba(255,255,255,.95) 0 1.2px,transparent 1.9px),radial-gradient(circle at 86% 63%,rgba(136,244,255,.95) 0 1px,transparent 1.8px),radial-gradient(circle at 96% 14%,rgba(255,255,255,.9) 0 1px,transparent 1.7px),radial-gradient(circle at 91% 91%,rgba(81,223,255,.9) 0 1px,transparent 1.7px)!important;background-size:100% 100%!important;filter:saturate(1.22) contrast(1.04)!important;opacity:1!important;}
-body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme="ciano"] .login-card,body[data-theme="ciano"] .empty,body[data-theme="ciano"] .hint-box,body[data-theme="ciano"] .dep-box,body[data-theme="ciano"] .ponto-agente-block,body[data-theme="ciano"] .stat-box,body[data-theme="ciano"] .recruitment-hero{background:linear-gradient(160deg,rgba(3,42,78,.52),rgba(1,12,29,.72) 58%,rgba(0,5,16,.64))!important;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);}
+
+/* Tema ciano — céu azul claro com nuvens volumosas, 100% CSS */
+body[data-theme="ciano"]{
+  background-color:#56b9ee!important;
+  background-image:
+    linear-gradient(180deg,#062b68 0%,#0b65ad 28%,#42aee8 61%,#a9e9ff 100%)!important;
+  background-attachment:fixed!important;
+}
+body[data-theme="ciano"]::before{
+  content:''!important;
+  background-color:transparent!important;
+  background-image:
+    radial-gradient(ellipse 30% 12% at 8% 25%,rgba(255,255,255,.72) 0%,rgba(215,246,255,.50) 46%,transparent 75%),
+    radial-gradient(ellipse 25% 14% at 26% 21%,rgba(255,255,255,.80) 0%,rgba(213,244,255,.54) 48%,transparent 78%),
+    radial-gradient(ellipse 35% 13% at 48% 26%,rgba(255,255,255,.68) 0%,rgba(192,237,255,.42) 46%,transparent 78%),
+    radial-gradient(ellipse 29% 15% at 76% 18%,rgba(255,255,255,.78) 0%,rgba(196,237,255,.44) 48%,transparent 80%),
+    radial-gradient(ellipse 22% 11% at 96% 28%,rgba(255,255,255,.68) 0%,rgba(184,231,255,.38) 46%,transparent 80%),
+    radial-gradient(ellipse 38% 17% at 15% 51%,rgba(255,255,255,.74) 0%,rgba(206,243,255,.44) 45%,transparent 78%),
+    radial-gradient(ellipse 31% 18% at 39% 47%,rgba(255,255,255,.82) 0%,rgba(218,247,255,.50) 44%,transparent 78%),
+    radial-gradient(ellipse 42% 16% at 66% 53%,rgba(255,255,255,.70) 0%,rgba(190,235,255,.42) 45%,transparent 78%),
+    radial-gradient(ellipse 26% 13% at 91% 47%,rgba(255,255,255,.76) 0%,rgba(203,241,255,.42) 46%,transparent 78%),
+    radial-gradient(ellipse 46% 18% at 4% 78%,rgba(255,255,255,.60) 0%,rgba(177,225,255,.34) 46%,transparent 80%),
+    radial-gradient(ellipse 37% 17% at 31% 82%,rgba(255,255,255,.68) 0%,rgba(184,229,255,.34) 46%,transparent 80%),
+    radial-gradient(ellipse 44% 16% at 67% 76%,rgba(255,255,255,.62) 0%,rgba(175,224,255,.32) 45%,transparent 80%),
+    radial-gradient(ellipse 28% 14% at 96% 84%,rgba(255,255,255,.72) 0%,rgba(187,231,255,.35) 46%,transparent 80%),
+    linear-gradient(180deg,transparent 0%,rgba(91,194,242,.08) 50%,rgba(14,91,174,.18) 100%)!important;
+  background-size:145% 145%!important;
+  background-position:center!important;
+  opacity:.95!important;
+  filter:saturate(1.08) contrast(1.02)!important;
+  animation:gmpol-cloud-drift 34s ease-in-out infinite alternate!important;
+}
+body[data-theme="ciano"]::after{
+  background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 26%,rgba(0,44,112,.08) 100%)!important;
+  pointer-events:none!important;
+}
+body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme="ciano"] .login-card,body[data-theme="ciano"] .empty,body[data-theme="ciano"] .hint-box,body[data-theme="ciano"] .dep-box,body[data-theme="ciano"] .ponto-agente-block,body[data-theme="ciano"] .stat-box,body[data-theme="ciano"] .recruitment-hero{
+  background:linear-gradient(145deg,rgba(3,38,91,.66),rgba(5,71,132,.60) 48%,rgba(2,24,66,.72))!important;
+  border-color:rgba(128,235,255,.74)!important;
+  box-shadow:0 10px 34px rgba(0,26,88,.28),inset 0 0 26px rgba(165,244,255,.09)!important;
+  backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+}
+body[data-theme="ciano"] .content{background:linear-gradient(180deg,rgba(43,163,224,.06),rgba(0,46,117,.14))!important;}
+@keyframes gmpol-cloud-drift{
+  0%{transform:scale(1.04) translate3d(-1.5%,.2%,0);}
+  50%{transform:scale(1.08) translate3d(1.2%,-.8%,0);}
+  100%{transform:scale(1.05) translate3d(-.8%,.5%,0);}
+}
 @media (prefers-reduced-motion:reduce){body[data-theme="ciano"]::before{animation:none!important;}}
