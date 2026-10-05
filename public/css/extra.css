@@ -467,6 +467,7 @@ body[data-theme="violeta"] .card,body[data-theme="rubi"] .card,body[data-theme="
 /* ══ CÉU CIANO PROCEDURAL — SEM IMAGENS ══ */
 #gmpol-ciano-sky{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;pointer-events:none;}
 #gmpol-ciano-sky[hidden]{display:none!important;}
+body:not([data-theme="ciano"]) #gmpol-ciano-sky{display:none!important;}
 body[data-theme="ciano"]{background:#010611!important;color:#f5fdff!important;overflow-x:hidden;}
 body[data-theme="ciano"] #s-panel,body[data-theme="ciano"] #s-login{position:relative;z-index:1;}
 body[data-theme="ciano"] .topbar{background:rgba(1,9,23,.94)!important;border-bottom:1px solid #18e1ff!important;box-shadow:0 0 24px rgba(0,218,255,.42)!important;}
