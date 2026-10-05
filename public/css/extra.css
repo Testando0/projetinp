@@ -512,8 +512,54 @@ body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme
 body[data-theme="ciano"] .content{background:linear-gradient(180deg,rgba(1,12,28,.05),rgba(1,13,31,.18) 72%,rgba(0,4,12,.28));}
 
 
-/* Fundo fotográfico da galáxia ciano — textura gerada para reproduzir a referência. */
-body[data-theme="ciano"]{background-color:#010814!important;background-image:linear-gradient(rgba(1,10,27,.2),rgba(1,10,27,.28)),url('https://i.ibb.co/PZzppVQY/1004067249.png'),url('/assets/gmpol-galaxy-ciano.png')!important;background-size:cover!important;background-position:center center!important;background-attachment:fixed!important;}
-body[data-theme="ciano"]::before{background-color:transparent!important;background-image:linear-gradient(rgba(1,10,27,.16),rgba(1,10,27,.22)),url('https://i.ibb.co/PZzppVQY/1004067249.png'),url('/assets/gmpol-galaxy-ciano.png')!important;background-size:cover!important;background-position:center center!important;opacity:.98!important;filter:saturate(1.16) contrast(1.04)!important;animation:gmpol-galaxy-drift 28s ease-in-out infinite alternate!important;}
-@keyframes gmpol-galaxy-drift{0%{transform:scale(1.02) translate3d(-.8%,.4%,0)}100%{transform:scale(1.06) translate3d(.8%,-.5%,0)}}
-body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme="ciano"] .login-card,body[data-theme="ciano"] .empty,body[data-theme="ciano"] .hint-box,body[data-theme="ciano"] .dep-box,body[data-theme="ciano"] .ponto-agente-block,body[data-theme="ciano"] .stat-box,body[data-theme="ciano"] .recruitment-hero{background:linear-gradient(160deg,rgba(3,40,72,.54),rgba(1,11,27,.72) 58%,rgba(0,6,16,.66))!important;}
+
+
+/* ══ TEMA CIANO — GALÁXIA 100% CSS, SEM IMAGENS ══ */
+body[data-theme="ciano"]{
+  background-color:#010817!important;
+  background-image:
+    radial-gradient(ellipse 120% 58% at 52% 46%,rgba(0,121,255,.24) 0%,rgba(0,55,132,.22) 34%,transparent 73%),
+    radial-gradient(ellipse 90% 28% at 28% 53%,rgba(0,242,255,.28) 0%,rgba(0,134,220,.14) 42%,transparent 78%),
+    radial-gradient(ellipse 78% 26% at 79% 31%,rgba(31,159,255,.3) 0%,rgba(19,61,177,.16) 45%,transparent 80%),
+    repeating-conic-gradient(from 238deg at 50% 48%,transparent 0deg 7deg,rgba(44,213,255,.055) 8deg 10deg,transparent 11deg 17deg),
+    linear-gradient(130deg,#010817 0%,#042c54 37%,#071e48 55%,#020d25 78%,#00040d 100%)!important;
+  background-size:cover!important;
+  background-attachment:fixed!important;
+}
+body[data-theme="ciano"]::before{
+  background-color:transparent!important;
+  background-image:
+    radial-gradient(ellipse 115% 24% at 52% 47%,rgba(150,253,255,.22) 0%,rgba(40,220,255,.24) 14%,rgba(0,126,232,.2) 34%,rgba(3,42,111,.16) 54%,transparent 76%),
+    radial-gradient(ellipse 100% 15% at 48% 49%,rgba(227,255,255,.16) 0%,rgba(35,224,255,.2) 25%,transparent 70%),
+    repeating-linear-gradient(151deg,transparent 0 8px,rgba(101,238,255,.035) 9px 11px,transparent 12px 24px),
+    radial-gradient(circle at 4% 11%,#fff 0 1px,transparent 1.7px),
+    radial-gradient(circle at 9% 64%,rgba(144,247,255,.95) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 17% 28%,rgba(255,255,255,.9) 0 1.2px,transparent 1.9px),
+    radial-gradient(circle at 24% 84%,rgba(63,222,255,.9) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 32% 14%,rgba(255,255,255,.95) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 39% 67%,rgba(109,241,255,.95) 0 1.2px,transparent 1.9px),
+    radial-gradient(circle at 47% 24%,rgba(255,255,255,.9) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 54% 91%,rgba(123,244,255,.9) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 63% 9%,rgba(255,255,255,.95) 0 1.2px,transparent 1.9px),
+    radial-gradient(circle at 69% 57%,rgba(79,229,255,.95) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 76% 20%,rgba(255,255,255,.95) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 84% 77%,rgba(117,241,255,.95) 0 1.2px,transparent 1.9px),
+    radial-gradient(circle at 93% 38%,rgba(255,255,255,.9) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 98% 88%,rgba(68,220,255,.9) 0 1px,transparent 1.8px),
+    radial-gradient(circle at 14% 93%,rgba(255,255,255,.85) 0 1px,transparent 1.7px),
+    radial-gradient(circle at 88% 8%,rgba(168,251,255,.9) 0 1px,transparent 1.7px)!important;
+  background-size:100% 100%!important;
+  background-position:center!important;
+  opacity:1!important;
+  filter:saturate(1.5) contrast(1.1)!important;
+  animation:gmpol-css-galaxy 28s ease-in-out infinite alternate!important;
+}
+@keyframes gmpol-css-galaxy{
+  0%{transform:scale(1.02) translate3d(-.6%,.25%,0);opacity:.86}
+  50%{transform:scale(1.055) translate3d(.45%,-.3%,0);opacity:1}
+  100%{transform:scale(1.025) translate3d(-.25%,-.5%,0);opacity:.92}
+}
+body[data-theme="ciano"] .card,body[data-theme="ciano"] .oc-wrap,body[data-theme="ciano"] .login-card,body[data-theme="ciano"] .empty,body[data-theme="ciano"] .hint-box,body[data-theme="ciano"] .dep-box,body[data-theme="ciano"] .ponto-agente-block,body[data-theme="ciano"] .stat-box,body[data-theme="ciano"] .recruitment-hero{
+  background:linear-gradient(160deg,rgba(3,42,78,.52),rgba(1,12,29,.72) 58%,rgba(0,5,16,.64))!important;
+  backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
