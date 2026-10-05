@@ -419,7 +419,7 @@ ASS - (Agressão)
 
 DOP - (Desobediência a ordem policial)
 AAC - (Apologia ao crime)
-LDD - lavagem de dinheiro 
+LDD - lavagem de dinheiro
 MP - (Multas pendentes)
 DDV - (Desmanche de veículos ilegais)
 IDP - (invasão de propriedade)
@@ -436,19 +436,19 @@ ODSF - (obtenção de $ sujo/falso
 *(Crime de 4 estrelas ⭐⭐⭐⭐)*
 
 DSCT - (Desacato)
-Homicídio 
+Homicídio
 
 *(Crime de 5 estrelas⭐⭐⭐⭐⭐)*
 
 Suborno
-Corrupção 
+Corrupção
 Estelionato
 ADA - (Abuso de autoridade)
-RDVE - Roubo de veículo emergencial 
+RDVE - Roubo de veículo emergencial
 
 *(Crime de 6⭐⭐⭐⭐⭐⭐)*
 
-Sequestro 
+Sequestro
 Racismo
 Estupro
 DPOS - (discriminação por orientação sexual)
@@ -498,6 +498,240 @@ P4 – Segurança de Perímetro Auxiliar Quando houver um quarto integrante na e
 
 • Cumprir rigorosamente as determinações dos Delegados de turno.
 
+
+*COMANDOS, CÓDIGOS Q E REGRAS DE RP*
+
+🚨 COMANDOS POLÍCIA - RP 🚨
+
+🔎 /su ID estrelas motivo → Emitir busca
+
+🔗 /cuff ID → Algemar
+
+🔓 /uncuff ID → Tirar algema
+
+🚶‍♂️ /follow ID → Guiar
+
+🛑 /stay → Parar de guiar
+
+🚔 /put ID → Colocar na viatura
+
+🚪 /eject ID → Tirar da viatura
+
+🚨 /arrest ID → Colocar na cela
+
+🎭 /pullmask ID → Remover máscara
+
+⭐ /clear ID → Remover estrelas
+
+📄 /revokelicense ID → Revogar licença
+
+🪪 /ide ID → mostrar a identificação policial ao jogador
+
+📋 /wanted → ver a lista de criminosos não capturados
+
+📃 /ticket ID (quantia) → emitir multa
+
+📢 /m [texto] → falar no megafone do carro de serviço
+
+📞 /proc ID → aceitar a chamada de uma pessoa em um carro de serviço
+[11/8 02:12] livia: *CODIGOS Q*
+
+*QAP - NA ESCUTA*
+
+*QSL - ENTENDIDO*
+
+*QTH - LOCAL*
+
+*QSV - VIATURA*
+
+*QAR - DESLIGAR RÁDIO*
+
+*QRA - NOME DO MELIANTE*
+
+*QRQ - FALAR MAIS DEVAGAR*
+
+*QRS - FALAR MAIS RAPIDO*
+
+*QRU - PROBLEMA / NOVIDADE*
+
+*QRV - PRONTO P/ RECEBER / AS SUAS ORDEM*
+
+*QRX - AGUARDE*
+
+*QSM - REPETIR*
+
+*QTA - CANCELAR ULTIMA INFORMAÇÃO*
+
+*QTO - SANITARIO*
+
+*QTR - HORARIO EXATO*
+
+*QTU - HORARIO*
+
+*QTI - A CAMINHO*
+
+*QRR - REFORÇOS / AJUDA*
+
+*NILL - NADA*
+
+*TKS - OBRIGADO*
+[11/8 02:12] livia: *POR FAVOR NÃO COLOQUE  ERRADO .
+
+*(Crime de 1 estrela⭐)*
+
+TDF - (TENTATIVA DE FULGA)
+ASS - (Agressão)
+
+*(Crime de 2 estrelas⭐⭐)*
+
+DOP - (Desobediência a ordem policial)
+AAC - (Apologia ao crime)
+LDD - lavagem de dinheiro
+MP - (Multas pendentes)
+DDV - (Desmanche de veículos ilegais)
+IDP - (invasão de propriedade)
+RDV - (Roube de veículos)
+
+*(Crime de 3 estrelas ⭐ ⭐⭐)*
+
+TDH - (Tentativa de homicídio)
+TDD - (tráfico de drogas)
+TDA - (Tráfico de armas)
+PIA - (Porte ilegal de arma)
+ODSF - (obtenção de $ sujo/falso
+
+*(Crime de 4 estrelas ⭐⭐⭐⭐)*
+
+DSCT - (Desacato)
+Homicídio
+
+*(Crime de 5 estrelas⭐⭐⭐⭐⭐)*
+
+Suborno
+Corrupção
+Estelionato
+ADA - (Abuso de autoridade)
+RDVE - Roubo de veículo emergencial
+
+*(Crime de 6⭐⭐⭐⭐⭐⭐)*
+
+Sequestro
+Racismo
+Estupro
+DPOS - (discriminação por orientação sexual)
+Assédio
+IAR - (invasão a área restrita)
+[11/8 02:17] livia: *REGRAS DA BÍBLIA RP*
+
+1- *"INA"* ( INVASÃO NÃO AUTORIZADA ) É o ato de invadir locais como organizações/Corporações sem autorização prévia da prefeitura.
+*Banimento de 5 Dias*
+
+2- *"AI"* ( AÇÃO IRREGULAR ) É o ato d invadir ou ficar ao redor de propriedades privadas (ex: Mansão, casa ) de outros jogadores, com o objetivo de forçar alguma ação.
+*Banimento de 10 Dias*
+ _Caso seja Família em ação conjunta sujeito a Aviso de família / Ban IP_
+
+3- *"FLAMING RP"* Discurso de Ódio ou Ofensa a outros jogadores.
+Dependendo da situação
+*Prisão de 30 minutos + mute*
+*Banimento de 1 a 7*
+
+4- *"DARK RP"* Assédio, Discriminação, Importunação Sexual, Racismo, Violência Moral, Homofobia e várias outras coisas tóxicas.
+*Banimento de 10 a 20 Dias*
+*Dependendo da gravidade 30 Dias+IP*
+
+5- *"PK"* Você perde toda a memória e do evento que ocorreu.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5*
+
+6- *"KOS"* É o ato de matar alguém apenas pelo fato de ser de alguma Organização/Facção ou família.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+7-  *"DMA"* Causar danos a um veículo público ou de pessoas sem motivo.
+*Prisão de 60 Minutos*
+
+8- *"COP-BAIT"*  Forçar uma ação polícial com insultos e xingamentos.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+9-   *"TK"* Matar ou causar Danos a um aliado sem motivo.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+10-  *"SAAV"* Ato de não se importar se vai ou não morrer no jogo (ex: Preferir morrer do que pagar um sequestro)
+*Prisão de 40 minutos*
+*Banimento de 1 a 5 Dias*
+
+11- *"CL"* Ato de sair do jogo para se beneficiar ( ex: para não ser sequestrado ou ser preso )
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+12-  *"RDM"* Entrar em uma ação/trocação de tiro sem estar envolvido.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+13- *"NRA"* Utilizar arma em local público ( ex: Hospital ou delegacia)
+*Prisão de 20 minutos*
+
+14-  *"MDM"* Matar ou causar dano em 3 ou mais pessoas sem algum motivo válido.
+*Prisão de 60 Minutos*
+*Aviso*
+*Restrição de Arma*
+*Banimento de 3 a 7 Dias*
+
+15- *"DM"* Matar ou causar Danos sem motivo.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+16- *"MG"* É o ato de trazer informações fora do jogo para beneficiar ou prejudicar outro jogador.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+17-  *"SK"* Ato de matar ou causar dano no território de qualquer Organização/Facção, No local aonde o jogador Nasce.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+18-  *"RK"* Matar ou causar dano em outro jogador, com o objetivo de se vingar por ter morrido em outra Vida.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+19- *"RPFW"* Desenvolver Um papel aonde só vc ganha.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+20- *"NDR"* Dirigir um veículo em condições Precárias.
+*Prisão de 50 Minutos*
+
+21-  *"ATP"* ( _ATRAPALHAR AÇÃO DE PROPÓSITO_ ) É quando vc atrapalha uma abordagem batendo nos outros, Gritando no Voip, Flodando Chat, etc...
+*Prisão de 60 Minutos*
+*Banimento de 1 a 3 Dias*
+
+22- *"MIX"* Misturar Assuntos fora do RP dentro do RP.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+23-  *"ZZ"* Correr em zigue-zague com a intenção de desviar de tiros.
+*Prisão de 40 Minutos*
+*Banimento de 1 a 2 Dias*
+
+24- *"IFP"*( _INFORMAÇÕES FORA DO PERSONAGEM_ ) Usar informações que aparece em sua tela ( ex: nome, vida )
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+25- *"BUNNY-HOP"* Correr e pular ao mesmo tempo para ter vantagens
+*Prisão de 40 Minutos*
+
+26-  *"PG"* Fazer algo que não seria possível na vida real.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+27- *"VDM"* Ato de Atropelar os players.
+*Prisão de 60 Minutos*
+*Banimento de 1 a 5 Dias*
+
+28- *"CC"* Cortar caminho para ter vantagem e chegar rápido no seu destino.
+*Prisão de 10 a 15 Minutos*
+*Expulsão*
 O sucesso de uma PTR depende da organização, comunicação, disciplina e trabalho em equipe.
 
 Nenhuma equipe atua sozinha, toda operação deve ser coordenada e supervisionada pelo comando.
