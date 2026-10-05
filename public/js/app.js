@@ -58,6 +58,13 @@ let _chatContatoAtual=null,_chatTimer=null;
 let NOTIFICATIONS=[];
 const NOTIFICATIONS_KEY_PREFIX='gmpol_notifications_';
 const PROVA_TEMPO_QUESTAO=180;
+const THEME_KEY='gmpol_theme';
+const THEMES=[
+  {id:'midia',label:'Tema mídia',icon:'◐',desc:'Visual sóbrio, limpo e monocromático para uso diário.'},
+  {id:'violeta',label:'Tema Violeta',icon:'✦',desc:'Visual roxo profundo com detalhes lilás e lavanda.'},
+  {id:'rubi',label:'Tema rubi',icon:'◆',desc:'Visual escuro com destaque vermelho-rubi e vinho.'},
+  {id:'ciano',label:'Tema ciano + neon',icon:'✧',desc:'Visual espacial inspirado na referência, com ciano neon e brilho.'}
+];
 const NOMES_PROVA={gm:'PROVA DE PATENTE GUARDA',agente:'PROVA DE PATENTE AGENTE',tatico:'PROVA DE PATENTE TÁTICO'};
 const CSS_PROVA='<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
 const PRISOES_QUESTOES_LOCAL=['Cite todos os comandos em ordem para efetuar prisões.','Qual procedimento para levar o preso para comer?','Como funciona o QTH PS?','Como funciona o QTH HP?','Cite 4 regras da PF que não podem ser quebradas.','O que é abuso de poder? Cite 3 exemplos.','Quais regras de carregamento?','Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).','Cite a cadeia de comando e a hierarquia.','O que é insubordinação?'];
@@ -233,6 +240,9 @@ function receberNotificacao(n,tipoVisual){const atual=registrarNotificacao({...n
 function sincronizarNotificacoes(){if(!me)return;carregarNotificacoes();(STATE.alertas||[]).filter(a=>a&&a.id).forEach(a=>registrarNotificacao({...a,tipo:'ocorrencia'}));(STATE.faltas||[]).filter(f=>f).forEach(f=>registrarNotificacao({id:'falta-'+(f.id||f.userLogin+'-'+f.ts),tipo:'falta',titulo:'FALTA REGISTRADA NO SEU EFETIVO',detalhe:'Você possui uma falta registrada. A área de ponto permanece bloqueada até a remoção autorizada.',createdAt:f.ts||Date.now()}));atualizarBadgeNotificacoes();}
 function notificacaoNaoLida(){return NOTIFICATIONS.filter(n=>!n.lida).length;}
 function atualizarBadgeNotificacoes(){const badge=document.getElementById('notification-badge'),count=notificacaoNaoLida();if(!badge)return;badge.textContent=count>99?'99+':String(count);badge.style.display=count?'inline-flex':'none';}
+function aplicarTema(id){const tema=THEMES.some(t=>t.id===id)?id:'midia';document.documentElement.dataset.theme=tema;if(document.body)document.body.dataset.theme=tema;try{localStorage.setItem(THEME_KEY,tema);}catch(_){}document.querySelectorAll('.theme-option').forEach(el=>el.classList.toggle('selected',el.dataset.theme===tema));const atual=document.getElementById('theme-current');if(atual){const t=THEMES.find(x=>x.id===tema);atual.textContent='Tema atual: '+(t?t.label:'Tema mídia');}}
+function carregarTema(){let tema='midia';try{tema=localStorage.getItem(THEME_KEY)||'midia';}catch(_){}aplicarTema(tema);}
+function vTemas(){const atual=document.documentElement.dataset.theme||'midia';const cards=THEMES.map(t=>`<button class="card theme-option ${t.id===atual?'selected':''}" data-theme="${t.id}" onclick="aplicarTema('${t.id}')"><span class="theme-swatch swatch-${t.id}">${t.icon}</span><span class="theme-option-copy"><b>${t.label}</b><small>${t.desc}</small></span><span class="theme-check">✓</span></button>`).join('');return `<div class="stitle">▸ TEMAS</div><div class="card themes-hero"><div class="themes-hero-icon">🎨</div><div><h2>Personalize o GMPOL</h2><p>Escolha o visual da sua central. A preferência fica salva neste dispositivo e é aplicada automaticamente nos próximos acessos.</p><strong id="theme-current">Tema atual: ${THEMES.find(t=>t.id===atual)?.label||'Tema mídia'}</strong></div></div><div class="theme-grid">${cards}</div>`;}
 function mostrarAlertaUrgente(titulo,detalhe,id,forcar=false){const notificationId=id||('urgente-'+titulo+'-'+detalhe);const atual=registrarNotificacao({id:notificationId,tipo:'urgente',titulo,detalhe,createdAt:Date.now()});if(!atual||atual.mostrada)return;atual.mostrada=true;salvarNotificacoes();mostrarAlertaUrgenteVisual(titulo,detalhe,forcar);}
 function mostrarAlertaUrgenteVisual(titulo,detalhe,forcar=false){if(!forcar&&!podeReceberPendencias())return;const old=document.getElementById('gmpol-urgent-overlay');if(old)old.remove();clearTimeout(_urgentAlertTimer);const overlay=document.createElement('div');overlay.id='gmpol-urgent-overlay';overlay.className='gmpol-urgent-overlay';overlay.setAttribute('role','alert');overlay.innerHTML='<div class="gmpol-urgent-card"><button class="oc-alert-close" aria-label="Fechar notificação" onclick="fecharAlertaUrgente()">×</button><div class="gmpol-urgent-kicker">⚠️ PENDÊNCIA ADMINISTRATIVA</div><div class="gmpol-urgent-title">'+escRec(titulo)+'</div><div class="gmpol-urgent-detail">'+escRec(detalhe)+'</div><div class="gmpol-urgent-count">ESTA NOTIFICAÇÃO DESAPARECERÁ EM 5 SEGUNDOS</div></div>';document.body.appendChild(overlay);_urgentAlertTimer=setTimeout(()=>fecharAlertaUrgente(),5000);}
 function fecharAlertaUrgente(){clearTimeout(_urgentAlertTimer);_urgentAlertTimer=null;const el=document.getElementById('gmpol-urgent-overlay');if(el)el.remove();}
@@ -263,7 +273,7 @@ function tabDefs(c){
     {label:'▸ HALL DA FAMA',key:'hall',notif:false},
     {label:'▸ VIPS',key:'vips',notif:false},
     {label:'▸ PRISÕES',key:'prisoes',notif:false},
-    {label:'▸ RECRUTAMENTO',key:'recrutamento',notif:false}
+    {label:'▸ RECRUTAMENTO',key:'recrutamento',notif:false},{label:'🎨 TEMAS',key:'temas',notif:false}
   ];
   const avaliacao=p>=5?[{label:'▸ ANALISAR RECRUTAMENTO',key:'analisarRecrutamento',notif:true},{label:'▸ APLICAR FALTA',key:'faltas',notif:false},{label:'▸ CARREIRA',key:'carreira',notif:false}]:[];
   return[...base,...common,...avaliacao,
@@ -308,7 +318,7 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,intro:vIntroducao,estudos:vEstudos,carreira:vCarreira,faltas:vFaltas,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
+  const views={home:vInicio,intro:vIntroducao,estudos:vEstudos,temas:vTemas,carreira:vCarreira,faltas:vFaltas,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const contentEl=document.getElementById('content');
   if(!menuPermitido(def.key)){contentEl.innerHTML=telaMenuBloqueado(def.key);return;}
   const fn=views[def.key]||vInicio;
@@ -1570,4 +1580,4 @@ document.addEventListener('click',e=>{const menu=document.getElementById('settin
 function toast(txt,type='i',duration=3800){const c=document.getElementById('toast-container'),t=document.createElement('div');t.className='toast '+type;t.innerHTML='<span>'+txt+'</span>';c.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);}
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}
 
-window.onload=()=>{initWebSocket();checkSession();};
+window.onload=()=>{carregarTema();initWebSocket();checkSession();};
