@@ -953,7 +953,7 @@ function renderEditorBanners(u){
   const nivel=nivelDoUsuario(u), atual=bannerDoUsuario(u).id;
   const levelEl=document.getElementById('pf-banner-level');if(levelEl)levelEl.textContent='NÍVEL '+nivel+' • '+(u.xp||0)+' XP';
   grid.innerHTML=BANNERS.map((b,i)=>{
-    const unlocked=i<3||nivel>=b.nivel, selected=b.id===atual;
+    const unlocked=isMaster()||i<3||nivel>=b.nivel, selected=b.id===atual;
     return `<button type="button" class="pf-banner-option banner-${b.id} ${selected?'selected':''} ${unlocked?'':'locked'}" ${unlocked?`onclick="selecionarBannerPerfil('${b.id}')"`:''} aria-label="${b.nome}${unlocked?'':' bloqueado'}"><span class="pf-banner-glyph">${unlocked?b.icone:'🔒'}</span><span class="pf-banner-name">${b.nome}</span><small>${unlocked?(i<3?'GRÁTIS':'NÍVEL '+b.nivel):'BLOQUEADO'}</small></button>`;
   }).join('');
 }
@@ -966,7 +966,7 @@ async function selecionarBannerPerfil(id){
   if(!me||!BANNERS.some(b=>b.id===id))return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
   const b=BANNERS.find(x=>x.id===id), nivel=nivelDoUsuario(u);
-  if(BANNERS.indexOf(b)>=3&&nivel<b.nivel){toast('🔒 Desbloqueie o nível '+b.nivel+' para usar este banner.','w');return;}
+  if(!isMaster()&&BANNERS.indexOf(b)>=3&&nivel<b.nivel){toast('🔒 Desbloqueie o nível '+b.nivel+' para usar este banner.','w');return;}
   const status=document.getElementById('pf-banner-status');if(status)status.textContent='Salvando banner…';
   try{
     await API.salvarBannerPerfil(id,me.user);
@@ -996,6 +996,10 @@ function abrirModalPerfil(){
   const modalBox=document.querySelector('#m-perfil .modal');
   const profileCard=document.getElementById('pf-profile-card');
   if(profileCard)profileCard.dataset.banner=bannerDoUsuario(u).id;
+  const ribbon=bannerDoUsuario(u), ribbonIcon=document.getElementById('pf-banner-ribbon-icon'), ribbonName=document.getElementById('pf-banner-ribbon-name'), ribbonLevel=document.getElementById('pf-banner-ribbon-level');
+  if(ribbonIcon)ribbonIcon.textContent=ribbon.icone;
+  if(ribbonName)ribbonName.textContent=ribbon.nome.toUpperCase();
+  if(ribbonLevel)ribbonLevel.textContent='NÍVEL '+nivelDoUsuario(u);
   renderEditorBanners(u);
 
   // ══ Wrapper dinâmico arredondado SÓ ao redor do textarea do recado ══

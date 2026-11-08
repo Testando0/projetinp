@@ -924,7 +924,7 @@ async function handleAPI(req, res) {
     if (!BANNER_IDS.includes(bannerId)) return jsonRes(res, 400, { error: 'Banner inválido.' });
     const nivel = nivelPorXp(calcXP(executor));
     const index = BANNER_IDS.indexOf(bannerId);
-    if (index >= 3 && nivel < index + 1) return jsonRes(res, 403, { error: `Este banner desbloqueia no nível ${index + 1}.` });
+    if (!isMaster(executor) && index >= 3 && nivel < index + 1) return jsonRes(res, 403, { error: `Este banner desbloqueia no nível ${index + 1}.` });
     executor.bannerId = bannerId;
     saveData();
     broadcast('USERS_UPDATED', DB.users.map(pub));
