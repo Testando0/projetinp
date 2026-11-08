@@ -278,7 +278,7 @@ function showPanel(){carregarTema();document.getElementById('s-login').classList
 
 function tabDefs(c){
   const p=CARGO_PERM[c]||0;
-  const base=[{label:'▸ INÍCIO',key:'home',notif:false},{label:'▸ INTRODUÇÃO',key:'intro',notif:false},{label:'▸ ESTUDOS',key:'estudos',notif:false}];
+  const base=[{label:'▸ INÍCIO',key:'home',notif:false},{label:'▸ INTRODUÇÃO',key:'intro',notif:false},{label:'▸ HIERARQUIA',key:'hierarquia',notif:false},{label:'▸ ESTUDOS',key:'estudos',notif:false}];
   const common=[
     {label:'▸ REGISTRAR',key:'registrar',notif:false},
     {label:'▸ MINHAS OCs',key:'myocs',notif:false},
@@ -337,7 +337,7 @@ function closeNavDrawer(){document.getElementById('nav-drawer')?.classList.remov
 
 function renderTab(idx){
   const defs=tabDefs(me.cargo);const def=defs[idx]||defs[0];
-  const views={home:vInicio,intro:vIntroducao,estudos:vEstudos,temas:vTemas,carreira:vCarreira,faltas:vFaltas,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
+  const views={home:vInicio,intro:vIntroducao,hierarquia:hierarquia,estudos:vEstudos,temas:vTemas,carreira:vCarreira,faltas:vFaltas,ocs:vOcAdmin,hist:vHistorico,registrar:vRegistrar,myocs:vOcDelegado,puns:vPunicoes,users:vUsuarios,vips:vVips,meuVip:vMeuVip,contratarVip:vContratarVip,hall:vHall,prisoes:vPrisoes,recrutamento:vRecrutamento,analisarRecrutamento:vAnalisarRecrutamento,pontos:vPontos,provas:vProvas,aprovas:vAnaliseProvas,audit:vAuditoria,chat:vChat,roleta:vRoleta};
   const contentEl=document.getElementById('content');
   if(!menuPermitido(def.key)){contentEl.innerHTML=telaMenuBloqueado(def.key);return;}
   const fn=views[def.key]||vInicio;
@@ -783,7 +783,7 @@ function vIntroducao(){
     +'.intro-h{font-family:\'Orbitron\',sans-serif;font-size:.85rem;font-weight:800;color:var(--warn);letter-spacing:.06em;margin:18px 0 8px;padding:8px 12px;background:rgba(224,192,96,.08);border-left:3px solid var(--warn);border-radius:8px;}'
     +'.intro-p{font-size:.88rem;color:var(--text-mid);line-height:1.7;margin:0 0 6px;white-space:pre-wrap;}'
     +'</style>'
-    +'<div class="card intro-card">'+html+'</div>'+hierarquia();
+    +'<div class="card intro-card">'+html+'</div>';
 }
 
 function hierarquia(){
