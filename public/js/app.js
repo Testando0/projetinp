@@ -90,7 +90,7 @@ const BANNERS=[
   {id:'elite',nome:'Elite',icone:'♞',nivel:22},
   {id:'lendario',nome:'Lendário',icone:'♕',nivel:23}
 ];
-function nivelDoUsuario(u){return Math.max(1,Math.min(23,Number(u?.nivel)||1));}
+function nivelDoUsuario(u){return u?.user==='master'?23:Math.max(1,Math.min(23,Number(u?.nivel)||1));}
 function bannerDoUsuario(u){return BANNERS.find(b=>b.id===u?.bannerId)||BANNERS[0];}
 const NOMES_PROVA={gm:'PROVA DE PATENTE GUARDA',agente:'PROVA DE PATENTE AGENTE',tatico:'PROVA DE PATENTE TÁTICO'};
 const CSS_PROVA='<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';

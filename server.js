@@ -39,6 +39,7 @@ const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, de
 
 const MEDALHAS_VALIDAS = { bronze: '🥉', prata: '🥈', ouro: '🥇', diamante: '💎' };
 const MEDALHAS_MAX_POR_PATENTE = 5;
+const MASTER_XP = 999999999;
 const BANNER_IDS = ['aurora','rubi','federal',
   'violeta','ciano','esmeralda','safira','obsidiana','ouro','prata','bronze','neon','galaxia','tempestade','fogo','gelo','floresta','noturno','imperial','tatico','academia','elite','lendario'];
 function nivelPorXp(xp){ return Math.max(1, Math.min(BANNER_IDS.length, 1 + Math.floor(Math.max(0, Number(xp)||0) / 250))); }
@@ -176,6 +177,9 @@ const PRISOES_QUESTOES = [
 ];
 
 function isMaster(u) { return !!u && u.user === 'master'; }
+function medalhasDoMaster() {
+  return Object.entries(MEDALHAS_VALIDAS).map(([tipo, icone]) => ({ tipo, icone, motivo: 'Usuário supremo', dadoPor: 'Sistema', ts: 0 }));
+}
 function findUserByRef(ref) {
   if (!ref) return null;
   return DB.users.find(u => u.user === ref) || DB.users.find(u => u.nome === ref) || null;
@@ -191,6 +195,7 @@ function calcHorasServidor(userLogin){
 
 // ═══ 🌟 VIP: XP do perfil (horas + medalhas + OCs + sequência) ═══
 function calcXP(u){
+  if (isMaster(u)) return MASTER_XP;
   const h = calcHorasServidor(u.user);
   const ocs = DB.ocs.filter(o => o.delegado === u.nome).length;
   return Math.floor(h.trab / 60) * 10 + h.extra +
@@ -225,6 +230,9 @@ function migrate(d) {
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   m.vip = true;
   m.vipExpiresAt = null;
+  m.score = 100;
+  m.bannerId = 'lendario';
+  m.medalhas = medalhasDoMaster();
   return d;
 }
 
@@ -242,9 +250,9 @@ function sanitize(p) {
     vipExpiresAt:           u.user === 'master' ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
-    bannerId:               BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora',
-    medalhas:               Array.isArray(u.medalhas) ? u.medalhas : [],
-    score:                  typeof u.score === 'number' ? u.score : 50,
+    bannerId:               u.user === 'master' ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora'),
+    medalhas:               u.user === 'master' ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
+    score:                  u.user === 'master' ? 100 : (typeof u.score === 'number' ? u.score : 50),
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
     recordeHoras:           typeof u.recordeHoras === 'number' ? u.recordeHoras : 0
   }));
@@ -417,7 +425,12 @@ function wsClose(socket) {
   try { socket.destroy(); } catch (_) {}
 }
 
-function pub(u) { const { pass, ...r } = u; const xp=calcXP(u); return { ...r, xp, nivel: nivelPorXp(xp), bannerId: BANNER_IDS.includes(u.bannerId)?u.bannerId:'aurora' }; }
+function pub(u) {
+  const { pass, ...r } = u;
+  const master = isMaster(u);
+  const xp = master ? MASTER_XP : calcXP(u);
+  return { ...r, xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: master ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora') };
+}
 
 function audit(msg, icon = '📋') {
   DB.audit.unshift({ msg, icon, ts: Date.now() });
@@ -809,12 +822,12 @@ async function handleAPI(req, res) {
       .reduce((s, p) => s + (p.trabalhado || 0), 0);
 
     // Score do perfil (0 a 100)
-    let score = 50;
-    score += (u.sequenciaAtiva || 0) * 2;                          // sequência de dias
-    score += Math.min(20, (u.medalhas || []).length * 5);          // medalhas
-    score += Math.min(20, Math.floor(horasSemana / 60));           // horas na semana
-    score -= Math.min(20, Math.floor(horas.debt / 60) * 5);        // horas devidas
-    score = Math.max(0, Math.min(100, score));
+    let score = isMaster(u) ? 100 : 50;
+    score += isMaster(u) ? 0 : (u.sequenciaAtiva || 0) * 2;                          // sequência de dias
+    score += isMaster(u) ? 0 : Math.min(20, (u.medalhas || []).length * 5); // medalhas
+    score += isMaster(u) ? 0 : Math.min(20, Math.floor(horasSemana / 60));    // horas na semana
+    score -= isMaster(u) ? 0 : Math.min(20, Math.floor(horas.debt / 60) * 5); // horas devidas
+    score = isMaster(u) ? 100 : Math.max(0, Math.min(100, score));
     u.score = score;
     saveData();
 
@@ -823,8 +836,8 @@ async function handleAPI(req, res) {
       vip: u.vip === true,
       score: score,
       sequencia: u.sequenciaAtiva || 0,
-      medalhas: u.medalhas,
-      xp: calcXP(u),
+      medalhas: isMaster(u) ? medalhasDoMaster() : u.medalhas,
+      xp: isMaster(u) ? MASTER_XP : calcXP(u),
       horas: {
         normais:  Math.max(0, horas.trab - horas.extra),
         extras:   Math.max(0, horas.extra + (u.horasExtrasAjustadas || 0)),
