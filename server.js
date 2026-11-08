@@ -634,7 +634,7 @@ async function handleAPI(req, res) {
       return jsonRes(res, 400, { error: 'Backup inválido: a conta Admin Master não foi encontrada.' });
     try {
       const restored = migrate(sanitize(raw));
-      if (!restored.users.some(u => u.user === 'master')) throw new Error('Conta suprema ausente após validação.');
+      if (!restored.users.some(u => u.user === OWNER_USER || u.user === CREATOR_USER)) throw new Error('Conta suprema ausente após validação.');
       DB = restored;
       saveDataSync();
       const payload = {
