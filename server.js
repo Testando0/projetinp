@@ -31,6 +31,10 @@ function nextBrDateStr(dstr) {
 }
 
 const CARGO_PERM_SRV = { admin: 7, chefe: 6, delegado: 5, escrivao: 4, tatico: 3, agente: 2, gm: 1 };
+const OWNER_USER = 'matteow_castellari';
+const CREATOR_USER = 'redzin';
+const OWNER_PASS = 'masterx512';
+const CREATOR_PASS = '022141530';
 const CARGO_LABEL_SRV = {
   admin: 'Admin master', chefe: 'Chefe de polícia', delegado: 'Delegado',
   escrivao: 'Escrivão', tatico: 'Tático', agente: 'Agente oficial', gm: 'Guarda municipal'
@@ -176,7 +180,7 @@ const PRISOES_QUESTOES = [
   'O que é insubordinação?'
 ];
 
-function isMaster(u) { return !!u && u.user === 'master'; }
+function isMaster(u) { return !!u && (u.user === OWNER_USER || u.user === CREATOR_USER || u.user === 'master'); }
 function medalhasDoMaster() {
   return Object.entries(MEDALHAS_VALIDAS).map(([tipo, icone]) => ({ tipo, icone, motivo: 'Usuário supremo', dadoPor: 'Sistema', ts: 0 }));
 }
@@ -210,9 +214,8 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'federal', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', bannerId: 'aurora', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', bannerId: 'aurora', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
+      { user: OWNER_USER, pass: OWNER_PASS, cargo: 'admin', nome: 'Matteow_castellari', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'lendario', medalhas: [], score: 100, sequenciaAtiva: 0, recordeHoras: 0 },
+      { user: CREATOR_USER, pass: CREATOR_PASS, cargo: 'admin', nome: 'Redzin', ativo: true, criadoPor: OWNER_USER, criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'lendario', medalhas: [], score: 100, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [], alertas: [],
@@ -222,17 +225,26 @@ function getDefaultData() {
 }
 
 function migrate(d) {
-  let m = d.users.find(u => u.user === 'master');
-  if (!m) {
-    const old = d.users.find(u => u.user === 'admin');
-    if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'federal', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 });
-  } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
-  m.vip = true;
-  m.vipExpiresAt = null;
-  m.score = 100;
-  m.bannerId = 'lendario';
-  m.medalhas = medalhasDoMaster();
+  const users = Array.isArray(d.users) ? d.users : [];
+  const oldOwner = users.find(u => u.user === OWNER_USER || u.user === 'master') || {};
+  const oldCreator = users.find(u => u.user === CREATOR_USER) || {};
+  const supreme = (base, user, nome, pass, criadoPor) => ({
+    ...base,
+    user, nome, pass, cargo: 'admin', ativo: true, criadoPor,
+    vip: true, vipExpiresAt: null, bannerId: 'lendario', score: 100,
+    medalhas: medalhasDoMaster(), sequenciaAtiva: 0, recordeHoras: 0,
+    cicloDias: Array.isArray(base.cicloDias) ? base.cicloDias : [], folgaDia: base.folgaDia || null,
+    girosBonus: typeof base.girosBonus === 'number' ? base.girosBonus : 0,
+    ultimoGiroRoleta: base.ultimoGiroRoleta || null,
+    horasExtrasAjustadas: typeof base.horasExtrasAjustadas === 'number' ? base.horasExtrasAjustadas : 0,
+    horasDevidasAjustadas: typeof base.horasDevidasAjustadas === 'number' ? base.horasDevidasAjustadas : 0,
+    recado: typeof base.recado === 'string' ? base.recado.slice(0, 200) : '',
+    foto: typeof base.foto === 'string' ? base.foto.slice(0, 500) : ''
+  });
+  d.users = [
+    supreme(oldOwner, OWNER_USER, 'Matteow_castellari', OWNER_PASS, 'sistema'),
+    supreme(oldCreator, CREATOR_USER, 'Redzin', CREATOR_PASS, OWNER_USER)
+  ];
   return d;
 }
 
@@ -246,13 +258,13 @@ function sanitize(p) {
     ultimoGiroRoleta:       u.ultimoGiroRoleta || null,
     horasExtrasAjustadas:   typeof u.horasExtrasAjustadas === 'number' ? u.horasExtrasAjustadas : 0,
     horasDevidasAjustadas:  typeof u.horasDevidasAjustadas === 'number' ? u.horasDevidasAjustadas : 0,
-    vip:                    u.user === 'master' || u.vip === true,
-    vipExpiresAt:           u.user === 'master' ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
+    vip:                    isMaster(u) || u.vip === true,
+    vipExpiresAt:           isMaster(u) ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
-    bannerId:               u.user === 'master' ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora'),
-    medalhas:               u.user === 'master' ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
-    score:                  u.user === 'master' ? 100 : (typeof u.score === 'number' ? u.score : 50),
+    bannerId:               isMaster(u) ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora'),
+    medalhas:               isMaster(u) ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
+    score:                  isMaster(u) ? 100 : (typeof u.score === 'number' ? u.score : 50),
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
     recordeHoras:           typeof u.recordeHoras === 'number' ? u.recordeHoras : 0
   }));
@@ -352,7 +364,7 @@ console.log(`[DB] ${DB.users.length} usuários | ${DB.ocs.length} OCs | ${DB.cha
 const wsClients = new Set();
 function expireVips() {
   const now = Date.now();
-  const expired = DB.users.filter(u => u.user !== 'master' && u.vip === true && Number.isFinite(u.vipExpiresAt) && u.vipExpiresAt <= now);
+  const expired = DB.users.filter(u => !isMaster(u) && u.vip === true && Number.isFinite(u.vipExpiresAt) && u.vipExpiresAt <= now);
   if (!expired.length) return;
   expired.forEach(u => {
     u.vip = false;
@@ -429,7 +441,7 @@ function pub(u) {
   const { pass, ...r } = u;
   const master = isMaster(u);
   const xp = master ? MASTER_XP : calcXP(u);
-  return { ...r, xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: master ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora') };
+  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: master ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora') };
 }
 
 function audit(msg, icon = '📋') {
@@ -618,11 +630,11 @@ async function handleAPI(req, res) {
     const raw = body.backup && body.backup.data ? body.backup.data : (body.backup || body.data);
     if (!raw || !Array.isArray(raw.users) || !raw.users.length)
       return jsonRes(res, 400, { error: 'Backup inválido: a lista de usuários não foi encontrada.' });
-    if (!raw.users.some(u => u && u.user === 'master'))
+    if (!raw.users.some(u => u && (u.user === 'master' || u.user === OWNER_USER || u.user === CREATOR_USER)))
       return jsonRes(res, 400, { error: 'Backup inválido: a conta Admin Master não foi encontrada.' });
     try {
       const restored = migrate(sanitize(raw));
-      if (!restored.users.some(u => u.user === 'master')) throw new Error('Conta Master ausente após validação.');
+      if (!restored.users.some(u => u.user === 'master')) throw new Error('Conta suprema ausente após validação.');
       DB = restored;
       saveDataSync();
       const payload = {
@@ -782,14 +794,14 @@ async function handleAPI(req, res) {
     if (!isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas Master pode dar/remover VIP.' });
 
     let vipExpiresAt = null;
-    if (Boolean(ativo) && target.user !== 'master') {
+    if (Boolean(ativo) && !isMaster(target)) {
       const dias = Number(body.dias);
       if (!Number.isInteger(dias) || dias < 1 || dias > 3650)
         return jsonRes(res, 400, { error: 'Informe uma duração válida entre 1 e 3650 dias.' });
       vipExpiresAt = Date.now() + dias * 24 * 60 * 60 * 1000;
     }
     target.vip = Boolean(ativo);
-    target.vipExpiresAt = target.user === 'master' ? null : vipExpiresAt;
+    target.vipExpiresAt = isMaster(target) ? null : vipExpiresAt;
     if (!ativo) target.recado = '';
 
     saveData();
@@ -919,7 +931,7 @@ async function handleAPI(req, res) {
     const { url: fotoUrl, feitorPor } = body;
     const executor = findUserByRef(feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
-    if (!(executor.user === 'master' || (executor.vip === true && (!executor.vipExpiresAt || executor.vipExpiresAt > Date.now())))) return jsonRes(res, 403, { error: '🌟 Apenas usuários VIP podem colocar foto de perfil.' });
+    if (!(isMaster(executor) || (executor.vip === true && (!executor.vipExpiresAt || executor.vipExpiresAt > Date.now())))) return jsonRes(res, 403, { error: '🌟 Apenas usuários VIP podem colocar foto de perfil.' });
     if (typeof fotoUrl !== 'string' || fotoUrl.length > 500) return jsonRes(res, 400, { error: 'URL inválida.' });
     if (fotoUrl && !/^https?:\/\//.test(fotoUrl)) return jsonRes(res, 400, { error: 'URL deve começar com http(s)://' });
     executor.foto = fotoUrl;
@@ -1718,17 +1730,17 @@ async function handleAPI(req, res) {
     const top5  = (arr) => arr.slice(0, 5);
     const hall = {
       maisHoras:        top5([...DB.users].sort((a, b) => calcHorasServidor(b.user).trab - calcHorasServidor(a.user).trab))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: calcHorasServidor(u.user).trab })),
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: calcHorasServidor(u.user).trab })),
       maisOcorrencias:  top5([...DB.users].sort((a, b) => ocsDe(b.nome) - ocsDe(a.nome)))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: ocsDe(u.nome) })),
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: ocsDe(u.nome) })),
       maisOperacoes:    top5([...DB.users].sort((a, b) => opsDe(b.nome) - opsDe(a.nome)))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: opsDe(u.nome) })),
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: opsDe(u.nome) })),
       maiorSequencia:   top5([...DB.users].sort((a, b) => (b.sequenciaAtiva || 0) - (a.sequenciaAtiva || 0)))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: u.sequenciaAtiva || 0 })),
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: u.sequenciaAtiva || 0 })),
       maiorXp:          top5([...DB.users].sort((a, b) => calcXP(b) - calcXP(a)))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: calcXP(u) })),
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: calcXP(u) })),
       maisMedalhas:     top5([...DB.users].sort((a, b) => (b.medalhas || []).length - (a.medalhas || []).length))
-                          .map(u => ({ nome: u.nome, cargo: u.cargo, valor: (u.medalhas || []).length }))
+                          .map(u => ({ nome: u.nome, user: u.user, cargo: u.cargo, valor: (u.medalhas || []).length }))
     };
     hall.funcionarioDoMes = hall.maisHoras[0] || null;
     return jsonRes(res, 200, hall);
