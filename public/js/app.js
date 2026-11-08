@@ -996,10 +996,6 @@ function abrirModalPerfil(){
   const modalBox=document.querySelector('#m-perfil .modal');
   const profileCard=document.getElementById('pf-profile-card');
   if(profileCard)profileCard.dataset.banner=bannerDoUsuario(u).id;
-  const ribbon=bannerDoUsuario(u), ribbonIcon=document.getElementById('pf-banner-ribbon-icon'), ribbonName=document.getElementById('pf-banner-ribbon-name'), ribbonLevel=document.getElementById('pf-banner-ribbon-level');
-  if(ribbonIcon)ribbonIcon.textContent=ribbon.icone;
-  if(ribbonName)ribbonName.textContent=ribbon.nome.toUpperCase();
-  if(ribbonLevel)ribbonLevel.textContent='NÍVEL '+nivelDoUsuario(u);
   renderEditorBanners(u);
 
   // ══ Wrapper dinâmico arredondado SÓ ao redor do textarea do recado ══
