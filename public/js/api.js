@@ -90,6 +90,7 @@ const API = {
   // ═══ USUÁRIO: RECADO + FOTO ═══
   atualizarRecado:  (texto, feitorPor)                        => API.request('PUT',    '/users/me/recado', { texto, feitorPor }),
   salvarFotoPerfil: (url, feitorPor)                          => API.request('PUT',    '/users/me/foto', { url, feitorPor }),
+  salvarBannerPerfil:(bannerId, feitorPor)                    => API.request('PUT',    '/users/me/banner', { bannerId, feitorPor }),
 
   // ═══ ADMIN MASTER: BACKUP COMPLETO ═══
   baixarBackup:    (feitorPor)                                => API.request('GET',    '/admin/backup?feitorPor=' + encodeURIComponent(feitorPor)),

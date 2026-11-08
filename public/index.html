@@ -401,7 +401,7 @@
     <div class="modal">
       <div class="modal-h"><h3>👤 MEU PERFIL</h3><button class="modal-close" onclick="closeModal('m-perfil')">&times;</button></div>
       <div class="modal-b">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;padding:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.15);border-radius:14px;">
+        <div id="pf-profile-card" class="pf-profile-card" data-banner="aurora">
           <div id="pf-avatar" class="u-avatar" style="width:64px;height:64px;font-size:1.8rem;">?</div>
           <div style="flex:1;">
             <div id="pf-nome" style="font-size:1.1rem;font-weight:700;margin-bottom:4px;">Nome</div>
@@ -410,12 +410,18 @@
               <span id="pf-vip-badge" style="display:none;padding:4px 10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.05em;">🌟 VIP</span>
             </div>
           </div>
+          <button id="pf-edit-btn" class="pf-edit-btn" type="button" onclick="alternarEditorPerfil()" aria-label="Editar aparência do perfil">✎</button>
         </div>
         <div id="pf-foto-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">📷 Escolher Foto<input type="file" id="pf-foto-input" accept="image/*" style="display:none;" onchange="uploadFotoPerfil()"></label>
           <button id="pf-foto-remove" class="btn btn-ghost btn-sm" style="display:none;" onclick="removerFotoPerfil()">🗑 Remover Foto</button>
         </div>
         <div id="pf-foto-status" style="font-size:.7rem;color:var(--text-dim);margin-bottom:16px;"></div>
+        <div id="pf-banner-editor" style="display:none;margin:0 0 16px;">
+          <div class="pf-section-title">▸ BANNER DO PERFIL <span id="pf-banner-level" class="pf-level-chip"></span></div>
+          <div id="pf-banner-grid" class="pf-banner-grid"></div>
+          <div id="pf-banner-status" class="pf-banner-status"></div>
+        </div>
         <div style="margin-bottom:16px;padding:12px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.3);border-radius:10px;">
           <div style="font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--text-dim);margin-bottom:6px;">@USUÁRIO</div>
           <div id="pf-user" style="font-size:.9rem;color:var(--accent);font-weight:600;">@usuario</div>
@@ -444,6 +450,13 @@
         <button class="btn btn-ghost btn-sm" onclick="closeModal('m-perfil')">FECHAR</button>
         <button id="pf-save-btn" class="btn btn-primary btn-sm" onclick="salvarRecado()">💾 SALVAR RECAD0</button>
       </div>
+    </div>
+  </div>
+
+  <div id="m-perfil-publico" class="modal-overlay">
+    <div class="modal public-profile-modal">
+      <div class="modal-h"><h3>👤 PERFIL DO EFETIVO</h3><button class="modal-close" onclick="closeModal('m-perfil-publico')">&times;</button></div>
+      <div id="perfil-publico-content" class="modal-b"></div>
     </div>
   </div>
 

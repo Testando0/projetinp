@@ -65,6 +65,33 @@ const THEMES=[
   {id:'rubi',label:'Tema rubi',icon:'◆',desc:'Visual escuro com destaque vermelho-rubi e vinho.'},
   {id:'ciano',label:'Tema ciano + neon',icon:'✧',desc:'Visual espacial inspirado na referência, com ciano neon e brilho.'}
 ];
+const BANNERS=[
+  {id:'aurora',nome:'Aurora',icone:'✦',nivel:1,desc:'Livre'},
+  {id:'rubi',nome:'Rubi',icone:'◆',nivel:2,desc:'Livre'},
+  {id:'federal',nome:'Federal',icone:'★',nivel:3,desc:'Livre'},
+  {id:'violeta',nome:'Violeta',icone:'✧',nivel:4},
+  {id:'ciano',nome:'Ciano Neon',icone:'◈',nivel:5},
+  {id:'esmeralda',nome:'Esmeralda',icone:'❖',nivel:6},
+  {id:'safira',nome:'Safira',icone:'◆',nivel:7},
+  {id:'obsidiana',nome:'Obsidiana',icone:'⬢',nivel:8},
+  {id:'ouro',nome:'Ouro Imperial',icone:'♛',nivel:9},
+  {id:'prata',nome:'Prata',icone:'◇',nivel:10},
+  {id:'bronze',nome:'Bronze',icone:'⬟',nivel:11},
+  {id:'neon',nome:'Neon',icone:'⚡',nivel:12},
+  {id:'galaxia',nome:'Galáxia',icone:'✺',nivel:13},
+  {id:'tempestade',nome:'Tempestade',icone:'☄',nivel:14},
+  {id:'fogo',nome:'Fogo',icone:'♨',nivel:15},
+  {id:'gelo',nome:'Gelo',icone:'❄',nivel:16},
+  {id:'floresta',nome:'Floresta',icone:'❋',nivel:17},
+  {id:'noturno',nome:'Noturno',icone:'☾',nivel:18},
+  {id:'imperial',nome:'Imperial',icone:'♜',nivel:19},
+  {id:'tatico',nome:'Tático',icone:'⌁',nivel:20},
+  {id:'academia',nome:'Academia',icone:'▣',nivel:21},
+  {id:'elite',nome:'Elite',icone:'♞',nivel:22},
+  {id:'lendario',nome:'Lendário',icone:'♕',nivel:23}
+];
+function nivelDoUsuario(u){return Math.max(1,Math.min(23,Number(u?.nivel)||1));}
+function bannerDoUsuario(u){return BANNERS.find(b=>b.id===u?.bannerId)||BANNERS[0];}
 const NOMES_PROVA={gm:'PROVA DE PATENTE GUARDA',agente:'PROVA DE PATENTE AGENTE',tatico:'PROVA DE PATENTE TÁTICO'};
 const CSS_PROVA='<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
 const PRISOES_QUESTOES_LOCAL=['Cite todos os comandos em ordem para efetuar prisões.','Qual procedimento para levar o preso para comer?','Como funciona o QTH PS?','Como funciona o QTH HP?','Cite 4 regras da PF que não podem ser quebradas.','O que é abuso de poder? Cite 3 exemplos.','Quais regras de carregamento?','Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).','Cite a cadeia de comando e a hierarquia.','O que é insubordinação?'];
@@ -210,10 +237,10 @@ async function checkSession(){
   if(!parsed||!parsed.user||!parsed.cargo){clearSession();showLogin();return;}
   if(parsed.user==='admin'){clearSession();showLogin();return;}
   const{pass:_p,...meSafe}=parsed;me=meSafe;_loadStateFromCache();
-  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,vipExpiresAt:su.vipExpiresAt||null,recado:su.recado||'',foto:su.foto||'',medalhas:Array.isArray(su.medalhas)?su.medalhas:[],horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.faltas))STATE.faltas=st.faltas;if(Array.isArray(st.alertas))STATE.alertas=st.alertas;sincronizarNotificacoes();if(Array.isArray(st.solicitacoesCarreira))STATE.solicitacoesCarreira=st.solicitacoesCarreira;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;if(Array.isArray(st.vipCombos))STATE.vipCombos=st.vipCombos;}}catch(_){}
+  try{const st=await API.getState();if(st&&Array.isArray(st.users)){const su=st.users.find(u=>u.user===me.user);if(!su||!su.ativo){clearSession();me=null;showLogin();return;}me={...me,cargo:su.cargo,nome:su.nome,ativo:su.ativo,girosBonus:(typeof su.girosBonus==='number'?su.girosBonus:0),ultimoGiroRoleta:su.ultimoGiroRoleta||null,vip:su.vip===true,vipExpiresAt:su.vipExpiresAt||null,recado:su.recado||'',foto:su.foto||'',bannerId:su.bannerId||'aurora',xp:su.xp||0,nivel:su.nivel||1,medalhas:Array.isArray(su.medalhas)?su.medalhas:[],horasExtrasAjustadas:su.horasExtrasAjustadas||0,horasDevidasAjustadas:su.horasDevidasAjustadas||0};saveSession();if(su.banExpires&&su.banExpires>Date.now()){showBanScreen({expiresAt:su.banExpires,reason:su.banReason,banBy:su.banBy});return;}STATE.users=st.users;if(Array.isArray(st.ocs))STATE.ocs=st.ocs;if(Array.isArray(st.puns))STATE.puns=st.puns;if(Array.isArray(st.pontos))STATE.pontos=st.pontos;if(Array.isArray(st.provas))STATE.provas=st.provas;if(Array.isArray(st.audit))STATE.audit=st.audit;if(Array.isArray(st.feedbacks))STATE.feedbacks=st.feedbacks;if(Array.isArray(st.chats))STATE.chats=st.chats;if(Array.isArray(st.prisoes))STATE.prisoes=st.prisoes;if(Array.isArray(st.faltas))STATE.faltas=st.faltas;if(Array.isArray(st.alertas))STATE.alertas=st.alertas;sincronizarNotificacoes();if(Array.isArray(st.solicitacoesCarreira))STATE.solicitacoesCarreira=st.solicitacoesCarreira;if(Array.isArray(st.roletaPremios))STATE.roletaPremios=st.roletaPremios;if(Array.isArray(st.vipCombos))STATE.vipCombos=st.vipCombos;}}catch(_){}
   showPanel();
 }
-function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.faltas))STATE.faltas=c.faltas;if(Array.isArray(c.solicitacoesCarreira))STATE.solicitacoesCarreira=c.solicitacoesCarreira;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;if(Array.isArray(c.vipCombos))STATE.vipCombos=c.vipCombos;}
+function _loadStateFromCache(){if(typeof LSCache==='undefined')return;const c=LSCache.load();if(!c)return;if(Array.isArray(c.ocs))STATE.ocs=c.ocs;if(Array.isArray(c.puns))STATE.puns=c.puns;if(Array.isArray(c.pontos))STATE.pontos=c.pontos;if(Array.isArray(c.provas))STATE.provas=c.provas;if(Array.isArray(c.users))STATE.users=c.users;if(Array.isArray(c.audit))STATE.audit=c.audit;if(Array.isArray(c.feedbacks))STATE.feedbacks=c.feedbacks;if(Array.isArray(c.chats))STATE.chats=c.chats;if(Array.isArray(c.prisoes))STATE.prisoes=c.prisoes;if(Array.isArray(c.faltas))STATE.faltas=c.faltas;if(Array.isArray(c.solicitacoesCarreira))STATE.solicitacoesCarreira=c.solicitacoesCarreira;if(Array.isArray(c.alertas))STATE.alertas=c.alertas;if(Array.isArray(c.roletaPremios))STATE.roletaPremios=c.roletaPremios;if(Array.isArray(c.vipCombos))STATE.vipCombos=c.vipCombos;}
 
 async function apiLoginRetry(u,p,btn){let lastErr=null;for(let i=0;i<3;i++){try{return await API.login(u,p);}catch(e){lastErr=e;const msg=e.message||'';const retryable=/Sem conexão|Resposta inválida|Erro 50\d|Erro 429|Erro 52\d/i.test(msg);if(!retryable)throw e;if(btn)btn.textContent='▸ ACORDANDO… ('+(i+2)+'/3)';await new Promise(r=>setTimeout(r,1200*(i+1)));}}throw lastErr;}
 async function login(){
@@ -921,7 +948,44 @@ async function toggleVipUsuario(username,nome,ativo){
   }catch(e){toast(e.message||'Erro.','d');}
 }
 
-// ══ MEU PERFIL (FOTO + RECAD0 + LED RGB + VERMELHO NO MODAL) ══
+function renderEditorBanners(u){
+  const grid=document.getElementById('pf-banner-grid');if(!grid)return;
+  const nivel=nivelDoUsuario(u), atual=bannerDoUsuario(u).id;
+  const levelEl=document.getElementById('pf-banner-level');if(levelEl)levelEl.textContent='NÍVEL '+nivel+' • '+(u.xp||0)+' XP';
+  grid.innerHTML=BANNERS.map((b,i)=>{
+    const unlocked=i<3||nivel>=b.nivel, selected=b.id===atual;
+    return `<button type="button" class="pf-banner-option banner-${b.id} ${selected?'selected':''} ${unlocked?'':'locked'}" ${unlocked?`onclick="selecionarBannerPerfil('${b.id}')"`:''} aria-label="${b.nome}${unlocked?'':' bloqueado'}"><span class="pf-banner-glyph">${unlocked?b.icone:'🔒'}</span><span class="pf-banner-name">${b.nome}</span><small>${unlocked?(i<3?'GRÁTIS':'NÍVEL '+b.nivel):'BLOQUEADO'}</small></button>`;
+  }).join('');
+}
+function alternarEditorPerfil(){
+  const box=document.getElementById('pf-banner-editor');if(!box)return;
+  const aberto=box.style.display==='block';box.style.display=aberto?'none':'block';
+  if(!aberto){const u=STATE.users.find(x=>x.user===me.user)||me;renderEditorBanners(u);}
+}
+async function selecionarBannerPerfil(id){
+  if(!me||!BANNERS.some(b=>b.id===id))return;
+  const u=STATE.users.find(x=>x.user===me.user)||me;
+  const b=BANNERS.find(x=>x.id===id), nivel=nivelDoUsuario(u);
+  if(BANNERS.indexOf(b)>=3&&nivel<b.nivel){toast('🔒 Desbloqueie o nível '+b.nivel+' para usar este banner.','w');return;}
+  const status=document.getElementById('pf-banner-status');if(status)status.textContent='Salvando banner…';
+  try{
+    await API.salvarBannerPerfil(id,me.user);
+    u.bannerId=id;me.bannerId=id;saveSession();
+    const card=document.getElementById('pf-profile-card');if(card)card.dataset.banner=id;
+    renderEditorBanners(u);if(status)status.textContent='✅ Banner aplicado ao seu perfil.';toast('✨ Banner atualizado!','s');
+  }catch(e){if(status)status.textContent='';toast(e.message||'Não foi possível salvar o banner.','d');}
+}
+
+function abrirPerfilPublico(userLogin){
+  const u=STATE.users.find(x=>x.user===userLogin);if(!u)return;
+  const b=bannerDoUsuario(u), nivel=nivelDoUsuario(u), medals=Array.isArray(u.medalhas)?u.medalhas:[];
+  const content=document.getElementById('perfil-publico-content');if(!content)return;
+  const medalsHtml=medals.length?medals.map(m=>`<div class="public-medal" title="${escRec(m.motivo||'Medalha concedida')}"><span>${m.icone||'🏅'}</span><small>${escRec(m.tipo||'MEDALHA')}</small></div>`).join(''):'<div class="public-empty">Nenhuma medalha recebida ainda.</div>';
+  content.innerHTML=`<div class="public-profile-hero banner-${b.id}"><div class="public-profile-shine"></div><div class="public-profile-avatar">${avatarContent(u)}</div><div class="public-profile-main"><div class="public-profile-name">${escRec(u.nome||u.user)}</div><div class="public-profile-handle">@${escRec(u.user)}</div><div class="public-profile-badges"><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${escRec(CARGO_LABEL[u.cargo]||u.cargo)}</span>${u.vip?'<span class="public-vip">✦ VIP</span>':''}</div></div><div class="public-profile-banner-name">${b.icone} ${b.nome}</div></div><div class="public-profile-stats"><div><strong>NÍVEL ${nivel}</strong><small>${Number(u.xp||0).toLocaleString('pt-BR')} XP</small></div><div><strong>${medals.length}</strong><small>MEDALHAS</small></div><div><strong>${u.ativo===false?'INATIVO':'ATIVO'}</strong><small>STATUS</small></div></div><div class="public-profile-section"><div class="pf-section-title">✦ RECADO</div><p class="public-recado">${u.recado?escRec(u.recado):'Este usuário ainda não adicionou um recado.'}</p></div><div class="public-profile-section"><div class="pf-section-title">🏅 MEDALHAS</div><div class="public-medals">${medalsHtml}</div></div>`;
+  openModal('m-perfil-publico');
+}
+
+// ══ MEU PERFIL (FOTO + BANNER + RECAD0 + LED RGB + VERMELHO NO MODAL) ══
 function abrirModalPerfil(){
   if(!me)return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
@@ -930,6 +994,9 @@ function abrirModalPerfil(){
   const cardBox=av?av.parentElement:null;
   const userBox=document.getElementById('pf-user')?document.getElementById('pf-user').parentElement:null;
   const modalBox=document.querySelector('#m-perfil .modal');
+  const profileCard=document.getElementById('pf-profile-card');
+  if(profileCard)profileCard.dataset.banner=bannerDoUsuario(u).id;
+  renderEditorBanners(u);
 
   // ══ Wrapper dinâmico arredondado SÓ ao redor do textarea do recado ══
   const recadoInput0=document.getElementById('pf-recado');
@@ -1883,14 +1950,14 @@ function renderChatListaContatos(){
     const preview=ult?((ult.from===me.user?'Você: ':'')+ult.texto.slice(0,34)+(ult.texto.length>34?'…':'')):'';
     const naoLidas=(STATE.chats||[]).filter(m=>m.from===u.user&&m.to===me.user&&!lidos[m.id]).length;
     const ativo=_chatContatoAtual===u.user?'ativo':'';
-    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar" style="${AVATAR_POS}">${avatarContent(u)}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome">${u.nome}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
+    return `<div class="chat-item ${ativo}" onclick="abrirChatCom('${u.user}')"><div class="chat-item-avatar profile-click" style="${AVATAR_POS}" onclick="event.stopPropagation();abrirPerfilPublico('${u.user}')" title="Ver perfil">${avatarContent(u)}</div><div class="chat-item-body"><div class="chat-item-top"><span class="chat-item-nome profile-click" onclick="event.stopPropagation();abrirPerfilPublico('${u.user}')">${escRec(u.nome)}</span><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}" style="font-size:.48rem;padding:2px 6px;">${CARGO_LABEL[u.cargo]||''}</span></div><div class="chat-item-prev">${preview||'<i>sem mensagens</i>'}</div></div>${naoLidas>0?`<div class="chat-nao-lido">${naoLidas>99?'99+':naoLidas}</div>`:''}</div>`;
   }).join('');
 }
 function abrirChatCom(userLogin){
   _chatContatoAtual=userLogin;_marcarConversaComoLida(userLogin);
   const u=STATE.users.find(x=>x.user===userLogin);
   const header=document.getElementById('chat-header');
-  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar" style="width:36px;height:36px;font-size:.85rem;${AVATAR_POS}">${avatarContent(u)}</div><div style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.nome}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
+  if(header&&u){header.innerHTML=`<button type="button" class="chat-voltar" onclick="voltarParaLista()" aria-label="Voltar">‹</button><div class="chat-item-avatar profile-click" onclick="abrirPerfilPublico('${u.user}')" title="Ver perfil" style="width:36px;height:36px;font-size:.85rem;${AVATAR_POS}">${avatarContent(u)}</div><div class="profile-click" onclick="abrirPerfilPublico('${u.user}')" style="min-width:0;"><div style="font-weight:700;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escRec(u.nome)}</div><div style="font-size:.66rem;color:var(--text-mid);">${CARGO_LABEL[u.cargo]||u.cargo} • @${u.user}</div></div>`;}
   const inputWrap=document.getElementById('chat-input-wrap');if(inputWrap)inputWrap.style.display='flex';
   const viewLista=document.getElementById('chat-view-lista');const viewConversa=document.getElementById('chat-view-conversa');
   if(viewLista&&viewConversa&&window.matchMedia('(max-width:768px)').matches){viewLista.classList.add('escondido');viewConversa.classList.add('ativo');}

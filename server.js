@@ -39,6 +39,9 @@ const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, de
 
 const MEDALHAS_VALIDAS = { bronze: '🥉', prata: '🥈', ouro: '🥇', diamante: '💎' };
 const MEDALHAS_MAX_POR_PATENTE = 5;
+const BANNER_IDS = ['aurora','rubi','federal',
+  'violeta','ciano','esmeralda','safira','obsidiana','ouro','prata','bronze','neon','galaxia','tempestade','fogo','gelo','floresta','noturno','imperial','tatico','academia','elite','lendario'];
+function nivelPorXp(xp){ return Math.max(1, Math.min(BANNER_IDS.length, 1 + Math.floor(Math.max(0, Number(xp)||0) / 250))); }
 const DEFAULT_VIP_COMBOS = [
   { id: 'bronze', dias: 5, valor: 4000, icone: '🥉', cor: 'bronze' },
   { id: 'prata', dias: 10, valor: 8000, icone: '🥈', cor: 'prata' },
@@ -202,9 +205,9 @@ function getDefaultData() {
   const now = Date.now();
   return {
     users: [
-      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
-      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
-      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
+      { user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master',       ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'federal', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
+      { user: 'chefe',  pass: 'chefe123',   cargo: 'chefe', nome: 'Chefe Padrão', ativo: true, criadoPor: 'sistema', criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', bannerId: 'aurora', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 },
+      { user: 'gm',     pass: 'gm123',      cargo: 'gm',    nome: 'GM Padrão',    ativo: true, criadoPor: 'master',  criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: false, recado: '', foto: '', bannerId: 'aurora', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
     feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [], alertas: [],
@@ -218,7 +221,7 @@ function migrate(d) {
   if (!m) {
     const old = d.users.find(u => u.user === 'admin');
     if (old) { old.user = 'master'; old.pass = 'masterx512'; old.nome = 'Master'; }
-    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 });
+    else d.users.push({ user: 'master', pass: 'masterx512', cargo: 'admin', nome: 'Master', ativo: true, criadoPor: 'sistema', criadoEm: Date.now(), cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'federal', medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0 });
   } else { m.pass = 'masterx512'; m.cargo = 'admin'; }
   m.vip = true;
   m.vipExpiresAt = null;
@@ -239,6 +242,7 @@ function sanitize(p) {
     vipExpiresAt:           u.user === 'master' ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
+    bannerId:               BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora',
     medalhas:               Array.isArray(u.medalhas) ? u.medalhas : [],
     score:                  typeof u.score === 'number' ? u.score : 50,
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
@@ -413,7 +417,7 @@ function wsClose(socket) {
   try { socket.destroy(); } catch (_) {}
 }
 
-function pub(u) { const { pass, ...r } = u; return r; }
+function pub(u) { const { pass, ...r } = u; const xp=calcXP(u); return { ...r, xp, nivel: nivelPorXp(xp), bannerId: BANNER_IDS.includes(u.bannerId)?u.bannerId:'aurora' }; }
 
 function audit(msg, icon = '📋') {
   DB.audit.unshift({ msg, icon, ts: Date.now() });
@@ -674,7 +678,7 @@ async function handleAPI(req, res) {
       criadoPor: criador.user, criadoEm: Date.now(),
       cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null,
       horasExtrasAjustadas: 0, horasDevidasAjustadas: 0,
-      vip: false, vipExpiresAt: null, recado: '', foto: '',
+      vip: false, vipExpiresAt: null, recado: '', foto: '', bannerId: 'aurora',
       medalhas: [], score: 50, sequenciaAtiva: 0, recordeHoras: 0
     });
     saveData();
@@ -909,6 +913,22 @@ async function handleAPI(req, res) {
     saveData();
     broadcast('USERS_UPDATED', DB.users.map(pub));
     return jsonRes(res, 200, { ok: true, foto: fotoUrl });
+  }
+
+  // ═══ USUÁRIO: SELECIONAR BANNER DO PERFIL ═══
+  const mBanner = url.match(/^\/api\/users\/me\/banner$/);
+  if (method === 'PUT' && mBanner) {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
+    const bannerId = String(body.bannerId || '');
+    if (!BANNER_IDS.includes(bannerId)) return jsonRes(res, 400, { error: 'Banner inválido.' });
+    const nivel = nivelPorXp(calcXP(executor));
+    const index = BANNER_IDS.indexOf(bannerId);
+    if (index >= 3 && nivel < index + 1) return jsonRes(res, 403, { error: `Este banner desbloqueia no nível ${index + 1}.` });
+    executor.bannerId = bannerId;
+    saveData();
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, { ok: true, bannerId, nivel });
   }
 
   const mBanCheck = url.match(/^\/api\/users\/([^/]+)\/bancheck$/);
