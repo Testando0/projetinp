@@ -231,7 +231,7 @@ function migrate(d) {
   const supreme = (base, user, nome, pass, criadoPor) => ({
     ...base,
     user, nome, pass, cargo: 'admin', ativo: true, criadoPor,
-    vip: true, vipExpiresAt: null, bannerId: 'lendario', score: 100,
+    vip: true, vipExpiresAt: null, bannerId: BANNER_IDS.includes(base.bannerId) ? base.bannerId : 'lendario', score: 100,
     medalhas: medalhasDoMaster(), sequenciaAtiva: 0, recordeHoras: 0,
     cicloDias: Array.isArray(base.cicloDias) ? base.cicloDias : [], folgaDia: base.folgaDia || null,
     girosBonus: typeof base.girosBonus === 'number' ? base.girosBonus : 0,
@@ -262,7 +262,7 @@ function sanitize(p) {
     vipExpiresAt:           isMaster(u) ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
-    bannerId:               isMaster(u) ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora'),
+    bannerId:               BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora',
     medalhas:               isMaster(u) ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
     score:                  isMaster(u) ? 100 : (typeof u.score === 'number' ? u.score : 50),
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
@@ -441,7 +441,7 @@ function pub(u) {
   const { pass, ...r } = u;
   const master = isMaster(u);
   const xp = master ? MASTER_XP : calcXP(u);
-  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: master ? 'lendario' : (BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora') };
+  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora' };
 }
 
 function audit(msg, icon = '📋') {
