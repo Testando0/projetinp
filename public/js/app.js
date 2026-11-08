@@ -788,14 +788,14 @@ function vIntroducao(){
 
 function hierarquia(){
   const cargos=[
-    {nome:'Mike_callahan',nivel:'CHEFE',codigo:'00',icone:'★'},
-    {nome:'Farnando_monarca',nivel:'SUB CHEFE',codigo:'01',icone:'★'},
-    {nome:'Felipe_fenix',nivel:'CHEFE AUXILIAR',codigo:'02',icone:'★'},
-    {nome:'Matteow_castellari',nivel:'LÍDER ACADPOL',codigo:'03',icone:'▥'}
+    {nome:'Mike_callahan',nivel:'CHEFE',codigo:'00',icone:'★',avatar:'/assets/hierarquia/mike-callahan.jpg'},
+    {nome:'Farnando_monarca',nivel:'SUB CHEFE',codigo:'01',icone:'★',avatar:'/assets/hierarquia/farnando-monarca.jpg'},
+    {nome:'Felipe_fenix',nivel:'CHEFE AUXILIAR',codigo:'02',icone:'★',avatar:'/assets/hierarquia/felipe-fenix.jpg'},
+    {nome:'Matteow_castellari',nivel:'LÍDER ACADPOL',codigo:'03',icone:'▥',avatar:'/assets/hierarquia/matteow-castellari.jpg'}
   ];
-  const cards=cargos.map((item,index)=>{const pessoa=(STATE.users||[]).find(u=>u.nome===item.nome||u.user===item.nome)||{nome:item.nome};return '<div class="hierarquia-node">'
+  const cards=cargos.map((item,index)=>{const pessoa=(STATE.users||[]).find(u=>u.nome===item.nome||u.user===item.nome)||{nome:item.nome};const foto=pessoa.foto?avatarContent(pessoa):'<img src="'+item.avatar+'" alt="Retrato de '+item.nome+'" loading="eager">';return '<div class="hierarquia-node">'
     +'<div class="hierarquia-card">'
-    +'<div class="hierarquia-avatar" aria-label="Foto de '+item.nome+'">'+avatarContent(pessoa)+'</div>'
+    +'<div class="hierarquia-avatar" aria-label="Foto de '+item.nome+'">'+foto+'</div>'
     +'<div class="hierarquia-info"><div class="hierarquia-nome">'+item.nome+'</div><div class="hierarquia-cargo">'+item.nivel+'</div><div class="hierarquia-codigo">'+item.codigo+'</div></div>'
     +'<div class="hierarquia-insignia" aria-label="'+item.nivel+'"><span>'+item.icone+'</span><small>✦</small></div>'
     +'</div>'
@@ -820,7 +820,7 @@ function hierarquia(){
     +'.hierarquia-card::after{content:"";position:absolute;inset:5px;border:1px solid rgba(255,222,129,.2);border-radius:17px;pointer-events:none;}'
     +'.hierarquia-avatar{position:relative;z-index:1;flex:0 0 82px;width:82px;height:82px;display:flex;align-items:center;justify-content:center;border:2px solid #d6a43b;border-radius:14px;background:linear-gradient(145deg,var(--surface2),var(--surface));box-shadow:inset 0 0 20px rgba(0,0,0,.78),0 0 10px rgba(228,177,65,.18);overflow:hidden;color:var(--text);font-size:2.2rem;font-weight:900;}'
     +'.hierarquia-avatar img{position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:2;}'
-    +'.hierarquia-avatar:not(:has(img)){background:radial-gradient(circle at 50% 32%,var(--accent) 0 16%,var(--surface2) 17% 42%,var(--surface) 43% 100%);}'
+    +'.hierarquia-avatar img+span,.hierarquia-avatar>span{font-size:2.2rem;line-height:1;color:var(--text);font-weight:900;}'
     +'.hierarquia-info{flex:1;min-width:0;}'
     +'.hierarquia-nome{font-size:clamp(.95rem,3.2vw,1.35rem);font-weight:800;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
     +'.hierarquia-cargo{display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:5px 14px;border:1px solid rgba(244,193,65,.85);border-radius:999px;color:#ffd66e;font-size:clamp(.68rem,2.4vw,.92rem);font-weight:900;letter-spacing:.08em;background:rgba(117,61,12,.28);text-shadow:0 0 8px rgba(255,188,45,.3);}'
