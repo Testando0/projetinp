@@ -430,6 +430,15 @@
             </div>
           </div>
         </div>
+        <div id="pf-backup-area" style="display:none;margin-top:18px;padding:14px;border:1px solid rgba(224,192,96,.45);border-radius:14px;background:linear-gradient(145deg,rgba(224,192,96,.1),rgba(0,0,0,.08));">
+          <div style="font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:800;letter-spacing:.08em;color:var(--warn);margin-bottom:7px;">🛡️ BACKUP DO SISTEMA</div>
+          <p style="font-size:.76rem;color:var(--text-mid);line-height:1.55;margin-bottom:12px;">Baixe uma cópia completa dos usuários, ocorrências, pontos, provas, chats, auditoria, VIPs e demais dados. Guarde o arquivo fora do Render para restaurar após uma atualização.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-warn btn-sm" type="button" onclick="baixarBackupAdmin()">⬇️ BAIXAR BACKUP</button>
+            <label class="btn btn-ghost btn-sm" style="cursor:pointer;margin:0;">⬆️ RESTAURAR BACKUP<input type="file" id="pf-backup-input" accept="application/json,.json" style="display:none;" onchange="restaurarBackupAdmin(this.files[0])"></label>
+          </div>
+          <div id="pf-backup-status" style="font-size:.68rem;color:var(--text-dim);margin-top:9px;line-height:1.5;"></div>
+        </div>
       </div>
       <div class="modal-f">
         <button class="btn btn-ghost btn-sm" onclick="closeModal('m-perfil')">FECHAR</button>

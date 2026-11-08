@@ -91,6 +91,10 @@ const API = {
   atualizarRecado:  (texto, feitorPor)                        => API.request('PUT',    '/users/me/recado', { texto, feitorPor }),
   salvarFotoPerfil: (url, feitorPor)                          => API.request('PUT',    '/users/me/foto', { url, feitorPor }),
 
+  // ═══ ADMIN MASTER: BACKUP COMPLETO ═══
+  baixarBackup:    (feitorPor)                                => API.request('GET',    '/admin/backup?feitorPor=' + encodeURIComponent(feitorPor)),
+  restaurarBackup: (backup, feitorPor)                        => API.request('POST',   '/admin/restore', { backup, feitorPor }),
+
   // ═══ ROLETA ═══
   girarRoleta:      (userLogin)                               => API.request('POST',   '/roleta/girar', { userLogin }),
   liberarGiros:     (userLogin, quantidade, feitorPor)        => API.request('POST',   `/users/${userLogin}/giros`, { quantidade, feitorPor }),
@@ -192,6 +196,8 @@ function _applyServerState(payload) {
     if (Array.isArray(payload.chats))     STATE.chats     = payload.chats;
     if (Array.isArray(payload.prisoes))   STATE.prisoes   = payload.prisoes;
     if (Array.isArray(payload.faltas))    STATE.faltas    = payload.faltas;
+    if (Array.isArray(payload.solicitacoesCarreira)) STATE.solicitacoesCarreira = payload.solicitacoesCarreira;
+    if (Array.isArray(payload.alertas))    STATE.alertas  = payload.alertas;
     if (Array.isArray(payload.roletaPremios)) STATE.roletaPremios = payload.roletaPremios;
     if (Array.isArray(payload.vipCombos)) STATE.vipCombos = payload.vipCombos;
   }
@@ -199,7 +205,7 @@ function _applyServerState(payload) {
     ocs: payload.ocs||[], puns: payload.puns||[],
     pontos: payload.pontos||[], provas: payload.provas||[],
     users: payload.users||[], audit: payload.audit||[],
-    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[], faltas: payload.faltas||[], solicitacoesCarreira: payload.solicitacoesCarreira||[],
+    feedbacks: payload.feedbacks||[], chats: payload.chats||[], prisoes: payload.prisoes||[], faltas: payload.faltas||[], solicitacoesCarreira: payload.solicitacoesCarreira||[], alertas: payload.alertas||[],
     roletaPremios: payload.roletaPremios||[], vipCombos: payload.vipCombos||[]
   });
   if (typeof updateNotif === 'function') updateNotif();

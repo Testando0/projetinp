@@ -490,10 +490,10 @@ function serveStatic(req, res) {
   });
 }
 
-function readBody(req) {
+function readBody(req, maxBytes = 20e6) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', c => { body += c; if (body.length > 2e6) reject(new Error('Payload grande')); });
+    req.on('data', c => { body += c; if (body.length > maxBytes) reject(new Error('Payload grande')); });
     req.on('end', () => { try { resolve(body ? JSON.parse(body) : {}); } catch (_) { resolve({}); } });
     req.on('error', reject);
   });
@@ -571,6 +571,54 @@ async function handleAPI(req, res) {
       roletaPremios: DB.roletaPremios,
       vipCombos: DB.vipCombos
     });
+  }
+
+  // ═══ MASTER: BACKUP COMPLETO E RESTAURAÇÃO ═══
+  if (method === 'GET' && url === '/api/admin/backup') {
+    const ref = new URL(req.url, 'http://localhost').searchParams.get('feitorPor');
+    const executor = findUserByRef(ref);
+    if (!executor || !isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas o Admin Master pode baixar backups.' });
+    const backup = {
+      backupVersion: 1,
+      app: 'GMPOL Sistema Central',
+      createdAt: new Date().toISOString(),
+      data: DB
+    };
+    const out = JSON.stringify(backup, null, 2);
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="gmpol-backup.json"',
+      'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
+      'Content-Length': Buffer.byteLength(out)
+    });
+    return res.end(out);
+  }
+
+  if (method === 'POST' && url === '/api/admin/restore') {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || !isMaster(executor)) return jsonRes(res, 403, { error: 'Apenas o Admin Master pode restaurar backups.' });
+    const raw = body.backup && body.backup.data ? body.backup.data : (body.backup || body.data);
+    if (!raw || !Array.isArray(raw.users) || !raw.users.length)
+      return jsonRes(res, 400, { error: 'Backup inválido: a lista de usuários não foi encontrada.' });
+    if (!raw.users.some(u => u && u.user === 'master'))
+      return jsonRes(res, 400, { error: 'Backup inválido: a conta Admin Master não foi encontrada.' });
+    try {
+      const restored = migrate(sanitize(raw));
+      if (!restored.users.some(u => u.user === 'master')) throw new Error('Conta Master ausente após validação.');
+      DB = restored;
+      saveDataSync();
+      const payload = {
+        ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
+        users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats,
+        prisoes: DB.prisoes, faltas: DB.faltas, solicitacoesCarreira: DB.solicitacoesCarreira,
+        alertas: alertasAtivos(), roletaPremios: DB.roletaPremios, vipCombos: DB.vipCombos
+      };
+      broadcast('INIT', payload);
+      return jsonRes(res, 200, { ok: true, restoredAt: new Date().toISOString(), counts: { users: DB.users.length, ocs: DB.ocs.length, pontos: DB.pontos.length, provas: DB.provas.length, chats: DB.chats.length } });
+    } catch (e) {
+      return jsonRes(res, 400, { error: 'Não foi possível validar o backup: ' + e.message });
+    }
   }
 
   if (method === 'GET' && url === '/api/vip-combos') return jsonRes(res, 200, DB.vipCombos);
@@ -1715,8 +1763,8 @@ httpServer.on('upgrade', (req, socket, head) => {
       ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
       users: DB.users.map(pub), audit: DB.audit,
       feedbacks: DB.feedbacks, chats: DB.chats,
-      prisoes: DB.prisoes, faltas: DB.faltas, alertas: alertasAtivos(),
-      roletaPremios: DB.roletaPremios
+      prisoes: DB.prisoes, faltas: DB.faltas, solicitacoesCarreira: DB.solicitacoesCarreira, alertas: alertasAtivos(),
+      roletaPremios: DB.roletaPremios, vipCombos: DB.vipCombos
     }
   });
 

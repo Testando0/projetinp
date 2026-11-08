@@ -970,6 +970,10 @@ function abrirModalPerfil(){
   const fotoActions=document.getElementById('pf-foto-actions');
   if(fotoActions)fotoActions.style.display=isVip?'flex':'none';
   if(rm)rm.style.display=u.foto?'inline-flex':'none';
+  const backupArea=document.getElementById('pf-backup-area');
+  if(backupArea)backupArea.style.display=isMaster()?'block':'none';
+  const backupStatus=document.getElementById('pf-backup-status');
+  if(backupStatus)backupStatus.textContent='';
   const st=document.getElementById('pf-foto-status');
   if(st)st.textContent='';
   const inp=document.getElementById('pf-foto-input');
@@ -993,6 +997,50 @@ function abrirModalPerfil(){
   }
   atualizarContadorRecado();
   openModal('m-perfil');
+}
+
+async function baixarBackupAdmin(){
+  if(!isMaster()){toast('Apenas o Admin Master pode baixar backups.','d');return;}
+  const status=document.getElementById('pf-backup-status');
+  if(status)status.textContent='⏳ Preparando backup completo…';
+  try{
+    const backup=await API.baixarBackup(me.user);
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+    a.href=url;a.download='gmpol-backup-'+stamp+'.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    if(status)status.textContent='✅ Backup baixado. Guarde o arquivo fora do Render.';
+    toast('✅ Backup completo baixado.','s');
+  }catch(e){if(status)status.textContent='';toast(e.message||'Não foi possível baixar o backup.','d');}
+}
+
+async function restaurarBackupAdmin(file){
+  const input=document.getElementById('pf-backup-input');
+  const status=document.getElementById('pf-backup-status');
+  if(!isMaster()){toast('Apenas o Admin Master pode restaurar backups.','d');if(input)input.value='';return;}
+  if(!file){return;}
+  if(file.size>20*1024*1024){toast('O backup excede o limite de 20 MB.','d');if(input)input.value='';return;}
+  try{
+    const text=await file.text();
+    const backup=JSON.parse(text);
+    const data=backup&&backup.data?backup.data:backup;
+    if(!data||!Array.isArray(data.users)||!data.users.length)throw new Error('O arquivo não contém uma lista de usuários válida.');
+    if(!data.users.some(u=>u&&u.user==='master'))throw new Error('O backup não contém a conta Admin Master.');
+    const qtd=Object.entries(data).filter(([,v])=>Array.isArray(v)).map(([k,v])=>k+': '+v.length).join(' • ');
+    if(!confirm('ATENÇÃO: restaurar substituirá todos os dados atuais do sistema.\n\n'+qtd+'\n\nConfirma a restauração?')){if(input)input.value='';return;}
+    if(status)status.textContent='⏳ Restaurando dados… não feche esta janela.';
+    const result=await API.restaurarBackup(backup,me.user);
+    const fresh=await API.getState();
+    if(typeof _applyServerState==='function')_applyServerState(fresh);
+    const restoredUser=(fresh.users||[]).find(x=>x.user===me.user);
+    if(restoredUser){me={...me,...restoredUser};saveSession();}
+    if(status)status.textContent='✅ Restauração concluída em '+new Date(result.restoredAt||Date.now()).toLocaleString('pt-BR')+'.';
+    toast('✅ Backup restaurado com sucesso.','s',7000);
+    if(input)input.value='';
+    abrirModalPerfil();
+  }catch(e){if(status)status.textContent='';if(input)input.value='';toast(e.message||'Arquivo de backup inválido.','d',7000);}
 }
 
 const IMGBB_KEY='599411b1c02c7129d1b0da9bd4634c09';
