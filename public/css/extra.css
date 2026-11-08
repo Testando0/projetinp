@@ -557,3 +557,8 @@ body[data-theme="rubi"] .settings-item:hover,body[data-theme="rubi"] .nav-drawer
   .pf-profile-card #pf-cargo{font-size:.62rem!important;padding:3px 7px!important;}
   .pf-profile-card #pf-vip-badge{font-size:.62rem!important;padding:3px 7px!important;}
 }
+
+/* Ajuste fino mobile: afasta o bloco textual da foto sem alterar a moldura */
+@media(max-width:520px){
+  .pf-profile-card>div[style*="flex:1"]{transform:translateX(7px)!important;width:calc(100% - 7px)!important;}
+}
