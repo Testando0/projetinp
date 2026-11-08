@@ -322,7 +322,7 @@ function tabDefs(c){
     {label:'▸ HALL DA FAMA',key:'hall',notif:false},
     {label:'▸ VIPS',key:'vips',notif:false},
     {label:'▸ PRISÕES',key:'prisoes',notif:false},
-    {label:'▸ RECRUTAMENTO',key:'recrutamento',notif:false},{label:'🎨 TEMAS',key:'temas',notif:false}
+    {label:'▸ RECRUTAMENTO',key:'recrutamento',notif:false},{label:'▸ TEMAS',key:'temas',notif:false}
   ];
   const avaliacao=p>=5?[{label:'▸ ANALISAR RECRUTAMENTO',key:'analisarRecrutamento',notif:true},{label:'▸ APLICAR FALTA',key:'faltas',notif:false},{label:'▸ CARREIRA',key:'carreira',notif:false}]:[];
   return[...base,...common,...avaliacao,
