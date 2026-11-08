@@ -42,7 +42,7 @@ const CARGO_LABEL_SRV = {
 const CARGO_BASE_MINUTES = { gm: 90, agente: 150, tatico: 210, escrivao: 240, delegado: 300, chefe: 0, admin: 0 };
 
 const MEDALHAS_VALIDAS = { bronze: '🥉', prata: '🥈', ouro: '🥇', diamante: '💎' };
-const MEDALHAS_MAX_POR_PATENTE = 5;
+const MEDALHAS_MAX_POR_PATENTE = 4;
 const MASTER_XP = 999999999;
 const BANNER_IDS = ['aurora','rubi','federal',
   'violeta','ciano','esmeralda','safira','obsidiana','ouro','prata','bronze','neon','galaxia','tempestade','fogo','gelo','floresta','noturno','imperial','tatico','academia','elite','lendario'];
@@ -863,7 +863,7 @@ async function handleAPI(req, res) {
     });
   }
 
-  // ═══ 🏅 MEDALHAS: só o MASTER dá/remove (máx 5 por patente) ═══
+  // ═══ 🏅 MEDALHAS: só o MASTER dá/remove (máx 4 medalhas por usuário) ═══
   const mMedalha = url.match(/^\/api\/users\/([^/]+)\/medalhas$/);
   if (mMedalha) {
     const target = DB.users.find(u => u.user === mMedalha[1]);
