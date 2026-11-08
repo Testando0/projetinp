@@ -793,14 +793,14 @@ function hierarquia(){
     {nome:'Felipe_fenix',nivel:'CHEFE AUXILIAR',codigo:'02',icone:'★'},
     {nome:'Matteow_castellari',nivel:'LÍDER ACADPOL',codigo:'03',icone:'▥'}
   ];
-  const cards=cargos.map((item,index)=>'<div class="hierarquia-node">'
+  const cards=cargos.map((item,index)=>{const pessoa=(STATE.users||[]).find(u=>u.nome===item.nome||u.user===item.nome)||{nome:item.nome};return '<div class="hierarquia-node">'
     +'<div class="hierarquia-card">'
-    +'<div class="hierarquia-avatar" aria-hidden="true"><span>♟</span></div>'
+    +'<div class="hierarquia-avatar" aria-label="Foto de '+item.nome+'">'+avatarContent(pessoa)+'</div>'
     +'<div class="hierarquia-info"><div class="hierarquia-nome">'+item.nome+'</div><div class="hierarquia-cargo">'+item.nivel+'</div><div class="hierarquia-codigo">'+item.codigo+'</div></div>'
     +'<div class="hierarquia-insignia" aria-label="'+item.nivel+'"><span>'+item.icone+'</span><small>✦</small></div>'
     +'</div>'
     +(index<cargos.length-1?'<div class="hierarquia-ligacao" aria-hidden="true"></div>':'')
-    +'</div>').join('');
+    +'</div>';}).join('');
   return '<section class="hierarquia-section" aria-labelledby="hierarquia-titulo">'
     +'<div class="stitle" id="hierarquia-titulo">▸ HIERARQUIA</div>'
     +'<div class="card hierarquia-card-wrap"><div class="hierarquia-banner"><div class="hierarquia-banner-simbolo">✦</div><div><strong>POLÍCIA FEDERAL</strong><small>DISCIPLINA&nbsp; • &nbsp;RESPEITO&nbsp; • &nbsp;LEALDADE</small></div></div><p class="hierarquia-subtitulo">Cadeia de comando</p><div class="hierarquia-lista">'+cards+'</div><div class="hierarquia-rodape">POLÍCIA FEDERAL <span>•</span> SERVINDO O BRASIL</div></div>'
@@ -815,11 +815,12 @@ function hierarquia(){
     +'.hierarquia-subtitulo{text-align:center;text-transform:uppercase;color:var(--text-dim);font-size:.68rem;letter-spacing:.16em;margin:0 0 18px;}'
     +'.hierarquia-lista{max-width:760px;margin:0 auto;}'
     +'.hierarquia-node{display:flex;flex-direction:column;align-items:center;}'
-    +'.hierarquia-card{position:relative;width:100%;display:flex;align-items:center;gap:16px;min-height:116px;padding:14px 20px 14px 16px;border:2px solid #c8942d;border-radius:22px;background:linear-gradient(115deg,color-mix(in srgb,var(--surface2) 92%,#7b2ba5) 0%,color-mix(in srgb,var(--surface) 90%,#541b68) 54%,var(--surface) 100%);box-shadow:0 0 0 1px rgba(255,227,139,.18) inset,0 0 22px rgba(199,143,39,.18),0 10px 26px rgba(0,0,0,.5);overflow:hidden;}'
+    +'.hierarquia-card{position:relative;width:100%;display:flex;align-items:center;gap:16px;min-height:116px;padding:14px 20px 14px 16px;border:2px solid #c8942d;border-radius:22px;background:linear-gradient(115deg,color-mix(in srgb,var(--surface2) 92%,var(--accent)) 0%,color-mix(in srgb,var(--surface) 90%,var(--accent)) 54%,var(--surface) 100%);box-shadow:0 0 0 1px rgba(255,227,139,.18) inset,0 0 22px rgba(199,143,39,.18),0 10px 26px rgba(0,0,0,.5);overflow:hidden;}'
     +'.hierarquia-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:9px;background:linear-gradient(180deg,#fff0a8,#c78b24 45%,#6c3d0d);clip-path:polygon(0 0,100% 0,62% 14%,100% 28%,62% 42%,100% 56%,62% 70%,100% 84%,62% 100%,0 100%);opacity:.95;}'
     +'.hierarquia-card::after{content:"";position:absolute;inset:5px;border:1px solid rgba(255,222,129,.2);border-radius:17px;pointer-events:none;}'
-    +'.hierarquia-avatar{position:relative;z-index:1;flex:0 0 82px;width:82px;height:82px;display:flex;align-items:center;justify-content:center;border:2px solid #d6a43b;border-radius:14px;background:radial-gradient(circle at 50% 24%,#d0a35b 0 10%,#6a4730 11% 22%,#19151a 23% 56%,#08080a 57% 100%);box-shadow:inset 0 0 20px rgba(0,0,0,.78),0 0 10px rgba(228,177,65,.18);}'
-    +'.hierarquia-avatar span{font-size:3rem;line-height:1;color:#ede3d0;filter:drop-shadow(0 4px 2px rgba(0,0,0,.85));transform:translateY(6px);}'
+    +'.hierarquia-avatar{position:relative;z-index:1;flex:0 0 82px;width:82px;height:82px;display:flex;align-items:center;justify-content:center;border:2px solid #d6a43b;border-radius:14px;background:linear-gradient(145deg,var(--surface2),var(--surface));box-shadow:inset 0 0 20px rgba(0,0,0,.78),0 0 10px rgba(228,177,65,.18);overflow:hidden;color:var(--text);font-size:2.2rem;font-weight:900;}'
+    +'.hierarquia-avatar img{position:absolute!important;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:2;}'
+    +'.hierarquia-avatar:not(:has(img)){background:radial-gradient(circle at 50% 32%,var(--accent) 0 16%,var(--surface2) 17% 42%,var(--surface) 43% 100%);}'
     +'.hierarquia-info{flex:1;min-width:0;}'
     +'.hierarquia-nome{font-size:clamp(.95rem,3.2vw,1.35rem);font-weight:800;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
     +'.hierarquia-cargo{display:inline-flex;align-items:center;gap:7px;margin-top:6px;padding:5px 14px;border:1px solid rgba(244,193,65,.85);border-radius:999px;color:#ffd66e;font-size:clamp(.68rem,2.4vw,.92rem);font-weight:900;letter-spacing:.08em;background:rgba(117,61,12,.28);text-shadow:0 0 8px rgba(255,188,45,.3);}'
