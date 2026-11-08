@@ -526,3 +526,11 @@ body[data-theme="rubi"] .settings-item:hover,body[data-theme="rubi"] .nav-drawer
 .pf-profile-card[data-banner="floresta"] .pf-banner-cover{--cover-base:#071a14;--cover-accent:#a1e99e;--cover-light:linear-gradient(135deg,#348247,#1b4c33 54%,#071713);--cover-pattern:repeating-linear-gradient(135deg,transparent 0 17px,rgba(161,233,158,.2) 18px 20px,transparent 21px 39px),radial-gradient(ellipse at 70% 100%,rgba(83,218,112,.35),transparent 45%);--cover-mark:"❋"}
 .pf-profile-card[data-banner="tatico"] .pf-banner-cover,.pf-profile-card[data-banner="academia"] .pf-banner-cover{--cover-base:#171311;--cover-accent:#e9d39a;--cover-light:linear-gradient(135deg,#75613a,#3a3025 54%,#100d0c);--cover-pattern:repeating-linear-gradient(45deg,transparent 0 14px,rgba(233,211,154,.18) 15px 17px,transparent 18px 31px),linear-gradient(90deg,transparent 48%,rgba(233,211,154,.2) 49% 51%,transparent 52%);--cover-mark:"▣"}
 .pf-profile-card[data-banner="lendario"] .pf-banner-cover{--cover-base:#251039;--cover-accent:#fff0a1;--cover-light:linear-gradient(135deg,#f0b63d,#ad2967 48%,#291252);--cover-pattern:repeating-linear-gradient(135deg,transparent 0 15px,rgba(255,244,173,.25) 16px 19px,transparent 20px 34px),linear-gradient(90deg,transparent 47%,rgba(255,255,255,.3) 48% 51%,transparent 52%);--cover-mark:"♕"}
+
+/* CORREÇÃO DE LAYOUT: a capa ocupa sua própria linha e nunca cobre o avatar */
+.pf-profile-card{display:flex!important;flex-wrap:wrap!important;align-items:center!important;padding:16px!important;}
+.pf-profile-card>.pf-banner-cover{position:relative!important;inset:auto!important;order:-1!important;flex:0 0 calc(100% + 32px)!important;width:calc(100% + 32px)!important;height:92px!important;margin:-16px -16px 0!important;z-index:0!important;}
+.pf-profile-card>.u-avatar{order:1!important;}
+.pf-profile-card>div[style*="flex:1"]{order:2!important;min-width:0;}
+.pf-profile-card>.pf-edit-btn{order:3!important;}
+@media(max-width:520px){.pf-profile-card{padding:13px!important}.pf-profile-card>.pf-banner-cover{flex-basis:calc(100% + 26px)!important;width:calc(100% + 26px)!important;margin:-13px -13px 0!important;}}
