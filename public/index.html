@@ -37,18 +37,18 @@
     .stitle,.tab,.btn,.nav-drawer-item,.modal-h h3,.cargo-badge,.status-chip,.tipo-badge,.ban-badge,.ban-title{letter-spacing:.04em !important;}
 
     /* ══ 2. FUNDO E SUPERFÍCIES ══ */
-    body{background:#0a0a0b !important;}
-    #s-login{background:radial-gradient(1100px 560px at 50% -10%,rgba(255,255,255,.06),transparent 60%),#0a0a0b !important;}
-    #s-ban{background:radial-gradient(900px 500px at 50% 18%,rgba(255,255,255,.08),transparent 60%),#0a0a0b !important;}
-    .topbar,.tabs{background:#0d0d0f !important;border-color:rgba(255,255,255,.15) !important;}
+    body{background:var(--bg) !important;}
+    #s-login{background:radial-gradient(1100px 560px at 50% -10%,rgba(var(--gn-a-rgb),.16),transparent 60%),var(--bg) !important;}
+    #s-ban{background:radial-gradient(900px 500px at 50% 18%,rgba(var(--gn-a-rgb),.18),transparent 60%),var(--bg) !important;}
+    .topbar,.tabs{background:color-mix(in srgb,var(--surface) 94%,transparent) !important;border-color:rgba(var(--gn-a-rgb),.38) !important;}
     .card,.login-card,.modal,.settings-menu,.empty,.hint-box,.dep-box,
     .ban-container,.cargo-notif,.ponto-agente-block,.toast,.tbl-wrap{
-      background:rgba(14,14,16,.92) !important;
+      background:color-mix(in srgb,var(--surface) 94%,transparent) !important;
       border:1px solid rgba(255,255,255,.3) !important;
       backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
     }
     .card::before{display:none !important;}
-    .oc-wrap,.stat-box{background:rgba(18,18,22,.82) !important;border:1px solid rgba(255,255,255,.35) !important;}
+    .oc-wrap,.stat-box{background:color-mix(in srgb,var(--surface2) 88%,transparent) !important;border:1px solid rgba(var(--gn-a-rgb),.35) !important;}
     .card,.login-card,.modal,.settings-menu,.empty,.hint-box,.dep-box,
     .ban-container,.cargo-notif,.ponto-agente-block,.toast,.tbl-wrap,
     .oc-wrap,.stat-box{
@@ -65,7 +65,7 @@
     .btn-xs{border-radius:10px !important;}
     .filter-bar .btn{border-radius:999px !important;}
     .tab{border-radius:999px !important;background:#17171a !important;}
-    .tab.active{background:#fff !important;border-color:rgba(255,255,255,.9) !important;color:#0a0a0b !important;}
+    .tab.active{background:linear-gradient(135deg,var(--gn-deep),var(--gn-a)) !important;border-color:var(--gn-a) !important;color:var(--gn-ink) !important;}
     .tabs{gap:8px !important;padding:12px 16px !important;}
     .cargo-badge,.status-chip,.tipo-badge,.ban-badge,.notif-pill{border-radius:999px !important;padding:4px 10px !important;}
     /* ══ CORREÇÃO: background-color em vez de background (para permitir imagem inline) ══ */
@@ -87,7 +87,7 @@
     input,select,textarea{background:rgba(14,14,16,.82) !important;border:1px solid rgba(255,255,255,.35) !important;font-weight:500 !important;}
     input:focus,select:focus,textarea:focus{border-color:rgba(255,255,255,.7) !important;box-shadow:0 0 0 3px rgba(255,255,255,.12) !important;}
     select option{background:#17171a !important;}
-    .btn-primary{background:#fff !important;color:#0a0a0b !important;font-weight:700 !important;}
+    .btn-primary{background:linear-gradient(135deg,var(--gn-deep),var(--gn-a),var(--gn-hot)) !important;color:var(--gn-ink) !important;font-weight:700 !important;}
     .btn-ghost{background:transparent !important;}
     .settings-btn,.hamburger-btn{background:rgba(14,14,16,.82) !important;border:1px solid rgba(255,255,255,.35) !important;}
     .tbl th{background:rgba(255,255,255,.03) !important;}
