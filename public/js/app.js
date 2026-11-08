@@ -783,7 +783,45 @@ function vIntroducao(){
     +'.intro-h{font-family:\'Orbitron\',sans-serif;font-size:.85rem;font-weight:800;color:var(--warn);letter-spacing:.06em;margin:18px 0 8px;padding:8px 12px;background:rgba(224,192,96,.08);border-left:3px solid var(--warn);border-radius:8px;}'
     +'.intro-p{font-size:.88rem;color:var(--text-mid);line-height:1.7;margin:0 0 6px;white-space:pre-wrap;}'
     +'</style>'
-    +'<div class="card intro-card">'+html+'</div>';
+    +'<div class="card intro-card">'+html+'</div>'+hierarquia();
+}
+
+function hierarquia(){
+  const cargos=[
+    {nome:'Mike_callahan',nivel:'CHEFE',codigo:'00',icone:'★'},
+    {nome:'Farnando_monarca',nivel:'SUB CHEFE',codigo:'01',icone:'★'},
+    {nome:'Felipe_fenix',nivel:'CHEFE AUXILIAR',codigo:'02',icone:'★'},
+    {nome:'Matteow_castellari',nivel:'LÍDER ACADPOL',codigo:'03',icone:'▥'}
+  ];
+  const cards=cargos.map((item,index)=>'<div class="hierarquia-node">'
+    +'<div class="hierarquia-card">'
+    +'<div class="hierarquia-avatar" aria-hidden="true"><span>♟</span></div>'
+    +'<div class="hierarquia-info"><div class="hierarquia-nome">'+item.nome+'</div><div class="hierarquia-cargo">'+item.nivel+'</div><div class="hierarquia-codigo">'+item.codigo+'</div></div>'
+    +'<div class="hierarquia-insignia" aria-label="'+item.nivel+'">'+item.icone+'</div>'
+    +'</div>'
+    +(index<cargos.length-1?'<div class="hierarquia-ligacao" aria-hidden="true"></div>':'')
+    +'</div>').join('');
+  return '<section class="hierarquia-section" aria-labelledby="hierarquia-titulo">'
+    +'<div class="stitle" id="hierarquia-titulo">▸ HIERARQUIA</div>'
+    +'<div class="card hierarquia-card-wrap"><p class="hierarquia-subtitulo">Cadeia de comando</p><div class="hierarquia-lista">'+cards+'</div></div>'
+    +'<style>'
+    +'.hierarquia-section{margin-top:22px;}'
+    +'.hierarquia-card-wrap{padding:20px 14px 24px;background:linear-gradient(145deg,rgba(8,8,12,.96),rgba(27,17,35,.9)) !important;border-color:rgba(245,190,74,.42) !important;overflow:hidden;}'
+    +'.hierarquia-subtitulo{text-align:center;text-transform:uppercase;color:var(--text-dim);font-size:.68rem;letter-spacing:.16em;margin:0 0 18px;}'
+    +'.hierarquia-lista{max-width:760px;margin:0 auto;}'
+    +'.hierarquia-node{display:flex;flex-direction:column;align-items:center;}'
+    +'.hierarquia-card{width:100%;display:flex;align-items:center;gap:14px;min-height:104px;padding:12px 16px;border:1px solid rgba(245,190,74,.72);border-radius:18px;background:linear-gradient(110deg,rgba(10,10,13,.98),rgba(18,15,22,.96));box-shadow:0 0 0 1px rgba(255,255,255,.04) inset,0 8px 24px rgba(0,0,0,.35);}'
+    +'.hierarquia-avatar{flex:0 0 74px;width:74px;height:74px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(245,190,74,.72);border-radius:12px;background:radial-gradient(circle at 50% 32%,#59616d 0 13%,#20232b 14% 30%,#0b0b0e 31% 100%);box-shadow:inset 0 0 18px rgba(0,0,0,.6);}'
+    +'.hierarquia-avatar span{font-size:2.8rem;line-height:1;color:#c9ced8;filter:drop-shadow(0 3px 2px rgba(0,0,0,.7));transform:translateY(5px);}'
+    +'.hierarquia-info{flex:1;min-width:0;}'
+    +'.hierarquia-nome{font-size:clamp(.95rem,3.2vw,1.35rem);font-weight:800;color:#f4f4f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
+    +'.hierarquia-cargo{margin-top:4px;color:#c084fc;font-size:clamp(.7rem,2.4vw,.95rem);font-weight:800;letter-spacing:.08em;}'
+    +'.hierarquia-codigo{display:inline-block;margin-top:7px;padding:4px 17px;border-radius:7px;background:linear-gradient(180deg,#8b3dcc,#4c1586);border:1px solid rgba(216,180,254,.45);color:#fff;font-weight:800;letter-spacing:.08em;box-shadow:0 3px 8px rgba(96,42,160,.45);}'
+    +'.hierarquia-insignia{flex:0 0 62px;text-align:center;font-size:2.9rem;color:#f5c34d;text-shadow:0 0 8px rgba(245,190,74,.45);}'
+    +'.hierarquia-ligacao{width:3px;height:24px;background:linear-gradient(#f5c34d,#e5e7eb,#f5c34d);box-shadow:0 0 7px rgba(245,190,74,.45);}'
+    +'@media(max-width:520px){.hierarquia-card{gap:9px;padding:10px;min-height:92px;}.hierarquia-avatar{flex-basis:58px;width:58px;height:68px;}.hierarquia-avatar span{font-size:2.2rem;}.hierarquia-insignia{flex-basis:40px;font-size:2.1rem;}.hierarquia-codigo{margin-top:5px;padding:3px 13px;}}'
+    +'</style>'
+    +'</section>';
 }
 
 function toggleEstudo(id){const el=document.getElementById('estudo-'+id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
