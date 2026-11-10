@@ -46,6 +46,8 @@ const MEDALHAS_MAX_POR_PATENTE = 4;
 const MASTER_XP = 999999999;
 const BANNER_IDS = ['aurora','rubi','federal',
   'violeta','ciano','esmeralda','safira','obsidiana','ouro','prata','bronze','neon','galaxia','tempestade','fogo','gelo','floresta','noturno','imperial','tatico','academia','elite','lendario'];
+const SPECIAL_BANNER_IDS = ['natal'];
+const isBannerId = id => BANNER_IDS.includes(id) || SPECIAL_BANNER_IDS.includes(id);
 function nivelPorXp(xp){ return Math.max(1, Math.min(BANNER_IDS.length, 1 + Math.floor(Math.max(0, Number(xp)||0) / 250))); }
 const DEFAULT_VIP_COMBOS = [
   { id: 'bronze', dias: 5, valor: 4000, icone: '🥉', cor: 'bronze' },
@@ -231,7 +233,7 @@ function migrate(d) {
   const supreme = (base, user, nome, pass, criadoPor) => ({
     ...base,
     user, nome, pass, cargo: 'admin', ativo: true, criadoPor,
-    vip: true, vipExpiresAt: null, bannerId: BANNER_IDS.includes(base.bannerId) ? base.bannerId : 'lendario', score: 100,
+    vip: true, vipExpiresAt: null, bannerId: isBannerId(base.bannerId) ? base.bannerId : 'lendario', score: 100,
     medalhas: medalhasDoMaster(), sequenciaAtiva: 0, recordeHoras: 0,
     cicloDias: Array.isArray(base.cicloDias) ? base.cicloDias : [], folgaDia: base.folgaDia || null,
     girosBonus: typeof base.girosBonus === 'number' ? base.girosBonus : 0,
@@ -265,7 +267,7 @@ function sanitize(p) {
     vipExpiresAt:           isMaster(u) ? null : (Number.isFinite(u.vipExpiresAt) ? u.vipExpiresAt : null),
     recado:                 typeof u.recado === 'string' ? u.recado.slice(0, 200) : '',
     foto:                   typeof u.foto === 'string' ? u.foto.slice(0, 500) : '',
-    bannerId:               BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora',
+    bannerId:               isBannerId(u.bannerId) ? u.bannerId : 'aurora',
     medalhas:               isMaster(u) ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
     score:                  isMaster(u) ? 100 : (typeof u.score === 'number' ? u.score : 50),
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
@@ -446,7 +448,7 @@ function pub(u) {
   const { pass, ...r } = u;
   const master = isMaster(u);
   const xp = master ? MASTER_XP : calcXP(u);
-  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora', podeVerAvaliacoes: master || u.podeVerAvaliacoes === true };
+  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: isBannerId(u.bannerId) ? u.bannerId : 'aurora', podeVerAvaliacoes: master || u.podeVerAvaliacoes === true };
 }
 
 function audit(msg, icon = '📋') {
@@ -951,10 +953,10 @@ async function handleAPI(req, res) {
     const executor = findUserByRef(body.feitorPor);
     if (!executor) return jsonRes(res, 403, { error: 'Executor não encontrado.' });
     const bannerId = String(body.bannerId || '');
-    if (!BANNER_IDS.includes(bannerId)) return jsonRes(res, 400, { error: 'Banner inválido.' });
+    if (!isBannerId(bannerId)) return jsonRes(res, 400, { error: 'Banner inválido.' });
     const nivel = nivelPorXp(calcXP(executor));
     const index = BANNER_IDS.indexOf(bannerId);
-    if (!isMaster(executor) && index >= 3 && nivel < index + 1) return jsonRes(res, 403, { error: `Este banner desbloqueia no nível ${index + 1}.` });
+    if (!isMaster(executor) && bannerId !== 'natal' && index >= 3 && nivel < index + 1) return jsonRes(res, 403, { error: `Este banner desbloqueia no nível ${index + 1}.` });
     executor.bannerId = bannerId;
     saveData();
     broadcast('USERS_UPDATED', DB.users.map(pub));

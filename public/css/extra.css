@@ -614,3 +614,46 @@ body[data-theme="rubi"] .settings-item:hover,body[data-theme="rubi"] .nav-drawer
 .superior-access-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.025);}
 .superior-access-row .hint{display:block;margin-top:3px;}
 @media(max-width:600px){.superior-access-row{align-items:flex-start}.superior-access-row button{width:100%;}}
+
+
+/* ══ NATAL GMPOL — PINHEIROS, NEVE E GUIRlandas ══ */
+html[data-theme="natal"],body[data-theme="natal"]{background:#07130e!important;color:#fff8e7!important;}
+body[data-theme="natal"]{background:radial-gradient(ellipse at 50% -12%,rgba(221,178,69,.2),transparent 34%),linear-gradient(160deg,#071a12 0%,#123d28 48%,#18070b 100%)!important;overflow-x:hidden;}
+body[data-theme="natal"]::before,body[data-theme="natal"]::after{background-image:none!important;background-color:transparent!important;opacity:0!important;}
+body[data-theme="natal"] .topbar{background:linear-gradient(180deg,rgba(112,16,26,.98),rgba(42,7,13,.98))!important;border-bottom:2px solid #e1b84b!important;box-shadow:0 0 24px rgba(211,40,53,.34),0 2px 0 rgba(24,104,59,.8)!important;}
+body[data-theme="natal"] .topbar-logo{color:#fff5d0!important;text-shadow:0 0 12px rgba(255,221,118,.8)!important;}
+body[data-theme="natal"] .topbar-role,body[data-theme="natal"] .settings-btn,body[data-theme="natal"] .hamburger-btn{border-color:#e1b84b!important;color:#fff4c7!important;background:rgba(37,8,14,.72)!important;box-shadow:0 0 12px rgba(225,184,75,.3)!important;}
+body[data-theme="natal"] .tabs{background:rgba(29,7,11,.94)!important;border-color:rgba(225,184,75,.58)!important;}
+body[data-theme="natal"] .tab:not(.active){background:#10281c!important;border-color:#267647!important;color:#e9f4dc!important;}
+body[data-theme="natal"] .tab.active{background:linear-gradient(135deg,#a91427,#d9a936)!important;border-color:#ffe09a!important;color:#fff9e9!important;box-shadow:0 0 16px rgba(225,184,75,.5)!important;}
+body[data-theme="natal"] .content{background:linear-gradient(180deg,rgba(7,55,32,.2),transparent 40%)!important;}
+body[data-theme="natal"] .card,body[data-theme="natal"] .login-card,body[data-theme="natal"] .modal,body[data-theme="natal"] .empty,body[data-theme="natal"] .hint-box,body[data-theme="natal"] .dep-box,body[data-theme="natal"] .stat-box{background:linear-gradient(145deg,rgba(18,76,48,.94),rgba(8,35,24,.97) 56%,rgba(35,7,13,.96))!important;border-color:rgba(225,184,75,.58)!important;box-shadow:0 0 18px rgba(15,103,57,.25),inset 0 0 24px rgba(0,0,0,.2)!important;}
+body[data-theme="natal"] .card h1,body[data-theme="natal"] .card h2,body[data-theme="natal"] .card h3,body[data-theme="natal"] .card b,body[data-theme="natal"] .card strong,body[data-theme="natal"] .card label,body[data-theme="natal"] .stitle{color:#fff0bd!important;text-shadow:0 1px 5px #07130e!important;}
+body[data-theme="natal"] .card p,body[data-theme="natal"] .card .hint,body[data-theme="natal"] .card small,body[data-theme="natal"] .card span{color:#d9ecd9!important;}
+body[data-theme="natal"] input,body[data-theme="natal"] select,body[data-theme="natal"] textarea{background:#092419!important;border-color:#c89d38!important;color:#fff8e7!important;}
+body[data-theme="natal"] .btn-primary{background:linear-gradient(135deg,#a9152b,#d7a936)!important;color:#fff8dd!important;border-color:#ffe59b!important;box-shadow:0 0 14px rgba(225,184,75,.4)!important;}
+body[data-theme="natal"] .theme-option{background:linear-gradient(145deg,#145b38,#3b0b16)!important;border-color:#d9ae45!important;color:#fff7df!important;}
+body[data-theme="natal"] .theme-option.selected{box-shadow:0 0 0 2px #f6d979,0 0 22px rgba(225,184,75,.45)!important;}
+
+/* Flocos descendo continuamente do topo, sem capturar toques ou cliques. */
+.natal-snow-layer{position:fixed;inset:0;z-index:95;pointer-events:none;overflow:hidden;}
+.natal-snow-layer span{position:absolute;top:-2rem;color:#fffdf2;text-shadow:0 0 7px rgba(255,255,255,.95),0 0 14px rgba(174,226,255,.55);animation:natalSnowFall linear infinite;will-change:transform;}
+@keyframes natalSnowFall{0%{transform:translate3d(0,-8vh,0) rotate(0deg);}50%{transform:translate3d(var(--snow-drift),52vh,0) rotate(180deg);}100%{transform:translate3d(calc(var(--snow-drift) * -1),112vh,0) rotate(360deg);}}
+
+/* Moldura especial com pinheiros, laço dourado e neve. */
+.pf-profile-card[data-banner="natal"],.banner-natal{--ba:#a7192c;--bb:#155b38;--bc:#26070e;}
+.pf-profile-card[data-banner="natal"] .pf-banner-cover,.public-profile-hero.banner-natal .public-profile-banner-cover{--cover-base:#092719;--cover-accent:#f3cc62;--cover-light:linear-gradient(135deg,#b51d31 0%,#11613d 47%,#4b0a18 100%);--cover-pattern:radial-gradient(circle at 16% 24%,rgba(255,248,205,.9) 0 1px,transparent 2px),radial-gradient(circle at 76% 18%,rgba(255,248,205,.85) 0 1px,transparent 2px),linear-gradient(155deg,transparent 0 40%,rgba(244,205,92,.22) 41% 43%,transparent 44%);--cover-mark:"❄";}
+.pf-profile-card[data-banner="natal"] .pf-banner-cover:before,.public-profile-hero.banner-natal .public-profile-banner-cover:before{content:"🎄   🎄   🎄";inset:auto 14px 8px!important;border:0!important;border-radius:0!important;box-shadow:none!important;color:#dff3d2;font-size:1.7rem;line-height:1;letter-spacing:.12em;opacity:.95;text-shadow:0 2px 5px rgba(0,0,0,.7);}
+.pf-profile-card[data-banner="natal"] .pf-banner-cover:after,.public-profile-hero.banner-natal .public-profile-banner-cover:after{content:"❄  NATAL  ❄";right:18px;top:13px;transform:none;color:#ffe89a;font-size:.72rem;letter-spacing:.16em;opacity:.95;text-shadow:0 0 8px rgba(255,233,142,.8);}
+.pf-banner-option.banner-natal{background:linear-gradient(145deg,#b51d31,#12613d 55%,#3b0916)!important;border-color:#f3cc62!important;}
+.pf-banner-option.banner-natal:after{content:"🎄  ❄  🎄";position:absolute;left:0;right:0;bottom:4px;font-size:1rem;opacity:.75;}
+
+/* Guirlanda/pinheiro decorativo sobre a foto de perfil no tema natalino. */
+body[data-theme="natal"] .u-avatar,body[data-theme="natal"] .chat-item-avatar,body[data-theme="natal"] .public-profile-avatar,body[data-theme="natal"] .bonus-user-avatar,body[data-theme="natal"] .hierarquia-avatar{overflow:visible!important;}
+body[data-theme="natal"] .u-avatar::after,body[data-theme="natal"] .chat-item-avatar::after,body[data-theme="natal"] .public-profile-avatar::after,body[data-theme="natal"] .bonus-user-avatar::after,body[data-theme="natal"] .hierarquia-avatar::after{content:"🎄";position:absolute;z-index:6;top:-17px;right:-7px;font-size:1.18rem;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.7));pointer-events:none;}
+body[data-theme="natal"] .public-profile-avatar::after{top:-19px;right:-6px;font-size:1.45rem;}
+body[data-theme="natal"] .u-avatar,body[data-theme="natal"] .chat-item-avatar,body[data-theme="natal"] .public-profile-avatar{border-color:#e5bd50!important;box-shadow:0 0 0 2px rgba(180,31,47,.55),0 0 12px rgba(225,184,75,.42)!important;}
+@media(max-width:520px){body[data-theme="natal"] .u-avatar::after,body[data-theme="natal"] .chat-item-avatar::after{top:-14px;right:-5px;font-size:1rem;}.pf-profile-card[data-banner="natal"] .pf-banner-cover:before{font-size:1.15rem;bottom:9px;}.pf-profile-card[data-banner="natal"] .pf-banner-cover:after{font-size:.58rem;right:10px;}}
+
+body[data-theme="natal"] .theme-swatch.theme-natal{background:radial-gradient(circle at 50% 28%,#ffe69a 0 3px,transparent 4px),linear-gradient(135deg,transparent 0 38%,#e8c15b 39% 42%,transparent 43%),linear-gradient(160deg,#c52238 0 42%,#137247 43% 72%,#4b0916 73%)!important;box-shadow:inset 0 0 0 2px rgba(255,235,159,.7),0 0 18px rgba(224,184,72,.45);}
+.theme-swatch.theme-natal{background:linear-gradient(145deg,#bc2035 0 42%,#176e46 43% 72%,#4b0916 73%);}

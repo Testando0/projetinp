@@ -66,7 +66,8 @@ const THEMES=[
   {id:'midia',label:'Tema normal',icon:'◐',desc:'Tema padrão gratuito para todos os usuários.'},
   {id:'violeta',label:'Tema Violeta',icon:'✦',desc:'Visual roxo profundo com detalhes lilás e lavanda.'},
   {id:'rubi',label:'Tema rubi',icon:'◆',desc:'Visual escuro com destaque vermelho-rubi e vinho.'},
-  {id:'ciano',label:'Tema ciano + neon',icon:'✧',desc:'Visual espacial inspirado na referência, com ciano neon e brilho.'}
+  {id:'ciano',label:'Tema ciano + neon',icon:'✧',desc:'Visual espacial inspirado na referência, com ciano neon e brilho.'},
+  {id:'natal',label:'Natal GMPOL',icon:'🎄',desc:'Um Natal vermelho, verde e dourado com neve caindo.'}
 ];
 const BANNERS=[
   {id:'aurora',nome:'Aurora',icone:'✦',nivel:1,desc:'Livre'},
@@ -91,7 +92,8 @@ const BANNERS=[
   {id:'tatico',nome:'Tático',icone:'⌁',nivel:20},
   {id:'academia',nome:'Academia',icone:'▣',nivel:21},
   {id:'elite',nome:'Elite',icone:'♞',nivel:22},
-  {id:'lendario',nome:'Lendário',icone:'♕',nivel:23}
+  {id:'lendario',nome:'Lendário',icone:'♕',nivel:23},
+  {id:'natal',nome:'Natal Pinheiros',icone:'🎄',nivel:1,desc:'Especial de Natal'}
 ];
 function nivelDoUsuario(u){return isSupremeUser(u)?23:Math.max(1,Math.min(23,Number(u?.nivel)||1));}
 function bannerDoUsuario(u){return BANNERS.find(b=>b.id===u?.bannerId)||BANNERS[0];}
@@ -289,9 +291,12 @@ function desenharCeuCiano(){
   canvas._skyResize=()=>desenharCeuCiano();if(!canvas._skyResizeBound){window.addEventListener('resize',canvas._skyResize,{passive:true});canvas._skyResizeBound=true;}
 }
 function ocultarCeuCiano(){const c=document.getElementById('gmpol-ciano-sky');if(!c)return;if(c._skyResize)window.removeEventListener('resize',c._skyResize);c.remove();}
-function aplicarTema(id,validar=true){const tema=THEMES.some(t=>t.id===id)?id:'midia';if(validar&&tema!=='midia'&&me&&!vipAtivo()){toast('🔒 Este tema é exclusivo para usuários VIP.','w');return;}document.documentElement.dataset.theme=tema;if(document.body)document.body.dataset.theme=tema;if(tema==='ciano'&&document.body)desenharCeuCiano();else ocultarCeuCiano();try{localStorage.setItem(THEME_KEY,tema);}catch(_){}document.querySelectorAll('.theme-option').forEach(el=>el.classList.toggle('selected',el.dataset.theme===tema));const atual=document.getElementById('theme-current');if(atual){const t=THEMES.find(x=>x.id===tema);atual.textContent='Tema atual: '+(t?t.label:'Tema mídia');}}
-function carregarTema(){let tema='midia';try{tema=localStorage.getItem(THEME_KEY)||'midia';}catch(_){}if(me&&tema!=='midia'&&!vipAtivo())tema='midia';aplicarTema(tema,false);}
-function vTemas(){const atual=document.documentElement.dataset.theme||'midia';const vip=vipAtivo();const cards=THEMES.map(t=>{const bloqueado=t.id!=='midia'&&!vip;return `<button class="card theme-option ${t.id===atual?'selected':''} ${bloqueado?'theme-locked':''}" data-theme="${t.id}" onclick="aplicarTema('${t.id}')"><div class="theme-swatch theme-${t.id}"></div><b>${t.label}${bloqueado?' <span class=\"theme-vip-label\">VIP</span>':''}</b><div class="hint">${t.desc}</div>${bloqueado?'<div class=\"theme-lock-note\">🔒 Exclusivo VIP</div>':(t.id===atual?'<div class=\"status-chip theme-active-chip\">ATIVO</div>':'')}</button>`}).join('');return `<div class="stitle">▸ TEMAS DISPONÍVEIS</div><div class="card themes-hero"><div class="themes-hero-icon">🎨</div><div><h2>Personalize sua experiência</h2><p>O tema normal é gratuito. Os temas especiais são exclusivos para usuários VIP.</p><strong id="theme-current">Tema atual: ${THEMES.find(t=>t.id===atual)?.label||'Tema normal'}</strong></div></div><div class="theme-grid">${cards}</div>`;}
+let _natalSnowLayer=null;
+function criarNeveNatal(){if(_natalSnowLayer)return;const layer=document.createElement('div');layer.className='natal-snow-layer';layer.setAttribute('aria-hidden','true');const flakes=['❄','❅','❆','✦'];for(let i=0;i<34;i++){const flake=document.createElement('span');flake.textContent=flakes[i%flakes.length];flake.style.left=((i*37)%101)+'%';flake.style.fontSize=(.58+(i%6)*.13)+'rem';flake.style.opacity=(.35+(i%5)*.12).toFixed(2);flake.style.animationDuration=(7+(i%7)*1.4)+'s';flake.style.animationDelay=(-(i%13)*1.1)+'s';flake.style.setProperty('--snow-drift',((i%9)-4)*12+'px');layer.appendChild(flake);}document.body.appendChild(layer);_natalSnowLayer=layer;}
+function removerNeveNatal(){if(_natalSnowLayer){_natalSnowLayer.remove();_natalSnowLayer=null;}}
+function aplicarTema(id,validar=true){const tema=THEMES.some(t=>t.id===id)?id:'midia';if(validar&&tema!=='midia'&&tema!=='natal'&&me&&!vipAtivo()){toast('🔒 Este tema é exclusivo para usuários VIP.','w');return;}document.documentElement.dataset.theme=tema;if(document.body)document.body.dataset.theme=tema;if(tema==='ciano'&&document.body)desenharCeuCiano();else ocultarCeuCiano();if(tema==='natal')criarNeveNatal();else removerNeveNatal();try{localStorage.setItem(THEME_KEY,tema);}catch(_){}document.querySelectorAll('.theme-option').forEach(el=>el.classList.toggle('selected',el.dataset.theme===tema));const atual=document.getElementById('theme-current');if(atual){const t=THEMES.find(x=>x.id===tema);atual.textContent='Tema atual: '+(t?t.label:'Tema mídia');}}
+function carregarTema(){let tema='midia';try{tema=localStorage.getItem(THEME_KEY)||'midia';}catch(_){}if(me&&tema!=='midia'&&tema!=='natal'&&!vipAtivo())tema='midia';aplicarTema(tema,false);}
+function vTemas(){const atual=document.documentElement.dataset.theme||'midia';const vip=vipAtivo();const cards=THEMES.map(t=>{const bloqueado=t.id!=='midia'&&t.id!=='natal'&&!vip;return `<button class="card theme-option ${t.id===atual?'selected':''} ${bloqueado?'theme-locked':''}" data-theme="${t.id}" onclick="aplicarTema('${t.id}')"><div class="theme-swatch theme-${t.id}"></div><b>${t.label}${bloqueado?' <span class=\"theme-vip-label\">VIP</span>':''}</b><div class="hint">${t.desc}</div>${bloqueado?'<div class=\"theme-lock-note\">🔒 Exclusivo VIP</div>':(t.id===atual?'<div class=\"status-chip theme-active-chip\">ATIVO</div>':'')}</button>`}).join('');return `<div class="stitle">▸ TEMAS DISPONÍVEIS</div><div class="card themes-hero"><div class="themes-hero-icon">🎨</div><div><h2>Personalize sua experiência</h2><p>O tema normal e o tema Natal são gratuitos. Os demais temas especiais são exclusivos para usuários VIP.</p><strong id="theme-current">Tema atual: ${THEMES.find(t=>t.id===atual)?.label||'Tema normal'}</strong></div></div><div class="theme-grid">${cards}</div>`;}
 function mostrarAlertaUrgente(titulo,detalhe,id,forcar=false){const notificationId=id||('urgente-'+titulo+'-'+detalhe);const atual=registrarNotificacao({id:notificationId,tipo:'urgente',titulo,detalhe,createdAt:Date.now()});if(!atual||atual.mostrada)return;atual.mostrada=true;salvarNotificacoes();mostrarAlertaUrgenteVisual(titulo,detalhe,forcar);}
 function mostrarAlertaUrgenteVisual(titulo,detalhe,forcar=false){if(!forcar&&!podeReceberPendencias())return;const old=document.getElementById('gmpol-urgent-overlay');if(old)old.remove();clearTimeout(_urgentAlertTimer);const overlay=document.createElement('div');overlay.id='gmpol-urgent-overlay';overlay.className='gmpol-urgent-overlay';overlay.setAttribute('role','alert');overlay.innerHTML='<div class="gmpol-urgent-card"><button class="oc-alert-close" aria-label="Fechar notificação" onclick="fecharAlertaUrgente()">×</button><div class="gmpol-urgent-kicker">⚠️ PENDÊNCIA ADMINISTRATIVA</div><div class="gmpol-urgent-title">'+escRec(titulo)+'</div><div class="gmpol-urgent-detail">'+escRec(detalhe)+'</div><div class="gmpol-urgent-count">ESTA NOTIFICAÇÃO DESAPARECERÁ EM 5 SEGUNDOS</div></div>';document.body.appendChild(overlay);_urgentAlertTimer=setTimeout(()=>fecharAlertaUrgente(),5000);}
 function fecharAlertaUrgente(){clearTimeout(_urgentAlertTimer);_urgentAlertTimer=null;const el=document.getElementById('gmpol-urgent-overlay');if(el)el.remove();}
@@ -979,7 +984,7 @@ function renderEditorBanners(u){
   const nivel=nivelDoUsuario(u), atual=bannerDoUsuario(u).id;
   grid.innerHTML=BANNERS.map((b,i)=>{
     const unlocked=isMaster()||i<3||nivel>=b.nivel, selected=b.id===atual;
-    return `<button type="button" class="pf-banner-option banner-${b.id} ${selected?'selected':''} ${unlocked?'':'locked'}" ${unlocked?`onclick="selecionarBannerPerfil('${b.id}')"`:''} aria-label="${b.nome}${unlocked?'':' bloqueado'}"><span class="pf-banner-glyph">${unlocked?b.icone:'🔒'}</span><span class="pf-banner-name">${b.nome}</span><small>${unlocked?(i<3?'GRÁTIS':'NÍVEL '+b.nivel):'BLOQUEADO'}</small></button>`;
+    return `<button type="button" class="pf-banner-option banner-${b.id} ${selected?'selected':''} ${unlocked?'':'locked'}" ${unlocked?`onclick="selecionarBannerPerfil('${b.id}')"`:''} aria-label="${b.nome}${unlocked?'':' bloqueado'}"><span class="pf-banner-glyph">${unlocked?b.icone:'🔒'}</span><span class="pf-banner-name">${b.nome}</span><small>${unlocked?(especial?'ESPECIAL DE NATAL':i<3?'GRÁTIS':'NÍVEL '+b.nivel):'BLOQUEADO'}</small></button>`;
   }).join('');
 }
 function alternarEditorPerfil(){
@@ -991,7 +996,7 @@ async function selecionarBannerPerfil(id){
   if(!me||!BANNERS.some(b=>b.id===id))return;
   const u=STATE.users.find(x=>x.user===me.user)||me;
   const b=BANNERS.find(x=>x.id===id), nivel=nivelDoUsuario(u);
-  if(!isMaster()&&BANNERS.indexOf(b)>=3&&nivel<b.nivel){toast('🔒 Desbloqueie o nível '+b.nivel+' para usar este banner.','w');return;}
+  if(!isMaster()&&b.id!=='natal'&&BANNERS.indexOf(b)>=3&&nivel<b.nivel){toast('🔒 Desbloqueie o nível '+b.nivel+' para usar este banner.','w');return;}
   const status=document.getElementById('pf-banner-status');if(status)status.textContent='Salvando banner…';
   try{
     await API.salvarBannerPerfil(id,me.user);
