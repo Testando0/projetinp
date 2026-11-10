@@ -607,3 +607,10 @@ body[data-theme="rubi"] .settings-item:hover,body[data-theme="rubi"] .nav-drawer
 .sup-check:has(input:checked) .sup-control-icon::after{content:'✓';font-size:14px;line-height:1;font-weight:900;color:#fff;}
 .sup-choice:focus-within,.sup-check:focus-within{outline:2px solid rgba(251,113,133,.55);outline-offset:2px;}
 @media(max-width:600px){.sup-choice-row{gap:8px}.sup-choice{flex:1;min-width:0}.sup-check{padding:10px 9px;font-size:.82rem!important}.sup-star{min-width:32px;font-size:1.9rem!important}.sup-star-value{font-size:.58rem;margin-left:2px;}}
+
+
+.superior-access-card{border-color:rgba(251,191,36,.35)!important;background:linear-gradient(145deg,rgba(251,191,36,.08),rgba(255,255,255,.025));}
+.superior-access-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.superior-access-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.025);}
+.superior-access-row .hint{display:block;margin-top:3px;}
+@media(max-width:600px){.superior-access-row{align-items:flex-start}.superior-access-row button{width:100%;}}

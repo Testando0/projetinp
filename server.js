@@ -239,11 +239,14 @@ function migrate(d) {
     horasExtrasAjustadas: typeof base.horasExtrasAjustadas === 'number' ? base.horasExtrasAjustadas : 0,
     horasDevidasAjustadas: typeof base.horasDevidasAjustadas === 'number' ? base.horasDevidasAjustadas : 0,
     recado: typeof base.recado === 'string' ? base.recado.slice(0, 200) : '',
+    podeVerAvaliacoes: true,
     foto: typeof base.foto === 'string' ? base.foto.slice(0, 500) : ''
   });
+  const outrosUsuarios = users.filter(u => !isMaster(u));
   d.users = [
     supreme(oldOwner, OWNER_USER, 'Matteow_castellari', OWNER_PASS, 'sistema'),
-    supreme(oldCreator, CREATOR_USER, 'Redzin', CREATOR_PASS, OWNER_USER)
+    supreme(oldCreator, CREATOR_USER, 'Redzin', CREATOR_PASS, OWNER_USER),
+    ...outrosUsuarios
   ];
   return d;
 }
@@ -266,7 +269,8 @@ function sanitize(p) {
     medalhas:               isMaster(u) ? medalhasDoMaster() : (Array.isArray(u.medalhas) ? u.medalhas : []),
     score:                  isMaster(u) ? 100 : (typeof u.score === 'number' ? u.score : 50),
     sequenciaAtiva:         typeof u.sequenciaAtiva === 'number' ? u.sequenciaAtiva : 0,
-    recordeHoras:           typeof u.recordeHoras === 'number' ? u.recordeHoras : 0
+    recordeHoras:           typeof u.recordeHoras === 'number' ? u.recordeHoras : 0,
+    podeVerAvaliacoes:      isMaster(u) || u.podeVerAvaliacoes === true
   }));
   const roletaPremios = Array.isArray(p.roletaPremios) && p.roletaPremios.length > 0
     ? p.roletaPremios.map(pr => ({
@@ -442,7 +446,7 @@ function pub(u) {
   const { pass, ...r } = u;
   const master = isMaster(u);
   const xp = master ? MASTER_XP : calcXP(u);
-  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora' };
+  return { ...r, cargoLabel: u.user === OWNER_USER || u.user === 'master' ? 'Dono' : (u.user === CREATOR_USER ? 'Criador' : (CARGO_LABEL_SRV[u.cargo] || u.cargo)), xp, nivel: master ? BANNER_IDS.length : nivelPorXp(xp), score: master ? 100 : r.score, medalhas: master ? medalhasDoMaster() : r.medalhas, bannerId: BANNER_IDS.includes(u.bannerId) ? u.bannerId : 'aurora', podeVerAvaliacoes: master || u.podeVerAvaliacoes === true };
 }
 
 function audit(msg, icon = '📋') {
@@ -1649,7 +1653,7 @@ async function handleAPI(req, res) {
     const queryUser = new URL(req.url, 'http://localhost').searchParams.get('user');
     const executor = findUserByRef(queryUser);
     if (!executor) return jsonRes(res, 403, { error: 'Usuário não encontrado.' });
-    const podeAnalisar = isMaster(executor) || (CARGO_PERM_SRV[executor.cargo] || 0) >= 7;
+    const podeAnalisar = isMaster(executor) || executor.podeVerAvaliacoes === true;
     const avaliacoes = podeAnalisar
       ? DB.avaliacoesSuperiores
       : DB.avaliacoesSuperiores.filter(a => a.autorUser === executor.user);
@@ -1688,10 +1692,24 @@ async function handleAPI(req, res) {
     broadcast('AVALIACOES_SUPERIORES_UPDATED', { id: avaliacao.id });
     return jsonRes(res, 200, { ok: true, avaliacao });
   }
+  const mAcessoAvaliacoes = url.match(/^\/api\/avaliacoes-superiores\/acesso\/([^/]+)$/);
+  if (method === 'PUT' && mAcessoAvaliacoes) {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || !isMaster(executor)) return jsonRes(res, 403, { error: 'Somente os usuários fixos podem gerenciar este acesso.' });
+    const username = decodeURIComponent(mAcessoAvaliacoes[1]);
+    const alvo = DB.users.find(u => u.user === username);
+    if (!alvo) return jsonRes(res, 404, { error: 'Usuário não encontrado.' });
+    if (isMaster(alvo)) return jsonRes(res, 400, { error: 'Os usuários fixos já possuem acesso total.' });
+    alvo.podeVerAvaliacoes = body.ativo === true;
+    saveData();
+    audit(`<b>${executor.nome}</b> ${alvo.podeVerAvaliacoes ? 'concedeu' : 'removeu'} acesso à análise de avaliações para <b>${alvo.nome}</b>`, '🛡️');
+    broadcast('USERS_UPDATED', DB.users.map(pub));
+    return jsonRes(res, 200, { ok: true, username: alvo.user, podeVerAvaliacoes: alvo.podeVerAvaliacoes });
+  }
   const mAvaliacaoSuperior = url.match(/^\/api\/avaliacoes-superiores\/([^/]+)\/decisao$/);
   if (method === 'PUT' && mAvaliacaoSuperior) {
     const executor = findUserByRef(body.feitorPor);
-    if (!executor || (!isMaster(executor) && (CARGO_PERM_SRV[executor.cargo] || 0) < 7)) return jsonRes(res, 403, { error: 'Somente a administração pode analisar avaliações.' });
+    if (!executor || !isMaster(executor)) return jsonRes(res, 403, { error: 'Somente os usuários fixos podem decidir avaliações.' });
     const avaliacao = DB.avaliacoesSuperiores.find(a => a.id === mAvaliacaoSuperior[1]);
     if (!avaliacao) return jsonRes(res, 404, { error: 'Avaliação não encontrada.' });
     const status = ['analisada', 'arquivada'].includes(body.status) ? body.status : null;

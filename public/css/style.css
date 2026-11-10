@@ -272,10 +272,12 @@ textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
 .hamburger-btn:hover { color: #fff; border-color: #444; background: rgba(255,255,255,.04); }
 
 .nav-drawer {
-  position: fixed; top: 52px; left: 0; right: 0;
+  position: fixed; top: 52px; bottom: 0; left: 0; right: 0;
+  height: calc(100vh - 52px); height: calc(100dvh - 52px); max-height: none; box-sizing: border-box;
+  padding-bottom: env(safe-area-inset-bottom);
   background: #050505; border-bottom: 1px solid var(--border2);
   z-index: 190; display: none; flex-direction: column;
-  animation: slideDown .2s ease; max-height: calc(100vh - 52px); overflow-y: auto;
+  animation: slideDown .2s ease; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
 .nav-drawer.open { display: flex; }
 @keyframes slideDown { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }

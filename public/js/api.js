@@ -123,6 +123,7 @@ const API = {
   getAvaliacoesSuperiores: (userLogin)      => API.request('GET',    `/avaliacoes-superiores?user=${encodeURIComponent(userLogin)}`),
   criarAvaliacaoSuperior:  (data)           => API.request('POST',   '/avaliacoes-superiores', data),
   decidirAvaliacaoSuperior:(id, status, resposta, feitorPor) => API.request('PUT', `/avaliacoes-superiores/${id}/decisao`, { status, resposta, feitorPor }),
+  configurarAcessoAvaliacoes: (username, ativo, feitorPor) => API.request('PUT', `/avaliacoes-superiores/acesso/${encodeURIComponent(username)}`, { ativo, feitorPor }),
 
   getFeedbacks:    ()                      => API.request('GET',    '/feedbacks'),
   createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
