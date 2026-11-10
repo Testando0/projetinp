@@ -97,6 +97,11 @@ const BANNERS=[
 ];
 function nivelDoUsuario(u){return isSupremeUser(u)?23:Math.max(1,Math.min(23,Number(u?.nivel)||1));}
 function bannerDoUsuario(u){return BANNERS.find(b=>b.id===u?.bannerId)||BANNERS[0];}
+const CASAMENTO_USERS=['matteow_castellari','redzin'];
+function isCasamentoUser(u){return !!u&&CASAMENTO_USERS.includes(String(u.user||'').toLowerCase());}
+function casamentoVisivelPara(u){return !!me&&isCasamentoUser(me)&&isCasamentoUser(u);}
+function abrirPopupCasamento(){if(!me||!isCasamentoUser(me))return;document.getElementById('casamento-overlay')?.remove();const overlay=document.createElement('div');overlay.id='casamento-overlay';overlay.className='casamento-overlay';overlay.innerHTML='<div class="casamento-card" role="dialog" aria-modal="true" aria-label="Casamento GMPOL"><button class="casamento-close" type="button" onclick="fecharPopupCasamento()" aria-label="Fechar">×</button><div class="casamento-kicker">💍 UNIÃO OFICIAL GMPOL</div><div class="casamento-rings">💍 ✨ 💍</div><div class="casamento-title">Redzin <span>♥</span> Matteow_castellari</div><p class="casamento-copy">Uma aliança de confiança, lealdade e comando. Juntos, os dois usuários supremos da GMPOL.</p><div class="casamento-seal">🔴 REDZIN <b>×</b> MATTEOW_CASTELLARI 🟢</div></div>';document.body.appendChild(overlay);overlay.addEventListener('click',e=>{if(e.target===overlay)fecharPopupCasamento();});}
+function fecharPopupCasamento(){document.getElementById('casamento-overlay')?.remove();}
 const NOMES_PROVA={gm:'PROVA DE PATENTE GUARDA',agente:'PROVA DE PATENTE AGENTE',tatico:'PROVA DE PATENTE TÁTICO'};
 const CSS_PROVA='<style>.pv-alt{display:block;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s,box-shadow .15s;}.pv-alt:hover{border-color:var(--text-mid);}.pv-alt.sel{border-color:#4ade80 !important;background:rgba(74,222,128,.10) !important;box-shadow:0 0 0 1px #4ade80;}</style>';
 const PRISOES_QUESTOES_LOCAL=['Cite todos os comandos em ordem para efetuar prisões.','Qual procedimento para levar o preso para comer?','Como funciona o QTH PS?','Como funciona o QTH HP?','Cite 4 regras da PF que não podem ser quebradas.','O que é abuso de poder? Cite 3 exemplos.','Quais regras de carregamento?','Cite abaixo todas as estrelas e abreviação. Ex.: ASS - 1 ESTRELA (10 MINUTOS).','Cite a cadeia de comando e a hierarquia.','O que é insubordinação?'];
@@ -1011,7 +1016,7 @@ function abrirPerfilPublico(userLogin){
   const b=bannerDoUsuario(u), nivel=nivelDoUsuario(u), medals=Array.isArray(u.medalhas)?u.medalhas:[];
   const content=document.getElementById('perfil-publico-content');if(!content)return;
   const medalsHtml=medals.length?medals.map(m=>`<div class="public-medal" title="${escRec(m.motivo||'Medalha concedida')}"><span>${m.icone||'🏅'}</span><small>${escRec(m.tipo||'MEDALHA')}</small></div>`).join(''):'<div class="public-empty">Nenhuma medalha recebida ainda.</div>';
-  content.innerHTML=`<div class="public-profile-hero banner-${b.id}"><div class="public-profile-banner-cover" aria-hidden="true"></div><div class="public-profile-shine"></div><div class="public-profile-avatar">${avatarContent(u)}</div><div class="public-profile-main"><div class="public-profile-name">${escRec(u.nome||u.user)}</div><div class="public-profile-handle">@${escRec(u.user)}</div><div class="public-profile-badges"><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${escRec(cargoVisual(u))}</span>${u.vip?'<span class="public-vip">✦ VIP</span>':''}</div></div></div><div class="public-profile-stats"><div><strong>NÍVEL ${nivel}</strong><small>${Number(u.xp||0).toLocaleString('pt-BR')} XP</small></div><div><strong>${medals.length}</strong><small>MEDALHAS</small></div><div><strong>${u.ativo===false?'INATIVO':'ATIVO'}</strong><small>STATUS</small></div></div><div class="public-profile-section"><div class="pf-section-title">✦ RECADO</div><p class="public-recado">${u.recado?escRec(u.recado):'Este usuário ainda não adicionou um recado.'}</p></div><div class="public-profile-section"><div class="pf-section-title">🏅 MEDALHAS</div><div class="public-medals">${medalsHtml}</div></div>`;
+  content.innerHTML=`<div class="public-profile-hero banner-${b.id}"><div class="public-profile-banner-cover" aria-hidden="true"></div><div class="public-profile-shine"></div>${casamentoVisivelPara(u)?'<button type="button" class="casamento-profile-btn public-casamento-btn" onclick="event.stopPropagation();abrirPopupCasamento()" aria-label="Abrir casamento">💍</button>':''}<div class="public-profile-avatar">${avatarContent(u)}</div><div class="public-profile-main"><div class="public-profile-name">${escRec(u.nome||u.user)}</div><div class="public-profile-handle">@${escRec(u.user)}</div><div class="public-profile-badges"><span class="cargo-badge ${CARGO_BADGE_CLASS[u.cargo]||''}">${escRec(cargoVisual(u))}</span>${u.vip?'<span class="public-vip">✦ VIP</span>':''}</div></div></div><div class="public-profile-stats"><div><strong>NÍVEL ${nivel}</strong><small>${Number(u.xp||0).toLocaleString('pt-BR')} XP</small></div><div><strong>${medals.length}</strong><small>MEDALHAS</small></div><div><strong>${u.ativo===false?'INATIVO':'ATIVO'}</strong><small>STATUS</small></div></div><div class="public-profile-section"><div class="pf-section-title">✦ RECADO</div><p class="public-recado">${u.recado?escRec(u.recado):'Este usuário ainda não adicionou um recado.'}</p></div><div class="public-profile-section"><div class="pf-section-title">🏅 MEDALHAS</div><div class="public-medals">${medalsHtml}</div></div>`;
   openModal('m-perfil-publico');
 }
 
@@ -1027,6 +1032,7 @@ function abrirModalPerfil(){
   const modalBox=document.querySelector('#m-perfil .modal');
   const profileCard=document.getElementById('pf-profile-card');
   if(profileCard)profileCard.dataset.banner=bannerDoUsuario(u).id;
+  const marriageBtn=document.getElementById('pf-marriage-btn');if(marriageBtn)marriageBtn.style.display=casamentoVisivelPara(u)?'inline-flex':'none';
   renderEditorBanners(u);
 
   // ══ Wrapper dinâmico arredondado SÓ ao redor do textarea do recado ══
@@ -2026,6 +2032,9 @@ function openModal(id){document.getElementById(id)?.classList.add('open');}
 function closeModal(id){document.getElementById(id)?.classList.remove('open');}
 function toggleSettings(){document.getElementById('settings-menu')?.classList.toggle('open');}
 function closeSettings(){document.getElementById('settings-menu')?.classList.remove('open');}
+const PROFILE_IMAGE_SELECTOR='.u-avatar img,.chat-item-avatar img,.public-profile-avatar img,.bonus-user-avatar img,.hierarquia-avatar img';
+document.addEventListener('contextmenu',e=>{if(e.target.closest(PROFILE_IMAGE_SELECTOR)||e.target.closest('.u-avatar,.chat-item-avatar,.public-profile-avatar,.bonus-user-avatar,.hierarquia-avatar'))e.preventDefault();});
+document.addEventListener('dragstart',e=>{if(e.target.closest(PROFILE_IMAGE_SELECTOR))e.preventDefault();});
 document.addEventListener('click',e=>{const menu=document.getElementById('settings-menu'),btn=document.querySelector('.settings-btn');if(menu&&!menu.contains(e.target)&&e.target!==btn)closeSettings();if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('open');});
 function toast(txt,type='i',duration=3800){const c=document.getElementById('toast-container'),t=document.createElement('div');t.className='toast '+type;t.innerHTML='<span>'+txt+'</span>';c.appendChild(t);setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},duration);}
 function empty(ico,txt){return'<div class="empty"><div class="empty-ico">'+ico+'</div><p>'+txt+'</p></div>';}

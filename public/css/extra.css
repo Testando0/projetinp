@@ -664,3 +664,26 @@ body[data-theme="natal"] .theme-swatch.theme-natal{background:radial-gradient(ci
 .modal-overlay .modal{background:color-mix(in srgb,var(--surface) 94%,transparent)!important;box-shadow:0 24px 80px rgba(0,0,0,.42),0 0 0 1px rgba(255,255,255,.1)!important;}
 body[data-theme="natal"] .modal-overlay{background:rgba(3,20,14,.38)!important;backdrop-filter:blur(16px) saturate(130%)!important;-webkit-backdrop-filter:blur(16px) saturate(130%)!important;}
 body[data-theme="natal"] .modal-overlay .modal{background:linear-gradient(145deg,rgba(18,76,48,.96),rgba(8,35,24,.97) 56%,rgba(35,7,13,.97))!important;}
+
+
+/* ══ ALIANÇA OFICIAL DOS USUÁRIOS FIXOS ══ */
+.casamento-profile-btn{position:absolute;right:52px;top:10px;z-index:5;width:34px;height:34px;display:none;align-items:center;justify-content:center;padding:0;border:1px solid rgba(255,224,135,.78);border-radius:50%;background:linear-gradient(145deg,rgba(121,24,46,.92),rgba(183,135,35,.82));color:#fff4bd;font-size:1.1rem;cursor:pointer;box-shadow:0 0 13px rgba(239,190,70,.42),inset 0 0 8px rgba(255,255,255,.18);transition:transform .2s,filter .2s;}
+.casamento-profile-btn:hover{transform:translateY(-2px) scale(1.08);filter:brightness(1.15);}
+.public-casamento-btn{display:flex;right:16px;top:15px;}
+.casamento-overlay{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(7,4,12,.45);backdrop-filter:blur(15px) saturate(130%);-webkit-backdrop-filter:blur(15px) saturate(130%);animation:casamentoIn .24s ease-out both;}
+.casamento-card{position:relative;width:min(100%,520px);padding:38px 26px 30px;text-align:center;border:1px solid rgba(255,220,121,.82);border-radius:28px;background:radial-gradient(circle at 50% 0,rgba(255,224,127,.2),transparent 38%),linear-gradient(145deg,#5f1028,#28102d 52%,#0b3926);box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 0 2px rgba(54,170,100,.28),0 0 42px rgba(235,188,67,.26);overflow:hidden;}
+.casamento-card::before{content:"✦  ❄  ✦  ❄  ✦";position:absolute;inset:10px 16px auto;color:rgba(255,240,174,.56);font-size:.8rem;letter-spacing:.7em;pointer-events:none;}
+.casamento-card::after{content:"♥";position:absolute;right:-18px;bottom:-30px;color:rgba(232,54,77,.22);font-size:10rem;line-height:1;transform:rotate(-15deg);pointer-events:none;}
+.casamento-close{position:absolute;right:12px;top:10px;width:32px;height:32px;border:1px solid rgba(255,255,255,.3);border-radius:50%;background:rgba(0,0,0,.2);color:#fff6d3;font-size:1.35rem;line-height:1;cursor:pointer;z-index:2;}
+.casamento-kicker{position:relative;z-index:1;color:#ffe29a;font-size:.68rem;font-weight:900;letter-spacing:.16em;text-shadow:0 0 10px rgba(255,216,112,.7);}
+.casamento-rings{position:relative;z-index:1;margin:19px 0 12px;font-size:2.65rem;letter-spacing:.15em;filter:drop-shadow(0 0 12px rgba(255,221,119,.7));}
+.casamento-title{position:relative;z-index:1;color:#fff2bf;font-size:clamp(1.15rem,5vw,1.7rem);font-weight:900;letter-spacing:.03em;text-shadow:0 2px 12px rgba(0,0,0,.5);}
+.casamento-title span{color:#ff7182;margin:0 6px;text-shadow:0 0 12px rgba(255,65,92,.9);}
+.casamento-copy{position:relative;z-index:1;max-width:390px;margin:15px auto 20px;color:#f0e8da;line-height:1.65;font-size:.84rem;}
+.casamento-seal{position:relative;z-index:1;display:inline-block;padding:9px 14px;border:1px solid rgba(255,220,121,.42);border-radius:999px;background:rgba(0,0,0,.2);color:#f5d878;font-size:.62rem;letter-spacing:.08em;}
+@keyframes casamentoIn{from{opacity:0}.to{opacity:1}}
+
+/* As imagens de perfil não oferecem arraste, seleção nem menu de salvar no navegador. */
+.u-avatar img,.chat-item-avatar img,.public-profile-avatar img,.bonus-user-avatar img,.hierarquia-avatar img{user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important;}
+.u-avatar,.chat-item-avatar,.public-profile-avatar,.bonus-user-avatar,.hierarquia-avatar{-webkit-touch-callout:none;user-select:none;}
+@media(max-width:520px){.casamento-profile-btn{right:48px;top:9px;width:31px;height:31px;font-size:1rem;}.public-casamento-btn{right:10px;top:11px;}.casamento-card{padding:34px 18px 25px;border-radius:22px;}.casamento-rings{font-size:2.2rem;}.casamento-seal{font-size:.52rem;}}
