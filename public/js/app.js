@@ -983,7 +983,7 @@ function renderEditorBanners(u){
   const grid=document.getElementById('pf-banner-grid');if(!grid)return;
   const nivel=nivelDoUsuario(u), atual=bannerDoUsuario(u).id;
   grid.innerHTML=BANNERS.map((b,i)=>{
-    const unlocked=isMaster()||i<3||nivel>=b.nivel, selected=b.id===atual;
+    const especial=b.id==='natal', unlocked=isMaster()||especial||i<3||nivel>=b.nivel, selected=b.id===atual;
     return `<button type="button" class="pf-banner-option banner-${b.id} ${selected?'selected':''} ${unlocked?'':'locked'}" ${unlocked?`onclick="selecionarBannerPerfil('${b.id}')"`:''} aria-label="${b.nome}${unlocked?'':' bloqueado'}"><span class="pf-banner-glyph">${unlocked?b.icone:'🔒'}</span><span class="pf-banner-name">${b.nome}</span><small>${unlocked?(especial?'ESPECIAL DE NATAL':i<3?'GRÁTIS':'NÍVEL '+b.nivel):'BLOQUEADO'}</small></button>`;
   }).join('');
 }
