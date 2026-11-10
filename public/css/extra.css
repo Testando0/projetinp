@@ -687,3 +687,25 @@ body[data-theme="natal"] .modal-overlay .modal{background:linear-gradient(145deg
 .u-avatar img,.chat-item-avatar img,.public-profile-avatar img,.bonus-user-avatar img,.hierarquia-avatar img{user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important;}
 .u-avatar,.chat-item-avatar,.public-profile-avatar,.bonus-user-avatar,.hierarquia-avatar{-webkit-touch-callout:none;user-select:none;}
 @media(max-width:520px){.casamento-profile-btn{right:48px;top:9px;width:31px;height:31px;font-size:1rem;}.public-casamento-btn{right:10px;top:11px;}.casamento-card{padding:34px 18px 25px;border-radius:22px;}.casamento-rings{font-size:2.2rem;}.casamento-seal{font-size:.52rem;}}
+
+
+/* Posicionamento final: a aliança fica na moldura, no canto circulado, sem ocupar o fluxo do card. */
+.pf-profile-card>.casamento-profile-btn,.public-profile-hero>.casamento-profile-btn{position:absolute!important;right:14px!important;top:13px!important;z-index:12!important;display:none!important;}
+.pf-profile-card>.casamento-profile-btn.visible,.public-profile-hero>.casamento-profile-btn.visible{display:flex!important;}
+.pf-profile-card>.casamento-profile-btn{right:52px!important;top:10px!important;}
+.public-profile-hero>.public-casamento-btn{right:16px!important;top:14px!important;}
+
+/* Pop-up mais apaixonado, mantendo a identidade GMPOL. */
+.casamento-overlay{background:radial-gradient(circle at 50% 20%,rgba(165,24,67,.3),rgba(8,3,13,.58) 58%),rgba(7,4,12,.42);}
+.casamento-card{border-color:rgba(255,154,181,.9);background:radial-gradient(circle at 50% 8%,rgba(255,140,174,.28),transparent 30%),radial-gradient(circle at 18% 88%,rgba(193,34,73,.3),transparent 36%),linear-gradient(145deg,#731633,#32112f 54%,#160b23);box-shadow:0 24px 90px rgba(0,0,0,.62),0 0 0 2px rgba(255,211,137,.25),0 0 55px rgba(255,74,131,.38);}
+.casamento-card::before{content:"♥  ✦  ♥  ✦  ♥  ✦  ♥";color:rgba(255,192,211,.72);letter-spacing:.48em;}
+.casamento-card::after{content:"♥";color:rgba(255,71,122,.2);}
+.casamento-rings{color:#ffe2a0;text-shadow:0 0 15px rgba(255,207,117,.9);}
+.casamento-rings span{display:inline-block;color:#ff91b1;font-size:1.7rem;vertical-align:middle;text-shadow:0 0 16px rgba(255,72,124,.95);animation:casamentoPulse 1.5s ease-in-out infinite;}
+.casamento-title{color:#fff0f4;text-shadow:0 2px 15px rgba(0,0,0,.58),0 0 14px rgba(255,139,173,.4);}
+.casamento-title span{color:#ff86aa;}
+.casamento-love-line{position:relative;z-index:1;margin-top:8px;color:#ffd58f;font-size:.58rem;letter-spacing:.2em;font-weight:900;}
+.casamento-copy{color:#ffe9ef;}
+.casamento-seal{border-color:rgba(255,169,195,.72);background:rgba(255,104,148,.14);color:#ffd7a1;box-shadow:inset 0 0 15px rgba(255,95,143,.12),0 0 15px rgba(255,75,132,.18);}
+@keyframes casamentoPulse{0%,100%{transform:scale(.92);opacity:.8}50%{transform:scale(1.14);opacity:1}}
+@media(max-width:520px){.pf-profile-card>.casamento-profile-btn{right:48px!important;top:9px!important;}.public-profile-hero>.public-casamento-btn{right:10px!important;top:11px!important;}}
