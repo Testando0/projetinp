@@ -218,7 +218,7 @@ function getDefaultData() {
       { user: CREATOR_USER, pass: CREATOR_PASS, cargo: 'admin', nome: 'Redzin', ativo: true, criadoPor: OWNER_USER, criadoEm: now, cicloDias: [], folgaDia: null, girosBonus: 0, ultimoGiroRoleta: null, horasExtrasAjustadas: 0, horasDevidasAjustadas: 0, vip: true, recado: '', foto: '', bannerId: 'lendario', medalhas: [], score: 100, sequenciaAtiva: 0, recordeHoras: 0 }
     ],
     ocs: [], puns: [], pontos: [], provas: [], audit: [],
-    feedbacks: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [], alertas: [],
+    feedbacks: [], avaliacoesSuperiores: [], chats: [], prisoes: [], recrutamentos: [], faltas: [], solicitacoesCarreira: [], alertas: [],
     roletaPremios: DEFAULT_ROLETA_PREMIOS,
     vipCombos: DEFAULT_VIP_COMBOS
   };
@@ -298,6 +298,7 @@ function sanitize(p) {
     provas:      Array.isArray(p.provas)     ? p.provas     : [],
     audit:       Array.isArray(p.audit)      ? p.audit      : [],
     feedbacks:   Array.isArray(p.feedbacks)  ? p.feedbacks  : [],
+    avaliacoesSuperiores: Array.isArray(p.avaliacoesSuperiores) ? p.avaliacoesSuperiores : [],
     chats:       Array.isArray(p.chats)      ? p.chats      : [],
     prisoes:     Array.isArray(p.prisoes)    ? p.prisoes    : [],
     recrutamentos: Array.isArray(p.recrutamentos) ? p.recrutamentos : [],
@@ -639,7 +640,7 @@ async function handleAPI(req, res) {
       saveDataSync();
       const payload = {
         ocs: DB.ocs, puns: DB.puns, pontos: DB.pontos, provas: DB.provas,
-        users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, chats: DB.chats,
+        users: DB.users.map(pub), audit: DB.audit, feedbacks: DB.feedbacks, avaliacoesSuperiores: DB.avaliacoesSuperiores, chats: DB.chats,
         prisoes: DB.prisoes, faltas: DB.faltas, solicitacoesCarreira: DB.solicitacoesCarreira,
         alertas: alertasAtivos(), roletaPremios: DB.roletaPremios, vipCombos: DB.vipCombos
       };
@@ -1641,6 +1642,68 @@ async function handleAPI(req, res) {
     });
     broadcast('PROVAS_UPDATED', DB.provas);
     return jsonRes(res, 200, { ok: true, prova });
+  }
+
+  // ═══ 🛡️ AVALIAÇÃO DE SUPERIORES ═══
+  if (method === 'GET' && url === '/api/avaliacoes-superiores') {
+    const queryUser = new URL(req.url, 'http://localhost').searchParams.get('user');
+    const executor = findUserByRef(queryUser);
+    if (!executor) return jsonRes(res, 403, { error: 'Usuário não encontrado.' });
+    const podeAnalisar = isMaster(executor) || (CARGO_PERM_SRV[executor.cargo] || 0) >= 7;
+    const avaliacoes = podeAnalisar
+      ? DB.avaliacoesSuperiores
+      : DB.avaliacoesSuperiores.filter(a => a.autorUser === executor.user);
+    return jsonRes(res, 200, { avaliacoes });
+  }
+  if (method === 'POST' && url === '/api/avaliacoes-superiores') {
+    const autor = findUserByRef(body.autorUser);
+    const alvo = DB.users.find(u => u.user === body.superiorUser && u.ativo !== false);
+    const tipos = ['Denúncia', 'Elogio'];
+    const motivos = ['Abuso de autoridade', 'Falta de respeito', 'Ameaça de rebaixamento/exoneração', 'Intimidação', 'Conduta inadequada', 'boa avaliação'];
+    const melhoriasValidas = ['Liderança', 'Respeito', 'Comunicação', 'Disciplina', 'Ética', 'Imparcialidade', 'Conhecimento das regras'];
+    const tipo = String(body.tipo || '');
+    const motivo = String(body.motivo || '');
+    const relato = String(body.relato || '').trim();
+    const sentimento = String(body.sentimento || '');
+    const estrelas = Number(body.estrelas);
+    const melhorias = Array.isArray(body.melhorias) ? [...new Set(body.melhorias.map(String))] : [];
+    if (!autor || !alvo) return jsonRes(res, 400, { error: 'Selecione um superior válido.' });
+    if (alvo.user === autor.user || (!isMaster(autor) && (CARGO_PERM_SRV[alvo.cargo] || 0) <= (CARGO_PERM_SRV[autor.cargo] || 0))) return jsonRes(res, 400, { error: 'A avaliação deve ser direcionada a um cargo superior.' });
+    if (!tipos.includes(tipo)) return jsonRes(res, 400, { error: 'Tipo de avaliação inválido.' });
+    if (!motivos.includes(motivo)) return jsonRes(res, 400, { error: 'Motivo inválido.' });
+    if (relato.length < 120 || relato.length > 400) return jsonRes(res, 400, { error: 'O relato deve ter entre 120 e 400 caracteres.' });
+    if (!['positiva', 'negativa'].includes(sentimento) || !Number.isInteger(estrelas) || estrelas < 1 || estrelas > 5) return jsonRes(res, 400, { error: 'Informe o tipo e a avaliação de 1 a 5 estrelas.' });
+    if (melhorias.length > 3 || melhorias.some(x => !melhoriasValidas.includes(x))) return jsonRes(res, 400, { error: 'Selecione no máximo 3 pontos de melhoria válidos.' });
+    const avaliacao = {
+      id: 'AS-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+      autorUser: autor.user, autorNome: autor.nome, autorCargo: autor.cargo,
+      superiorUser: alvo.user, superiorNome: alvo.nome, superiorCargo: alvo.cargo,
+      tipo, motivo, relato, sentimento, estrelas, melhorias,
+      status: 'pendente', respostaAdmin: '', criadoEm: Date.now(), analisadoEm: null, analisadoPor: null
+    };
+    DB.avaliacoesSuperiores.unshift(avaliacao);
+    DB.avaliacoesSuperiores = DB.avaliacoesSuperiores.slice(0, 500);
+    saveData();
+    audit(`<b>${autor.nome}</b> enviou uma avaliação de superior para <b>${alvo.nome}</b>`, '🛡️');
+    broadcast('AVALIACOES_SUPERIORES_UPDATED', { id: avaliacao.id });
+    return jsonRes(res, 200, { ok: true, avaliacao });
+  }
+  const mAvaliacaoSuperior = url.match(/^\/api\/avaliacoes-superiores\/([^/]+)\/decisao$/);
+  if (method === 'PUT' && mAvaliacaoSuperior) {
+    const executor = findUserByRef(body.feitorPor);
+    if (!executor || (!isMaster(executor) && (CARGO_PERM_SRV[executor.cargo] || 0) < 7)) return jsonRes(res, 403, { error: 'Somente a administração pode analisar avaliações.' });
+    const avaliacao = DB.avaliacoesSuperiores.find(a => a.id === mAvaliacaoSuperior[1]);
+    if (!avaliacao) return jsonRes(res, 404, { error: 'Avaliação não encontrada.' });
+    const status = ['analisada', 'arquivada'].includes(body.status) ? body.status : null;
+    if (!status) return jsonRes(res, 400, { error: 'Decisão inválida.' });
+    avaliacao.status = status;
+    avaliacao.respostaAdmin = String(body.resposta || '').trim().slice(0, 300);
+    avaliacao.analisadoEm = Date.now();
+    avaliacao.analisadoPor = executor.nome;
+    saveData();
+    audit(`<b>${executor.nome}</b> marcou uma avaliação de superior como <b>${status}</b>`, '🛡️');
+    broadcast('AVALIACOES_SUPERIORES_UPDATED', { id: avaliacao.id });
+    return jsonRes(res, 200, { ok: true, avaliacao });
   }
 
   if (method === 'GET' && url === '/api/feedbacks') return jsonRes(res, 200, DB.feedbacks);

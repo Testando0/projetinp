@@ -120,6 +120,10 @@ const API = {
   createProva:    (p)                 => API.request('POST', '/provas', p),
   decidirProva:   (id, decisao, feitorPor) => API.request('PUT', `/provas/${id}/decisao`, { decisao, feitorPor }),
 
+  getAvaliacoesSuperiores: (userLogin)      => API.request('GET',    `/avaliacoes-superiores?user=${encodeURIComponent(userLogin)}`),
+  criarAvaliacaoSuperior:  (data)           => API.request('POST',   '/avaliacoes-superiores', data),
+  decidirAvaliacaoSuperior:(id, status, resposta, feitorPor) => API.request('PUT', `/avaliacoes-superiores/${id}/decisao`, { status, resposta, feitorPor }),
+
   getFeedbacks:    ()                      => API.request('GET',    '/feedbacks'),
   createFeedback:  (data)                  => API.request('POST',   '/feedbacks', data),
   deleteFeedback:  (id, feitorPor)         => API.request('DELETE', `/feedbacks/${id}`, { feitorPor }),
