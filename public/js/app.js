@@ -1018,6 +1018,7 @@ function abrirPerfilPublico(userLogin){
 // ══ MEU PERFIL (FOTO + BANNER + RECAD0 + LED RGB + VERMELHO NO MODAL) ══
 function abrirModalPerfil(){
   if(!me)return;
+  openModal('m-perfil');
   const u=STATE.users.find(x=>x.user===me.user)||me;
   const isVip=vipAtivo();
   const av=document.getElementById('pf-avatar');
@@ -1080,20 +1081,17 @@ function abrirModalPerfil(){
   const recadoInput=document.getElementById('pf-recado');
   const saveBtn=document.getElementById('pf-save-btn');
   if(isVip){
-    vipBadge.style.display='inline-block';
-    recadoLock.style.display='none';
-    recadoInput.disabled=false;
-    recadoInput.value=u.recado||'';
-    saveBtn.style.display='inline-block';
+    if(vipBadge)vipBadge.style.display='inline-block';
+    if(recadoLock)recadoLock.style.display='none';
+    if(recadoInput){recadoInput.disabled=false;recadoInput.value=u.recado||'';}
+    if(saveBtn)saveBtn.style.display='inline-block';
   }else{
-    vipBadge.style.display='none';
-    recadoLock.style.display='block';
-    recadoInput.disabled=true;
-    recadoInput.value='';
-    saveBtn.style.display='none';
+    if(vipBadge)vipBadge.style.display='none';
+    if(recadoLock)recadoLock.style.display='block';
+    if(recadoInput){recadoInput.disabled=true;recadoInput.value='';}
+    if(saveBtn)saveBtn.style.display='none';
   }
   atualizarContadorRecado();
-  openModal('m-perfil');
 }
 
 async function baixarBackupAdmin(){
